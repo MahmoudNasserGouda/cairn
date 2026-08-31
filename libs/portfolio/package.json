@@ -1,0 +1,16 @@
+{
+  "name": "@osc/portfolio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "dependencies": {
+    "@osc/shared": "0.1.0",
+    "@osc/scoring": "0.1.0"
+  }
+}

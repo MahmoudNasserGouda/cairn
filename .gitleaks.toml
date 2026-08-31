@@ -1,0 +1,15 @@
+# gitleaks configuration for Open Source Compass.
+# The repo must contain zero secrets (SECURITY.md section 5, ADR-0021).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Non-secret fixtures and public identifiers"
+paths = [
+  '''libs/portfolio/src/__fixtures__/.*''',
+  '''libs/ai/src/__fixtures__/.*''',
+]
+regexes = [
+  # Example / placeholder public keys used in docs and tests, never real secrets.
+  '''PLACEHOLDER_[A-Z0-9_]+''',
+]

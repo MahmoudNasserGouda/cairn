@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist/libs",
+    "rootDir": "libs",
+    "types": ["node"],
+    "declarationMap": true
+  },
+  "include": ["libs/**/*.ts"],
+  "exclude": ["libs/**/*.test.ts", "libs/**/__fixtures__/**"]
+}

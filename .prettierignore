@@ -1,0 +1,6 @@
+dist
+**/dist
+coverage
+.angular
+package-lock.json
+*.md

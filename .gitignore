@@ -1,0 +1,13 @@
+node_modules/
+dist/
+**/dist/
+coverage/
+.angular/
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*
+!.env.example
+*.local
+sbom.json
+osv-results.json

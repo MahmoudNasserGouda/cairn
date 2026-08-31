@@ -1,0 +1,15 @@
+# Default owner for everything.
+*                       @OWNER
+
+# Security-critical surfaces require security review (SECURITY.md section 7).
+/SECURITY.md             @OWNER
+/docs/adr/               @OWNER
+/apps/web/public/_headers @OWNER
+/libs/shared/src/sanitizer.ts @OWNER
+/libs/shared/src/config.ts    @OWNER
+/libs/portfolio/src/license.ts @OWNER
+/libs/ai/                 @OWNER
+/scripts/check-csp.mjs    @OWNER
+/scripts/check-bundle-origins.mjs @OWNER
+/scripts/check-licenses.mjs @OWNER
+/.github/workflows/       @OWNER

@@ -1,0 +1,16 @@
+#!/bin/sh
+# Local backstop for the CI security gates (SECURITY.md section 7).
+set -e
+
+# Secret scan on staged changes if gitleaks is installed.
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact --config .gitleaks.toml
+else
+  echo "note: gitleaks not installed — CI will still scan. https://github.com/gitleaks/gitleaks"
+fi
+
+# Format + lint only what is staged.
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|js|mjs|json|css|html)$' || true)
+if [ -n "$STAGED" ]; then
+  npx prettier --check $STAGED
+fi

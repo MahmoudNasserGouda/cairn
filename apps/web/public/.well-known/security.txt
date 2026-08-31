@@ -1,0 +1,8 @@
+Contact: mailto:security@example.invalid
+Expires: 2027-01-01T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://opensourcecompass.example/.well-known/security.txt
+Policy: https://github.com/OWNER/open-source-compass/blob/main/SECURITY.md
+
+# Replace the placeholder domain and contact before the first public deploy.
+# Coordinated disclosure; target acknowledgement within 72 hours (SECURITY.md section 6).

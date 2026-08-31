@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": [],
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "exactOptionalPropertyTypes": true,
+    "forceConsistentCasingInFileNames": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@osc/shared": ["libs/shared/src/index.ts"],
+      "@osc/github": ["libs/github/src/index.ts"],
+      "@osc/profile": ["libs/profile/src/index.ts"],
+      "@osc/matching": ["libs/matching/src/index.ts"],
+      "@osc/scoring": ["libs/scoring/src/index.ts"],
+      "@osc/repository-analysis": ["libs/repository-analysis/src/index.ts"],
+      "@osc/issue-analysis": ["libs/issue-analysis/src/index.ts"],
+      "@osc/portfolio": ["libs/portfolio/src/index.ts"],
+      "@osc/ai": ["libs/ai/src/index.ts"]
+    }
+  }
+}
