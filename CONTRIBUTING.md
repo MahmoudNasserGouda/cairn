@@ -1,4 +1,4 @@
-# Contributing to Open Source Compass
+# Contributing to Cairn
 
 ## Setup
 
@@ -42,8 +42,8 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) §5 and [`PROJECT_GUIDE.md`](PROJECT_GU
 | `npm test` / `npm run test:watch` | Unit tests (Vitest) |
 | `npm run build` | libs + web + extension |
 | `npm run guard` | CSP + bundle-origin guards |
-| `npm run -w @osc/web start` | Dev server |
-| `npm run -w @osc/extension build:watch` | Rebuild the extension on change |
+| `npm run -w @cairn/web start` | Dev server |
+| `npm run -w @cairn/extension build:watch` | Rebuild the extension on change |
 
 ## Security
 

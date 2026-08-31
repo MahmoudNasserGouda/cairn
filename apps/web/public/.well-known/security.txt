@@ -1,8 +1,10 @@
-Contact: mailto:security@example.invalid
+Contact: https://github.com/MahmoudNasserGouda/cairn/security/advisories/new
+Contact: mailto:mahmoudnasser98@gmail.com
 Expires: 2027-01-01T00:00:00.000Z
-Preferred-Languages: en
-Canonical: https://opensourcecompass.example/.well-known/security.txt
-Policy: https://github.com/OWNER/open-source-compass/blob/main/SECURITY.md
+Preferred-Languages: en, ar
+Canonical: https://cairn-dev.pages.dev/.well-known/security.txt
+Policy: https://github.com/MahmoudNasserGouda/cairn/blob/main/SECURITY.md
 
-# Replace the placeholder domain and contact before the first public deploy.
+# Report privately via GitHub Security Advisories (preferred) or email.
 # Coordinated disclosure; target acknowledgement within 72 hours (SECURITY.md section 6).
+# Update Canonical / Expires when the production domain is finalised.

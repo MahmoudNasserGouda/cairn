@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Open Source Compass",
+  "name": "Cairn",
   "version": "0.1.0",
   "description": "Repository match, health, and beginner-friendliness — inline on GitHub.",
   "minimum_chrome_version": "116",
@@ -19,7 +19,7 @@
       "run_at": "document_idle"
     }
   ],
-  "action": { "default_title": "Open Source Compass" },
+  "action": { "default_title": "Cairn" },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'"
   }

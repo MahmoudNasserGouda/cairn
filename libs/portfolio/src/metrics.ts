@@ -1,5 +1,5 @@
-import { weightedScore, label, type ScoreBreakdown } from '@osc/scoring';
-import { clamp01, normalize } from '@osc/shared';
+import { weightedScore, label, type ScoreBreakdown } from '@cairn/scoring';
+import { clamp01, normalize } from '@cairn/shared';
 
 export interface Contribution {
   readonly repo: string;

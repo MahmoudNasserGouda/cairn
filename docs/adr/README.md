@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-This directory records the significant architectural decisions for **Open Source Compass**.
+This directory records the significant architectural decisions for **Cairn**.
 
 ## Format
 

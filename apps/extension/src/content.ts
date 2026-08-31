@@ -3,8 +3,8 @@
  * Asks the background worker for data, computes scores with the shared engines,
  * and injects a compact panel on a GitHub repo page.
  */
-import { healthScore } from '@osc/repository-analysis';
-import { stripToText } from '@osc/shared';
+import { healthScore } from '@cairn/repository-analysis';
+import { stripToText } from '@cairn/shared';
 
 declare const chrome: {
   runtime: { sendMessage(msg: unknown): Promise<unknown> };
@@ -57,8 +57,8 @@ function panel(id: string): HTMLElement {
 async function run(): Promise<void> {
   const id = repoFromPath();
   if (!id) return;
-  const host = panel('osc-panel');
-  host.textContent = 'Open Source Compass — analysing…';
+  const host = panel('cn-panel');
+  host.textContent = 'Cairn — analysing…';
 
   try {
     const repo = await ghGet<RepoLite>(`/repos/${id.owner}/${id.repo}`);
@@ -92,7 +92,7 @@ async function run(): Promise<void> {
       newcomer: health.newContributorSupport,
     });
   } catch (e) {
-    host.textContent = `Open Source Compass — ${e instanceof Error ? e.message : 'error'}`;
+    host.textContent = `Cairn — ${e instanceof Error ? e.message : 'error'}`;
   }
 }
 
@@ -112,7 +112,7 @@ function render(
 ): void {
   host.replaceChildren();
   const h = document.createElement('strong');
-  h.textContent = `Open Source Compass · Health ${data.health}`;
+  h.textContent = `Cairn · Health ${data.health}`;
   const p = document.createElement('p');
   p.style.margin = '6px 0 0';
   p.textContent = `Activity: ${data.activity} · Newcomer support: ${data.newcomer}`;

@@ -1,5 +1,5 @@
 {
-  "name": "@osc/extension",
+  "name": "@cairn/extension",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,11 +8,11 @@
     "build:watch": "node build.mjs --watch"
   },
   "dependencies": {
-    "@osc/github": "0.1.0",
-    "@osc/matching": "0.1.0",
-    "@osc/repository-analysis": "0.1.0",
-    "@osc/scoring": "0.1.0",
-    "@osc/shared": "0.1.0"
+    "@cairn/github": "0.1.0",
+    "@cairn/matching": "0.1.0",
+    "@cairn/repository-analysis": "0.1.0",
+    "@cairn/scoring": "0.1.0",
+    "@cairn/shared": "0.1.0"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"

@@ -3,7 +3,7 @@ import type {
   SkillProficiency,
   SkillTag,
   Difficulty,
-} from '@osc/shared';
+} from '@cairn/shared';
 
 export interface DeveloperSnapshot {
   readonly skills: readonly SkillProficiency[];
@@ -17,7 +17,7 @@ export interface RepositorySnapshot {
   readonly fullName: string;
   readonly technologies: readonly SkillTag[];
   readonly topics: readonly SkillTag[];
-  /** Health/activity in [0, 1] — usually supplied by @osc/repository-analysis. */
+  /** Health/activity in [0, 1] — usually supplied by @cairn/repository-analysis. */
   readonly activity: number;
   readonly health: number;
   readonly newcomerFriendliness: number;

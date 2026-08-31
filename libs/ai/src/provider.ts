@@ -1,6 +1,6 @@
 /**
  * BYOK AI provider abstraction (ADR-0009). Requests go directly from the browser to
- * the user's chosen provider — never through OSC infrastructure. Keys are supplied
+ * the user's chosen provider — never through Cairn infrastructure. Keys are supplied
  * per-call by apps/web from device-only storage (ADR-0010) and must never be logged.
  */
 export type ProviderId = 'openai' | 'gemini' | 'openrouter';

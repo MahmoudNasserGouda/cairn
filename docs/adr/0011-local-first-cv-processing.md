@@ -41,7 +41,7 @@ Safety limits (file size cap, worker timeout, no macro/embedded-object execution
 
 ## Alternatives considered
 
-- **Server-side parsing service.** Rejected: uploading CVs (PII) to an OSC server
+- **Server-side parsing service.** Rejected: uploading CVs (PII) to an Cairn server
   violates [ADR-0001](0001-local-first-zero-cost-architecture.md) and adds cost and
   liability.
 - **Mandatory AI extraction.** Rejected: the spec requires a working no-paid-AI path.

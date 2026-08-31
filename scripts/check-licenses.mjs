@@ -41,7 +41,12 @@ function walk(node) {
   for (const [name, dep] of Object.entries(node.dependencies ?? {})) {
     // Skip deps that aren't actually installed on this platform (optional native
     // binaries, unmet peers) — they carry no resolved license metadata.
-    if (!dep.version || dep.version === '?' || dep.missing || name.startsWith('@osc/')) {
+    if (
+      !dep.version ||
+      dep.version === '?' ||
+      dep.missing ||
+      name.startsWith('@cairn/')
+    ) {
       walk(dep);
       continue;
     }

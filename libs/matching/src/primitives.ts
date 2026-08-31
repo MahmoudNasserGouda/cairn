@@ -1,4 +1,4 @@
-import { EXPERIENCE_RANK, type ExperienceLevel, type SkillTag } from '@osc/shared';
+import { EXPERIENCE_RANK, type ExperienceLevel, type SkillTag } from '@cairn/shared';
 import type { DeveloperSnapshot } from './model';
 
 export function jaccard(a: readonly string[], b: readonly string[]): number {

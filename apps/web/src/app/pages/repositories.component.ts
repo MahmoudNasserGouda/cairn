@@ -5,8 +5,8 @@ import {
   fetchRepoOverview,
   collectHealthSignals,
   type RepoOverview,
-} from '@osc/github';
-import { healthScore, type HealthReport } from '@osc/repository-analysis';
+} from '@cairn/github';
+import { healthScore, type HealthReport } from '@cairn/repository-analysis';
 import { IndexedDbStore } from '../core/indexeddb-store';
 
 interface RepoResult {
@@ -15,7 +15,7 @@ interface RepoResult {
 }
 
 @Component({
-  selector: 'osc-repositories',
+  selector: 'cn-repositories',
   standalone: true,
   imports: [FormsModule],
   template: `

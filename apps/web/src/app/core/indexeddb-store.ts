@@ -1,11 +1,11 @@
 import { Injectable } from '@angular/core';
-import { type KeyValueStore, SCHEMA_VERSION } from '@osc/shared';
+import { type KeyValueStore, SCHEMA_VERSION } from '@cairn/shared';
 
 /**
  * IndexedDB-backed KeyValueStore (ADR-0003). One object store, string keys,
  * structured-clone values. Schema version bump triggers onupgradeneeded.
  */
-const DB_NAME = 'osc';
+const DB_NAME = 'cairn';
 const STORE = 'kv';
 
 @Injectable({ providedIn: 'root' })

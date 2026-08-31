@@ -1,5 +1,5 @@
-import { toSkillTag, CACHE_TTL_MS, type SkillTag } from '@osc/shared';
-import type { HealthSignals } from '@osc/repository-analysis';
+import { toSkillTag, CACHE_TTL_MS, type SkillTag } from '@cairn/shared';
+import type { HealthSignals } from '@cairn/repository-analysis';
 import type { GithubClient } from './client';
 
 export interface RepoIdentity {
@@ -49,7 +49,7 @@ export async function fetchRepoOverview(
 }
 
 /**
- * Assemble the windowed signals that @osc/repository-analysis needs. Kept here so
+ * Assemble the windowed signals that @cairn/repository-analysis needs. Kept here so
  * the analysis module stays pure and free of API concerns (ADR-0008).
  */
 export async function collectHealthSignals(

@@ -1,4 +1,4 @@
-import { toSkillTag, type SkillTag } from '@osc/shared';
+import { toSkillTag, type SkillTag } from '@cairn/shared';
 
 /**
  * Versioned skills taxonomy. Shared by the CV parser, GitHub analysis, and the

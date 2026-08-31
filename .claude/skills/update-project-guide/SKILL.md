@@ -1,8 +1,8 @@
 ---
 name: update-project-guide
 description: >-
-  Update PROJECT_GUIDE.md after finishing a phase or a meaningful step of Open Source
-  Compass. Use when the user says "update the project guide", "finished a phase",
+  Update PROJECT_GUIDE.md after finishing a phase or a meaningful step of Cairn.
+  Use when the user says "update the project guide", "finished a phase",
   "end of step", "we're done with phase N", or after a batch of work that changes the
   repo map, tooling, conventions, or status. Refreshes the volatile sections, appends a
   dated changelog entry, and flags any drift from the ADRs or SECURITY.md
@@ -11,8 +11,8 @@ description: >-
 
 # Update the project guide
 
-`PROJECT_GUIDE.md` (repo root) is the living orientation document for Open Source
-Compass — see [ADR-0023](../../../docs/adr/0023-living-project-guide-via-skill.md). It is
+`PROJECT_GUIDE.md` (repo root) is the living orientation document for Cairn — see
+[ADR-0023](../../../docs/adr/0023-living-project-guide-via-skill.md). It is
 a **snapshot with a changelog**, not a real-time view. The authoritative record of
 decisions is always `docs/adr/`.
 

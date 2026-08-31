@@ -1,4 +1,4 @@
-# gitleaks configuration for Open Source Compass.
+# gitleaks configuration for Cairn.
 # The repo must contain zero secrets (SECURITY.md section 5, ADR-0021).
 [extend]
 useDefault = true

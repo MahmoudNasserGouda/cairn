@@ -64,7 +64,12 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['@osc/web', '@osc/web/*', '@osc/extension', '@osc/extension/*'],
+              group: [
+                '@cairn/web',
+                '@cairn/web/*',
+                '@cairn/extension',
+                '@cairn/extension/*',
+              ],
               message: 'libs/* must not import apps/* (ADR-0005 dependency rule).',
             },
             {

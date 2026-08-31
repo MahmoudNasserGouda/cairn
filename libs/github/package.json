@@ -1,5 +1,5 @@
 {
-  "name": "@osc/github",
+  "name": "@cairn/github",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
   },
   "sideEffects": false,
   "dependencies": {
-    "@osc/shared": "0.1.0",
-    "@osc/repository-analysis": "0.1.0"
+    "@cairn/shared": "0.1.0",
+    "@cairn/repository-analysis": "0.1.0"
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "open-source-compass",
+  "name": "cairn",
   "version": "0.1.0",
   "private": true,
   "description": "Local-first, zero-cost, security-first tool for discovering and contributing to open source.",
@@ -21,8 +21,8 @@
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "build:libs": "tsc -p tsconfig.build.json",
-    "build:web": "npm run build --workspace @osc/web",
-    "build:extension": "npm run build --workspace @osc/extension",
+    "build:web": "npm run build --workspace @cairn/web",
+    "build:extension": "npm run build --workspace @cairn/extension",
     "build": "npm run build:libs && npm run build:web && npm run build:extension",
     "guard:csp": "node scripts/check-csp.mjs",
     "guard:bundle-origins": "node scripts/check-bundle-origins.mjs",

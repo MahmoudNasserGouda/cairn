@@ -1,4 +1,4 @@
-import { clamp01, roundTo } from '@osc/shared';
+import { clamp01, roundTo } from '@cairn/shared';
 import { WEIGHTS_VERSION, type WeightMap } from './weights';
 
 export interface ScorePart {

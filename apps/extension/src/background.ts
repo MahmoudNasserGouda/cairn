@@ -2,8 +2,8 @@
  * Background service worker (ADR-0014). Mediates GitHub API calls so the content
  * script never holds a token, and owns the local cache. MV3, module worker.
  */
-import { GithubClient } from '@osc/github';
-import type { KeyValueStore } from '@osc/shared';
+import { GithubClient } from '@cairn/github';
+import type { KeyValueStore } from '@cairn/shared';
 
 declare const chrome: {
   storage: {

@@ -1,4 +1,4 @@
-# Open Source Compass — Project Guide
+# Cairn — Project Guide
 
 The living orientation document for this repo: **where things are and how we work.**
 This is a snapshot with a changelog, not a real-time view. The authoritative record of
@@ -9,10 +9,11 @@ or meaningful step.
 
 ## Product in one line
 
-Open Source Compass helps students, junior devs, and developers in emerging markets
-discover open-source projects, understand codebases, contribute, and turn contributions
-into career opportunities. Full context: [`ARCHITECTURE.md`](ARCHITECTURE.md) §1;
-positioning and roadmap: the product spec and [`ARCHITECTURE.md`](ARCHITECTURE.md) §15.
+Cairn helps students, junior devs, and developers in emerging markets discover
+open-source projects, understand codebases, contribute, and turn contributions into a
+career. (Renamed from "Open Source Compass" 2026-08-31 — the compass was only the
+discovery slice; internal npm scope is `@cairn/*`, component prefix `cn-`.) Full
+context: [`ARCHITECTURE.md`](ARCHITECTURE.md) §1; roadmap: [§15](ARCHITECTURE.md#15-roadmap--architecture-mapping).
 
 ## Current status
 
@@ -69,6 +70,7 @@ libs/portfolio/            metrics, static HTML/MD generator, Ed25519 license ve
 libs/ai/                   IAIProvider (OpenAI/Gemini/OpenRouter), fenced prompts, disclosure, fallbacks
 api/optional-serverless/   stateless functions                         [future — ADR-0016]
 scripts/                   check-csp, check-bundle-origins, check-licenses, setup-hooks
+brand/                     logo.svg / logo-dark.svg / mark.svg + brand/README.md
 docs/adr/                  23 ADRs · docs/ci-cd.md · docs/branch-protection.md
 ```
 
@@ -97,10 +99,10 @@ Full list: [`SECURITY.md`](SECURITY.md) §8. Enforced by CI (`check-csp.mjs`,
 1. No `unsafe-inline` / `unsafe-eval` in **script** CSP directives. `style-src
    'unsafe-inline'` is a ratified exception for Angular component styles (2026-08-31)
    and permitted nowhere else. No `bypassSecurityTrust*` without a reviewed, marked
-   (`osc-security-reviewed`) exception — one ratified: `SafeHtmlService.trust()`,
+   (`cairn-security-reviewed`) exception — one ratified: `SafeHtmlService.trust()`,
    post-DOMPurify + post-Angular-sanitizer only.
 2. All external content (GitHub, AI, CV, user free-text) is sanitised before rendering.
-3. OAuth tokens and BYOK keys: never logged, never sent to OSC, never in URLs.
+3. OAuth tokens and BYOK keys: never logged, never sent to Cairn, never in URLs.
 4. No secret is committed to the repo.
 5. OAuth is Authorization Code + PKCE with an exact redirect-URI allowlist.
 6. New runtime dependencies and new outbound origins need explicit review; origins go in
@@ -115,8 +117,8 @@ npm run verify        # format + lint + typecheck + test(+coverage) + CSP guard
 npm test              # Vitest only            npm run test:watch
 npm run build         # libs (tsc) + web (ng) + extension (esbuild)
 npm run guard         # check-csp + check-bundle-origins
-npm run -w @osc/web start                 # Angular dev server
-npm run -w @osc/extension build:watch     # rebuild extension on change
+npm run -w @cairn/web start                 # Angular dev server
+npm run -w @cairn/extension build:watch     # rebuild extension on change
 ```
 
 Deploy is **CI-only** (`.github/workflows/deploy.yml`, on push to `main`):
@@ -143,6 +145,25 @@ store gate). Details: [`docs/ci-cd.md`](docs/ci-cd.md).
 
 ## Changelog
 
+### 2026-08-31 — Rename to Cairn + publish prep
+
+- Renamed the product **Open Source Compass → Cairn** ("compass" described only
+  discovery; the product spans profile → discovery → understanding → portfolio →
+  career). Mechanical sweep across all tracked files: npm scope `@osc/* → @cairn/*`,
+  root package `cairn`, Angular selector prefix `osc- → cn-`, marker
+  `osc-security-reviewed → cairn-security-reviewed`, IndexedDB name `cairn`.
+  `npm audit` clean; `verify` + `build` + guards green after relink.
+- Added `brand/` assets (cairn = stacked trail stones) + `favicon.svg` wired into the
+  web app; header shows the mark.
+- Hardened `.gitignore` (env / keys / certs / `*.pem` / license-signing key / CI creds /
+  editor files / caches). Confirmed no secrets and no build output are tracked.
+- Filled placeholders: `@OWNER → @MahmoudNasserGouda`; `security.txt` + `SECURITY.md`
+  §6 now point at GitHub private advisories + `mahmoudnasser98@gmail.com`. Deploy
+  target `cairn-dev.pages.dev` (placeholder, update when the domain is chosen).
+- Rewrote `README.md` for a public audience. Added `.claude/launch.json`.
+- Guide updated: header, Product one-liner, Repo map, this changelog.
+- Drift: none.
+
 ### 2026-08-31 — Phase 1: monorepo + CI/CD scaffold
 
 - Built the full workspace: 9 `libs/*` with real implementations and 68 passing Vitest
@@ -166,7 +187,7 @@ store gate). Details: [`docs/ci-cd.md`](docs/ci-cd.md).
      permits `unsafe-inline` only in `style-src`. Wording updated in
      [ADR-0019](docs/adr/0019-security-first-rendering.md) and `SECURITY.md` §8.
   2. `SafeHtmlService.trust()`'s `bypassSecurityTrustHtml` (post-DOMPurify +
-     post-Angular-sanitizer), marked `osc-security-reviewed` — recorded as the one
+     post-Angular-sanitizer), marked `cairn-security-reviewed` — recorded as the one
      ratified exception in ADR-0019 and `SECURITY.md` §8.
 
 ### 2026-08-31 — CSP + sanitizer exceptions ratified

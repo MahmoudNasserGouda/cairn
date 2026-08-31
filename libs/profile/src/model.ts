@@ -1,4 +1,4 @@
-import type { ExperienceLevel, SkillProficiency, SkillTag } from '@osc/shared';
+import type { ExperienceLevel, SkillProficiency, SkillTag } from '@cairn/shared';
 
 export type IdentityProvider = 'github' | 'linkedin' | 'google';
 

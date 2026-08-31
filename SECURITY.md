@@ -1,6 +1,6 @@
-# Security Architecture & Threat Model — Open Source Compass
+# Security Architecture & Threat Model — Cairn
 
-Security is the **#1 requirement** for Open Source Compass. This document defines the
+Security is the **#1 requirement** for Cairn. This document defines the
 trust model, the assets we protect, the threats we design against, and the controls that
 mitigate them. It complements the security ADRs:
 [0019 rendering/CSP](docs/adr/0019-security-first-rendering.md),
@@ -9,7 +9,7 @@ mitigate them. It complements the security ADRs:
 
 ## 1. Trust model
 
-Open Source Compass is a browser client with (initially) no backend
+Cairn is a browser client with (initially) no backend
 ([ADR-0001](docs/adr/0001-local-first-zero-cost-architecture.md),
 [ADR-0002](docs/adr/0002-no-mandatory-application-backend.md)). The **trusted core** is
 our own audited application code running on our own origin. **Everything else is
@@ -110,8 +110,11 @@ Scopes are minimised at the source: GitHub `public_repo`/`read:user` only, Linke
 
 ## 6. Vulnerability disclosure
 
-- A `SECURITY.md`-referenced contact and a `/.well-known/security.txt` on the production
-  site (to be added when the domain is live).
+- **Report privately** via [GitHub Security Advisories](https://github.com/MahmoudNasserGouda/cairn/security/advisories/new)
+  (preferred) or email `mahmoudnasser98@gmail.com`. Do **not** open a public issue for a
+  vulnerability.
+- Machine-readable contact: [`/.well-known/security.txt`](apps/web/public/.well-known/security.txt),
+  served from the deployed site.
 - Target acknowledgement window: 72 hours. Coordinated disclosure; credit given unless
   the reporter declines.
 - No bug-bounty payout at MVP; this will be revisited if/when a backend exists.
@@ -133,11 +136,11 @@ Scopes are minimised at the source: GitHub `public_repo`/`read:user` only, Linke
    exception for Angular component styles on a nonce-less static host (ratified
    2026-08-31, [ADR-0019](docs/adr/0019-security-first-rendering.md)); it is not
    permitted in any other directive. No `bypassSecurityTrust*` without a reviewed
-   exception marked `osc-security-reviewed` in the source — currently one:
+   exception marked `cairn-security-reviewed` in the source — currently one:
    `SafeHtmlService.trust()`, applied only to output already run through DOMPurify
    and the Angular sanitizer.
 2. All external content (GitHub, AI, CV, user free-text) is sanitised before rendering.
-3. OAuth tokens and BYOK keys are never logged, never sent to OSC infrastructure, never
+3. OAuth tokens and BYOK keys are never logged, never sent to Cairn infrastructure, never
    placed in URLs or query strings.
 4. No secret is committed to the repository.
 5. OAuth is Authorization Code + PKCE with an exact redirect-URI allowlist.

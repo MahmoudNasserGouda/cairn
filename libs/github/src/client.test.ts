@@ -1,5 +1,5 @@
 import { GithubClient, RateLimitError } from './client';
-import { MemoryStore } from '@osc/shared';
+import { MemoryStore } from '@cairn/shared';
 
 function response(
   body: unknown,

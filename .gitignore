@@ -1,13 +1,58 @@
+# --- Dependencies & build output ---
 node_modules/
 dist/
+build/
+out-tsc/
 **/dist/
 coverage/
 .angular/
 *.tsbuildinfo
-.DS_Store
+extension.zip
+
+# --- Environment & secrets (never commit) ---
 .env
 .env.*
 !.env.example
 *.local
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.crt
+id_rsa*
+id_ed25519*
+credentials.json
+gha-creds-*.json
+service-account*.json
+# Premium license-signing key (ADR-0018) — issuer environment only, never here
+license-signing*.key
+*.private.pem
+wrangler.toml.local
+.dev.vars
+
+# --- Generated reports ---
 sbom.json
 osv-results.json
+*.sarif
+gitleaks-report.json
+
+# --- Editor & OS ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*~
+
+# --- Caches ---
+.eslintcache
+.cache/
+.wrangler/
+.nx/
+
+# --- Local tool config ---
+.claude/settings.local.json
+.claude/*.local.json

@@ -1,8 +1,8 @@
-import type { SkillTag } from '@osc/shared';
+import type { SkillTag } from '@cairn/shared';
 
 /**
  * Architecture model (Phase 3 "Architecture Explorer"). Populated deterministically
- * from the file tree + manifests; an optional BYOK AI pass (@osc/ai) can enrich the
+ * from the file tree + manifests; an optional BYOK AI pass (@cairn/ai) can enrich the
  * summaries but is never required (ADR-0009).
  */
 export interface FolderNode {

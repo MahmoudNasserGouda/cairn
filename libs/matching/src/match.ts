@@ -7,8 +7,8 @@ import {
   repositoryWeightsFor,
   type WeightMap,
   type WeightPreset,
-} from '@osc/scoring';
-import { DIFFICULTY_RANK, EXPERIENCE_RANK, type SkillTag } from '@osc/shared';
+} from '@cairn/scoring';
+import { DIFFICULTY_RANK, EXPERIENCE_RANK, type SkillTag } from '@cairn/shared';
 import type { DeveloperSnapshot, RepositorySnapshot, IssueSnapshot } from './model';
 import {
   experienceFit,

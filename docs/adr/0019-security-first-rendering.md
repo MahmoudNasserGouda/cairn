@@ -36,14 +36,14 @@ BYOK AI keys. XSS is the highest-impact threat.
   no `javascript:` URLs, `rel="noopener noreferrer"` forced on links,
   `target` constrained). Raw HTML in Markdown is stripped, not passed through.
 - **Angular defaults kept:** no `bypassSecurityTrust*` without a documented, reviewed
-  justification marked `osc-security-reviewed` in the source; `innerHTML` only via the
+  justification marked `cairn-security-reviewed` in the source; `innerHTML` only via the
   sanitised pipeline. One such exception is ratified (2026-08-31):
   `SafeHtmlService.trust()` wraps `bypassSecurityTrustHtml` around a string that has
   already passed DOMPurify (strict allowlist) **and** the Angular sanitizer, so the
   bypass re-labels known-clean HTML rather than trusting raw input. Any further
   exception needs the same review.
 - **AI output is untrusted** and goes through the same sanitiser; it is also visually
-  attributed so users do not mistake it for OSC content.
+  attributed so users do not mistake it for Cairn content.
 - **Prompt-injection awareness:** repository text included in AI prompts is fenced and
   labelled as untrusted data in the system prompt; the user disclosure panel
   ([ADR-0010](0010-ai-key-privacy-and-data-disclosure.md)) shows exactly what is sent.

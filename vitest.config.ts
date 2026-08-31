@@ -6,15 +6,15 @@ const r = (p: string): string => fileURLToPath(new URL(p, import.meta.url));
 export default defineConfig({
   resolve: {
     alias: {
-      '@osc/shared': r('./libs/shared/src/index.ts'),
-      '@osc/github': r('./libs/github/src/index.ts'),
-      '@osc/profile': r('./libs/profile/src/index.ts'),
-      '@osc/matching': r('./libs/matching/src/index.ts'),
-      '@osc/scoring': r('./libs/scoring/src/index.ts'),
-      '@osc/repository-analysis': r('./libs/repository-analysis/src/index.ts'),
-      '@osc/issue-analysis': r('./libs/issue-analysis/src/index.ts'),
-      '@osc/portfolio': r('./libs/portfolio/src/index.ts'),
-      '@osc/ai': r('./libs/ai/src/index.ts'),
+      '@cairn/shared': r('./libs/shared/src/index.ts'),
+      '@cairn/github': r('./libs/github/src/index.ts'),
+      '@cairn/profile': r('./libs/profile/src/index.ts'),
+      '@cairn/matching': r('./libs/matching/src/index.ts'),
+      '@cairn/scoring': r('./libs/scoring/src/index.ts'),
+      '@cairn/repository-analysis': r('./libs/repository-analysis/src/index.ts'),
+      '@cairn/issue-analysis': r('./libs/issue-analysis/src/index.ts'),
+      '@cairn/portfolio': r('./libs/portfolio/src/index.ts'),
+      '@cairn/ai': r('./libs/ai/src/index.ts'),
     },
   },
   test: {

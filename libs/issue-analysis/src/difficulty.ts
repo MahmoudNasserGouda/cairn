@@ -1,4 +1,4 @@
-import { clamp01, toSkillTag, type Difficulty, type SkillTag } from '@osc/shared';
+import { clamp01, toSkillTag, type Difficulty, type SkillTag } from '@cairn/shared';
 
 export interface IssueInput {
   readonly title: string;

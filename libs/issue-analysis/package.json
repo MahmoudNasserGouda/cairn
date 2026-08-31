@@ -1,5 +1,5 @@
 {
-  "name": "@osc/issue-analysis",
+  "name": "@cairn/issue-analysis",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,6 +10,6 @@
   },
   "sideEffects": false,
   "dependencies": {
-    "@osc/shared": "0.1.0"
+    "@cairn/shared": "0.1.0"
   }
 }

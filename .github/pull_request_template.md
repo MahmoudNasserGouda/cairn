@@ -9,7 +9,7 @@
 - [ ] No new runtime dependency **or** it is justified below and reviewed
 - [ ] No new outbound origin **or** it is added to `ALLOWED_CONNECT_ORIGINS` + `_headers` and reviewed
 - [ ] Scoring/weights changes bump `WEIGHTS_VERSION` and update snapshots deliberately
-- [ ] Touches security surface? (CSP, sanitiser, auth, license) — flagged for @OWNER review
+- [ ] Touches security surface? (CSP, sanitiser, auth, license) — flagged for @MahmoudNasserGouda review
 
 ## Security notes
 

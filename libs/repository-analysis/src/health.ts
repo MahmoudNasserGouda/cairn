@@ -1,8 +1,13 @@
-import { clamp01, normalize, roundTo } from '@osc/shared';
-import { weightedScore, HEALTH_WEIGHTS, label, type ScoreBreakdown } from '@osc/scoring';
+import { clamp01, normalize, roundTo } from '@cairn/shared';
+import {
+  weightedScore,
+  HEALTH_WEIGHTS,
+  label,
+  type ScoreBreakdown,
+} from '@cairn/scoring';
 
 /**
- * Raw, already-windowed signals about a repository. The caller (@osc/github) is
+ * Raw, already-windowed signals about a repository. The caller (@cairn/github) is
  * responsible for turning API responses into these numbers so that this module
  * stays pure and clock-free (ADR-0008).
  */

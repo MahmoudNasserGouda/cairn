@@ -1,7 +1,7 @@
 import { Injectable, SecurityContext, inject } from '@angular/core';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import DOMPurify from 'dompurify';
-import { ALLOWED_TAGS, ALLOWED_ATTR, type HtmlSanitizer } from '@osc/shared';
+import { ALLOWED_TAGS, ALLOWED_ATTR, type HtmlSanitizer } from '@cairn/shared';
 
 /**
  * The single sanitisation pipeline for rendered untrusted content (ADR-0019).
@@ -33,6 +33,6 @@ export class SafeHtmlService implements HtmlSanitizer {
 
   /** For binding into [innerHTML] after sanitisation. */
   trust(dirtyHtml: string): SafeHtml {
-    return this.ngSanitizer.bypassSecurityTrustHtml(this.sanitize(dirtyHtml)); // osc-security-reviewed: input is DOMPurify+Angular sanitised above
+    return this.ngSanitizer.bypassSecurityTrustHtml(this.sanitize(dirtyHtml)); // cairn-security-reviewed: input is DOMPurify+Angular sanitised above
   }
 }

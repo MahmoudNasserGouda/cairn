@@ -1,15 +1,15 @@
 # Default owner for everything.
-*                       @OWNER
+*                       @MahmoudNasserGouda
 
 # Security-critical surfaces require security review (SECURITY.md section 7).
-/SECURITY.md             @OWNER
-/docs/adr/               @OWNER
-/apps/web/public/_headers @OWNER
-/libs/shared/src/sanitizer.ts @OWNER
-/libs/shared/src/config.ts    @OWNER
-/libs/portfolio/src/license.ts @OWNER
-/libs/ai/                 @OWNER
-/scripts/check-csp.mjs    @OWNER
-/scripts/check-bundle-origins.mjs @OWNER
-/scripts/check-licenses.mjs @OWNER
-/.github/workflows/       @OWNER
+/SECURITY.md             @MahmoudNasserGouda
+/docs/adr/               @MahmoudNasserGouda
+/apps/web/public/_headers @MahmoudNasserGouda
+/libs/shared/src/sanitizer.ts @MahmoudNasserGouda
+/libs/shared/src/config.ts    @MahmoudNasserGouda
+/libs/portfolio/src/license.ts @MahmoudNasserGouda
+/libs/ai/                 @MahmoudNasserGouda
+/scripts/check-csp.mjs    @MahmoudNasserGouda
+/scripts/check-bundle-origins.mjs @MahmoudNasserGouda
+/scripts/check-licenses.mjs @MahmoudNasserGouda
+/.github/workflows/       @MahmoudNasserGouda

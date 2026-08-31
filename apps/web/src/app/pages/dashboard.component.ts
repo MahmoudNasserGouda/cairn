@@ -6,8 +6,8 @@ import {
   type DeveloperSnapshot,
   type RepositorySnapshot,
   type IssueSnapshot,
-} from '@osc/matching';
-import { explain } from '@osc/scoring';
+} from '@cairn/matching';
+import { explain } from '@cairn/scoring';
 
 /** Demo profile until Phase 1 identity + CV flows are wired up. */
 const DEMO_DEV: DeveloperSnapshot = {
@@ -42,7 +42,7 @@ const DEMO_ISSUE: IssueSnapshot = {
 };
 
 @Component({
-  selector: 'osc-dashboard',
+  selector: 'cn-dashboard',
   standalone: true,
   template: `
     <h1>Welcome back</h1>

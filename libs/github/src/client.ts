@@ -1,9 +1,9 @@
-import { type KeyValueStore, MemoryStore, logger } from '@osc/shared';
+import { type KeyValueStore, MemoryStore, logger } from '@cairn/shared';
 
 /**
  * Direct-from-browser GitHub client (ADR-0006). Responsibilities baked in here:
  * response caching with ETag revalidation, in-flight request deduplication,
- * and rate-limit awareness. No OSC proxy — requests go straight to api.github.com
+ * and rate-limit awareness. No Cairn proxy — requests go straight to api.github.com
  * with the user's own token.
  */
 export interface RateLimit {

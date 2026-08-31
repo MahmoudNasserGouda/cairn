@@ -1,4 +1,4 @@
-import { stripToText, type SkillProficiency, type SkillTag } from '@osc/shared';
+import { stripToText, type SkillProficiency, type SkillTag } from '@cairn/shared';
 import { extractSkills } from './taxonomy';
 import type { ExperienceEntry, UnifiedProfile } from './model';
 import { mergeProfile, emptyProfile } from './model';

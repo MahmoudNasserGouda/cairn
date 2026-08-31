@@ -103,7 +103,7 @@ const BANNED = [
   },
   { re: /\bnew Function\s*\(/, msg: 'new Function() is eval-equivalent' },
 ];
-const ALLOW_MARK = 'osc-security-reviewed';
+const ALLOW_MARK = 'cairn-security-reviewed';
 
 for (const file of SRC_ROOTS.flatMap(walk)) {
   if (file.endsWith('.test.ts') || file.includes('check-csp')) continue;

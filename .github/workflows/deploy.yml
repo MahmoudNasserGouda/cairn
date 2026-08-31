@@ -41,7 +41,7 @@ jobs:
     needs: build
     environment:
       name: production
-      url: https://opensourcecompass.pages.dev
+      url: https://cairn-dev.pages.dev
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -52,7 +52,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_PAGES_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=opensourcecompass
+          command: pages deploy dist --project-name=cairn
 
   deploy-pages:
     name: GitHub Pages (mirror)

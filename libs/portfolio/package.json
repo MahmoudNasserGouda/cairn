@@ -1,5 +1,5 @@
 {
-  "name": "@osc/portfolio",
+  "name": "@cairn/portfolio",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
   },
   "sideEffects": false,
   "dependencies": {
-    "@osc/shared": "0.1.0",
-    "@osc/scoring": "0.1.0"
+    "@cairn/shared": "0.1.0",
+    "@cairn/scoring": "0.1.0"
   }
 }

@@ -19,15 +19,15 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
-      "@osc/shared": ["libs/shared/src/index.ts"],
-      "@osc/github": ["libs/github/src/index.ts"],
-      "@osc/profile": ["libs/profile/src/index.ts"],
-      "@osc/matching": ["libs/matching/src/index.ts"],
-      "@osc/scoring": ["libs/scoring/src/index.ts"],
-      "@osc/repository-analysis": ["libs/repository-analysis/src/index.ts"],
-      "@osc/issue-analysis": ["libs/issue-analysis/src/index.ts"],
-      "@osc/portfolio": ["libs/portfolio/src/index.ts"],
-      "@osc/ai": ["libs/ai/src/index.ts"]
+      "@cairn/shared": ["libs/shared/src/index.ts"],
+      "@cairn/github": ["libs/github/src/index.ts"],
+      "@cairn/profile": ["libs/profile/src/index.ts"],
+      "@cairn/matching": ["libs/matching/src/index.ts"],
+      "@cairn/scoring": ["libs/scoring/src/index.ts"],
+      "@cairn/repository-analysis": ["libs/repository-analysis/src/index.ts"],
+      "@cairn/issue-analysis": ["libs/issue-analysis/src/index.ts"],
+      "@cairn/portfolio": ["libs/portfolio/src/index.ts"],
+      "@cairn/ai": ["libs/ai/src/index.ts"]
     }
   }
 }

@@ -7,8 +7,8 @@
 ## Context
 
 The spec envisions a future desktop client for deep analysis of locally cloned
-repositories: local repo → OSC Desktop → repository analyzer → local AI or BYOK AI →
-architecture / contribution guidance, with potential Ollama integration and no OSC AI
+repositories: local repo → Cairn Desktop → repository analyzer → local AI or BYOK AI →
+architecture / contribution guidance, with potential Ollama integration and no Cairn AI
 inference cost.
 
 ## Decision (proposed)
