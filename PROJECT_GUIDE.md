@@ -17,7 +17,7 @@ context: [`ARCHITECTURE.md`](ARCHITECTURE.md) §1; roadmap: [§15](ARCHITECTURE.
 
 ## Current status
 
-**Phase 1 — Foundation. Monorepo + CI/CD scaffold is in place and green.**
+**Phase 1 — Foundation. Monorepo + CI/CD live; the web app is deployed on two hosts.**
 
 Done:
 
@@ -40,6 +40,16 @@ Done:
   GitHub Pages + extension artifact behind a manual gate). Custom guards:
   `check-csp.mjs`, `check-bundle-origins.mjs`, `check-licenses.mjs`.
 - `npm run verify` passes; `npm audit` clean (0 vulnerabilities).
+- **Repo is on GitHub** (`MahmoudNasserGouda/cairn`, default `main`). Branch protection
+  active — currently **solo mode**: required checks (`CI passed`, CodeQL `Analyze`) +
+  linear history + no force-push, but **0 required approvals** and an admin bypass so
+  the sole maintainer can merge (see drift note, 2026-09-02 changelog).
+- **Web app is live** on both hosts:
+  - Cloudflare Workers (primary) — `https://cairn.mahmoudnasser98.workers.dev/`
+  - GitHub Pages (mirror) — `https://mahmoudnassergouda.github.io/cairn/`
+    (served under `/cairn/`; `deploy.yml` rewrites `<base href>` for this copy).
+  `production` / `github-pages` / `extension-store` environments exist;
+  `extension-store` secrets deferred until store submission.
 
 Next:
 
@@ -47,8 +57,6 @@ Next:
    ([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)).
 2. Wire the CV upload flow: sandboxed Web Worker text extraction → `parseCvText`.
 3. Readiness dashboard on the real profile (replace `DEMO_*` fixtures).
-4. Push to GitHub, apply [`docs/branch-protection.md`](docs/branch-protection.md),
-   create the `production` / `github-pages` / `extension-store` environments, run CI.
 
 ## Repo map
 
@@ -146,6 +154,39 @@ Cloudflare Workers static assets (primary, `apps/web/wrangler.toml`) + GitHub Pa
     (`helpers:pinGitHubActionDigests`) converts them on its first PR.
 
 ## Changelog
+
+### 2026-09-02 — Live on GitHub + two-host deploy
+
+- **Pushed to GitHub** (`MahmoudNasserGouda/cairn`). Enabled Dependabot alerts, secret
+  scanning + push protection, and private vulnerability reporting. Branch protection
+  applied to `main` (required checks, linear history, no force-push/deletion).
+- **Web deploy moved Cloudflare Pages → Cloudflare Workers static assets** (PR #1):
+  `apps/web/wrangler.toml` (assets-only, `dist/browser`, SPA fallback); `deploy.yml`
+  `deploy-cloudflare` job now runs `wrangler deploy`. Free `*.workers.dev` subdomain,
+  no paid custom domain. Canonical URL updated in `security.txt`. **ADR-0004 amended.**
+- **Fixed the GitHub Pages mirror** (PR #5): it 404'd because it published the artifact
+  root (no `index.html`) instead of `dist/browser/`, and shipped `<base href="/">`
+  while Pages serves under `/cairn/`. `deploy.yml` now publishes `dist/browser` and
+  rewrites the base href for the Pages copy only. Both hosts now serve the app.
+- **CI fix** (PR #1): `gitleaks-action@v2` now requires `GITHUB_TOKEN`; added it to the
+  `secret-scan` job.
+- Sections updated: Status (phase line + Done/Next), this changelog. Deploy details in
+  "How to run / build / test / deploy" were updated with the Workers switch.
+- **Extension distribution decided:** Chrome Web Store + Firefox AMO, both deferred
+  (not self-hosting). No code/CI change yet.
+- **⚠ DRIFT (2 items, need an owner decision):**
+  1. **Branch protection is looser than [`docs/branch-protection.md`](docs/branch-protection.md).**
+     That doc mandates *1 approval* and *do not allow bypassing (admins included)*. The
+     live `main` ruleset has **0 required approvals** and an **admin bypass** so the
+     solo maintainer can merge. Reasonable while solo, but the doc and the config
+     disagree. Fix: add a "solo mode vs team mode" section to the doc, or restore the
+     stricter rule once a second maintainer joins.
+  2. **No CSP / security headers on the GitHub Pages mirror.** GitHub Pages ignores the
+     `_headers` file, so the mirror serves with none of the CSP or security headers
+     that Cloudflare applies ([SECURITY.md](SECURITY.md) §8.1–8.2 are met on the
+     primary only). Options: accept the mirror as best-effort and document it, inject
+     a `<meta http-equiv="Content-Security-Policy">` fallback into the Pages
+     `index.html` during deploy, or drop the mirror.
 
 ### 2026-08-31 — Rename to Cairn + publish prep
 
