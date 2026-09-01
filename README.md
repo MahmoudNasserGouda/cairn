@@ -118,7 +118,7 @@ framework-free (except `libs/shared`, which is browser-only). Enforced by ESLint
 ## Tech stack
 
 TypeScript · Angular 20 (standalone, zoneless) · Vitest · ESLint (flat) · Prettier ·
-DOMPurify · esbuild · GitHub Actions · Cloudflare Workers / GitHub Pages.
+DOMPurify · esbuild · GitHub Actions · Cloudflare Workers.
 
 ## Security
 

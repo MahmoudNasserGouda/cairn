@@ -51,7 +51,7 @@ flowchart TB
         Desktop["Desktop / local agent<br/>(future)"]
     end
 
-    Host["Free static host<br/>Cloudflare Pages / GitHub Pages"]
+    Host["Free static host<br/>Cloudflare Workers static assets"]
     GH["GitHub REST + GraphQL API"]
     LI["LinkedIn / Google OIDC"]
     AI["BYOK AI providers<br/>OpenAI / Gemini / OpenRouter"]
@@ -304,7 +304,7 @@ GitHub Actions is the only path to production. Every PR runs: install → format
 (incl. import boundaries) → typecheck → unit tests + coverage → build → **CodeQL SAST**,
 **OSV/npm-audit**, **gitleaks**, **license check**, **CSP/`bypassSecurityTrust` guard**,
 **bundle-origin check** → preview deploy. Merge to `main` adds SBOM generation and
-deploys `apps/web` to Cloudflare Pages + GitHub Pages; the extension artifact is built
+deploys `apps/web` to Cloudflare Workers static assets; the extension artifact is built
 in CI behind a manual store-submission gate.
 
 Full pipeline and stage detail: **[docs/ci-cd.md](docs/ci-cd.md)**. Decision:

@@ -26,7 +26,7 @@ the sole path to production and the enforcement point for the security posture i
 | Secret scanning | gitleaks (CI + pre-commit) |
 | SBOM | CycloneDX, on release |
 | Preview hosting | Cloudflare Workers preview (`wrangler versions upload`) |
-| Production hosting | Cloudflare Workers static assets (primary), GitHub Pages (mirror) |
+| Production hosting | Cloudflare Workers static assets |
 | Dependency updates | Renovate (or Dependabot) |
 
 ## Pipeline
@@ -56,7 +56,7 @@ flowchart TD
     Sec --> PreviewGate{branch?}
     PreviewGate -- "PR" --> Preview["Cloudflare Workers preview upload"]
     PreviewGate -- "main" --> SBOM["generate SBOM (CycloneDX)"]
-    SBOM --> DeployWeb["deploy apps/web → Cloudflare Workers + GitHub Pages"]
+    SBOM --> DeployWeb["deploy apps/web → Cloudflare Workers"]
     SBOM --> ExtArtifact["build signed extension artifact"]
     ExtArtifact --> ManualGate["manual approval"]
     ManualGate --> StoreSubmit["submit to Chrome / Firefox stores"]
@@ -104,7 +104,6 @@ it, adopt Nx for its affected-graph and remote cache — tracked as a future ADR
 |--------|---------|-------|
 | `CLOUDFLARE_PAGES_TOKEN` | production + preview deploy | token needs **Workers Scripts: Edit** (name kept for continuity) |
 | `CLOUDFLARE_ACCOUNT_ID` | production + preview deploy | account identifier |
-| `GITHUB_PAGES_TOKEN` (or `GITHUB_TOKEN`) | mirror deploy | Pages publish only |
 | `CHROME_STORE_*` / `FIREFOX_AMO_*` | extension submission (manual gate) | store upload only |
 
 No application runtime secrets exist ([SECURITY.md §5](../SECURITY.md#5-secrets-management)).

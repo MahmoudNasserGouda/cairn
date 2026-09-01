@@ -37,19 +37,18 @@ Done:
   the shared engines via a background service worker.
 - **CI/CD** — `.github/workflows/ci.yml` (verify · build · dependency-scan ·
   secret-scan · SBOM · `ci-ok` gate), `codeql.yml`, `deploy.yml` (Cloudflare Workers +
-  GitHub Pages + extension artifact behind a manual gate). Custom guards:
+  extension artifact behind a manual gate). Custom guards:
   `check-csp.mjs`, `check-bundle-origins.mjs`, `check-licenses.mjs`.
 - `npm run verify` passes; `npm audit` clean (0 vulnerabilities).
 - **Repo is on GitHub** (`MahmoudNasserGouda/cairn`, default `main`). Branch protection
-  active — currently **solo mode**: required checks (`CI passed`, CodeQL `Analyze`) +
-  linear history + no force-push, but **0 required approvals** and an admin bypass so
-  the sole maintainer can merge (see drift note, 2026-09-02 changelog).
-- **Web app is live** on both hosts:
-  - Cloudflare Workers (primary) — `https://cairn.mahmoudnasser98.workers.dev/`
-  - GitHub Pages (mirror) — `https://mahmoudnassergouda.github.io/cairn/`
-    (served under `/cairn/`; `deploy.yml` rewrites `<base href>` for this copy).
-  `production` / `github-pages` / `extension-store` environments exist;
-  `extension-store` secrets deferred until store submission.
+  active in **solo mode** — required checks (`CI passed`, CodeQL `Analyze`) + linear
+  history + no force-push, with **0 required approvals** and an admin bypass so the
+  sole maintainer can merge. Switch to team mode (1 approval, no bypass) when a second
+  maintainer joins — see [`docs/branch-protection.md`](docs/branch-protection.md).
+- **Web app is live** — Cloudflare Workers, `https://cairn.mahmoudnasser98.workers.dev/`
+  (sole host; the GitHub Pages mirror was dropped 2026-09-02, see changelog).
+  `production` / `extension-store` environments exist; `extension-store` secrets
+  deferred until store submission.
 
 Next:
 
@@ -64,7 +63,7 @@ Next:
 apps/web/                  Angular 20 SPA — primary MVP                 [built: shell + 2 pages]
   src/app/core/            SafeHtmlService (DOMPurify), IndexedDbStore
   src/app/pages/           dashboard, repositories
-  public/_headers          host security headers + CSP (Cloudflare Workers / GH Pages)
+  public/_headers          security headers + CSP, applied by Cloudflare Workers
   wrangler.toml            Cloudflare Workers static-assets deploy config
 apps/extension/            Manifest V3 extension (esbuild)              [built: content + background]
 apps/desktop/              Tauri local agent                           [future — ADR-0015]
@@ -131,9 +130,8 @@ npm run -w @cairn/extension build:watch     # rebuild extension on change
 ```
 
 Deploy is **CI-only** (`.github/workflows/deploy.yml`, on push to `main`):
-Cloudflare Workers static assets (primary, `apps/web/wrangler.toml`) + GitHub Pages
-(mirror) + extension artifact (manual store gate). Details:
-[`docs/ci-cd.md`](docs/ci-cd.md).
+Cloudflare Workers static assets (`apps/web/wrangler.toml`) + extension artifact
+(manual store gate). Details: [`docs/ci-cd.md`](docs/ci-cd.md).
 
 ## Decisions & open questions
 
@@ -155,7 +153,7 @@ Cloudflare Workers static assets (primary, `apps/web/wrangler.toml`) + GitHub Pa
 
 ## Changelog
 
-### 2026-09-02 — Live on GitHub + two-host deploy
+### 2026-09-02 — Live on GitHub; single-host deploy
 
 - **Pushed to GitHub** (`MahmoudNasserGouda/cairn`). Enabled Dependabot alerts, secret
   scanning + push protection, and private vulnerability reporting. Branch protection
@@ -164,29 +162,26 @@ Cloudflare Workers static assets (primary, `apps/web/wrangler.toml`) + GitHub Pa
   `apps/web/wrangler.toml` (assets-only, `dist/browser`, SPA fallback); `deploy.yml`
   `deploy-cloudflare` job now runs `wrangler deploy`. Free `*.workers.dev` subdomain,
   no paid custom domain. Canonical URL updated in `security.txt`. **ADR-0004 amended.**
-- **Fixed the GitHub Pages mirror** (PR #5): it 404'd because it published the artifact
-  root (no `index.html`) instead of `dist/browser/`, and shipped `<base href="/">`
-  while Pages serves under `/cairn/`. `deploy.yml` now publishes `dist/browser` and
-  rewrites the base href for the Pages copy only. Both hosts now serve the app.
+- **GitHub Pages mirror: added, fixed, then dropped.** PR #5 fixed a 404 (it published
+  the artifact root instead of `dist/browser/`, and served `<base href="/">` under a
+  `/cairn/` path). Then, per owner decision, **the mirror was removed entirely** — the
+  `deploy-pages` job is deleted, `github-pages` environment retired, docs updated.
+  Reason: GitHub Pages ignores `_headers`, so the mirror had no CSP or security headers
+  ([SECURITY.md](SECURITY.md) §8) — a weaker public copy was a liability, not
+  resilience. **ADR-0004 amended (2026-09-02).** Cloudflare Workers is the sole host.
+- **Branch protection: "solo vs team mode" added to
+  [`docs/branch-protection.md`](docs/branch-protection.md).** The always-on rules
+  (checks, CodeQL, linear history, no force-push) are separated from the review gate,
+  which is 0 approvals + admin bypass while solo and 1 approval + no bypass with a
+  second maintainer. The doc and the live config now agree.
 - **CI fix** (PR #1): `gitleaks-action@v2` now requires `GITHUB_TOKEN`; added it to the
   `secret-scan` job.
-- Sections updated: Status (phase line + Done/Next), this changelog. Deploy details in
-  "How to run / build / test / deploy" were updated with the Workers switch.
 - **Extension distribution decided:** Chrome Web Store + Firefox AMO, both deferred
   (not self-hosting). No code/CI change yet.
-- **⚠ DRIFT (2 items, need an owner decision):**
-  1. **Branch protection is looser than [`docs/branch-protection.md`](docs/branch-protection.md).**
-     That doc mandates *1 approval* and *do not allow bypassing (admins included)*. The
-     live `main` ruleset has **0 required approvals** and an **admin bypass** so the
-     solo maintainer can merge. Reasonable while solo, but the doc and the config
-     disagree. Fix: add a "solo mode vs team mode" section to the doc, or restore the
-     stricter rule once a second maintainer joins.
-  2. **No CSP / security headers on the GitHub Pages mirror.** GitHub Pages ignores the
-     `_headers` file, so the mirror serves with none of the CSP or security headers
-     that Cloudflare applies ([SECURITY.md](SECURITY.md) §8.1–8.2 are met on the
-     primary only). Options: accept the mirror as best-effort and document it, inject
-     a `<meta http-equiv="Content-Security-Policy">` fallback into the Pages
-     `index.html` during deploy, or drop the mirror.
+- Sections updated: Status, Repo map, How to run / build / test / deploy, this
+  changelog.
+- Drift: none — both items raised in the first draft of this entry are now resolved
+  (solo/team-mode doc; mirror dropped).
 
 ### 2026-08-31 — Rename to Cairn + publish prep
 
