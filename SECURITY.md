@@ -101,8 +101,8 @@ Scopes are minimised at the source: GitHub `public_repo`/`read:user` only, Linke
 - The repository contains **no secrets**. OAuth uses public-client PKCE
   ([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)); client IDs are not
   secret.
-- CI holds only deploy tokens (Cloudflare Pages / GitHub Pages, extension store), as
-  encrypted GitHub secrets, least-privilege.
+- CI holds only deploy tokens (Cloudflare Workers, extension store), as encrypted
+  GitHub secrets, least-privilege.
 - The premium license-signing **private key** lives only in the issuer's environment
   (the hosted-store fulfilment step), never in the repo, app, or CI for the web build.
 - BYOK keys and OAuth tokens are user secrets on the user's device — see the asset table
