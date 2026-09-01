@@ -18,8 +18,9 @@ non-bypassable enforcement point for [ADR-0022](adr/0022-ci-cd-is-mandatory-infr
 
 ## Environments (Settings → Environments)
 
-- `production` — required reviewers, deploy token `CLOUDFLARE_PAGES_TOKEN`,
-  `CLOUDFLARE_ACCOUNT_ID`.
+- `production` — required reviewers, deploy token `CLOUDFLARE_PAGES_TOKEN` (must carry
+  the **Workers Scripts: Edit** permission — deploy uses `wrangler deploy`, not Pages;
+  secret name kept for continuity), `CLOUDFLARE_ACCOUNT_ID`.
 - `github-pages` — default Pages environment.
 - `extension-store` — required reviewer (manual gate before store submission),
   `CHROME_STORE_*` / `FIREFOX_AMO_*` secrets.

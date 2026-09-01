@@ -36,7 +36,7 @@ Done:
 - **`apps/extension`** — Manifest V3, esbuild build, GitHub content-script panel using
   the shared engines via a background service worker.
 - **CI/CD** — `.github/workflows/ci.yml` (verify · build · dependency-scan ·
-  secret-scan · SBOM · `ci-ok` gate), `codeql.yml`, `deploy.yml` (Cloudflare Pages +
+  secret-scan · SBOM · `ci-ok` gate), `codeql.yml`, `deploy.yml` (Cloudflare Workers +
   GitHub Pages + extension artifact behind a manual gate). Custom guards:
   `check-csp.mjs`, `check-bundle-origins.mjs`, `check-licenses.mjs`.
 - `npm run verify` passes; `npm audit` clean (0 vulnerabilities).
@@ -56,7 +56,8 @@ Next:
 apps/web/                  Angular 20 SPA — primary MVP                 [built: shell + 2 pages]
   src/app/core/            SafeHtmlService (DOMPurify), IndexedDbStore
   src/app/pages/           dashboard, repositories
-  public/_headers          Cloudflare Pages security headers + CSP
+  public/_headers          host security headers + CSP (Cloudflare Workers / GH Pages)
+  wrangler.toml            Cloudflare Workers static-assets deploy config
 apps/extension/            Manifest V3 extension (esbuild)              [built: content + background]
 apps/desktop/              Tauri local agent                           [future — ADR-0015]
 libs/shared/               Result, math, redacting logger, KeyValueStore, sanitizer contract, config
@@ -122,8 +123,9 @@ npm run -w @cairn/extension build:watch     # rebuild extension on change
 ```
 
 Deploy is **CI-only** (`.github/workflows/deploy.yml`, on push to `main`):
-Cloudflare Pages (primary) + GitHub Pages (mirror) + extension artifact (manual
-store gate). Details: [`docs/ci-cd.md`](docs/ci-cd.md).
+Cloudflare Workers static assets (primary, `apps/web/wrangler.toml`) + GitHub Pages
+(mirror) + extension artifact (manual store gate). Details:
+[`docs/ci-cd.md`](docs/ci-cd.md).
 
 ## Decisions & open questions
 
@@ -159,7 +161,8 @@ store gate). Details: [`docs/ci-cd.md`](docs/ci-cd.md).
   editor files / caches). Confirmed no secrets and no build output are tracked.
 - Filled placeholders: `@OWNER → @MahmoudNasserGouda`; `security.txt` + `SECURITY.md`
   §6 now point at GitHub private advisories + `mahmoudnasser98@gmail.com`. Deploy
-  target `cairn-dev.pages.dev` (placeholder, update when the domain is chosen).
+  target `https://cairn.mahmoudnasser98.workers.dev/` (free `workers.dev` subdomain;
+  custom domain deferred — costs money).
 - Rewrote `README.md` for a public audience. Added `.claude/launch.json`.
 - Guide updated: header, Product one-liner, Repo map, this changelog.
 - Drift: none.
