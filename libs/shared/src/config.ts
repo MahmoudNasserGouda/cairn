@@ -7,6 +7,7 @@
 /** Origins the app is permitted to talk to. Keep in sync with apps/web/public/_headers. */
 export const ALLOWED_CONNECT_ORIGINS: readonly string[] = [
   'https://api.github.com',
+  'https://cairn-auth.mahmoudnasser98.workers.dev',
   'https://api.openai.com',
   'https://generativelanguage.googleapis.com',
   'https://openrouter.ai',
@@ -14,6 +15,19 @@ export const ALLOWED_CONNECT_ORIGINS: readonly string[] = [
   'https://accounts.google.com',
   'https://oauth2.googleapis.com',
 ];
+
+/**
+ * GitHub OAuth (ADR-0020). `clientId` is public. The `code -> token` step goes
+ * through the stateless token-exchange Worker (ADR-0024) because GitHub has no PKCE.
+ * `redirectUri` must exactly match the OAuth App's registered callback URL.
+ */
+export const GITHUB_OAUTH = {
+  clientId: 'Iv1.0000000000000000',
+  authorizeUrl: 'https://github.com/login/oauth/authorize',
+  tokenExchangeUrl: 'https://cairn-auth.mahmoudnasser98.workers.dev/github/token',
+  redirectUri: 'https://cairn.mahmoudnasser98.workers.dev/',
+  scopes: ['read:user'] as const,
+} as const;
 
 /** Per-resource cache TTLs in milliseconds (ADR-0006). Open question: calibration. */
 export const CACHE_TTL_MS = {

@@ -53,7 +53,7 @@ supersedes it and update the old record's Status line to point at the new one.
 | 0013 | Client-side portfolio generation                                | Accepted            |
 | 0014 | Browser extension reuses the shared core                        | Accepted            |
 | 0015 | Desktop / local agent                                           | Proposed (future)   |
-| 0016 | Optional serverless API                                         | Proposed (future)   |
+| 0016 | Optional serverless API                                         | Accepted            |
 | 0017 | Sponsorship must not distort organic scores                     | Accepted (principle)|
 | 0018 | Monetization: donations + no-backend paid features from the MVP | Accepted            |
 | 0019 | Security-first rendering: CSP, sanitisation, Trusted Types      | Accepted            |
@@ -61,3 +61,4 @@ supersedes it and update the old record's Status line to point at the new one.
 | 0021 | Supply-chain and dependency security                            | Accepted            |
 | 0022 | CI/CD is mandatory infrastructure                               | Accepted            |
 | 0023 | Living project guide maintained via a skill                     | Accepted            |
+| 0024 | GitHub OAuth token-exchange function                            | Accepted            |

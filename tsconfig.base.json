@@ -20,6 +20,7 @@
     "baseUrl": ".",
     "paths": {
       "@cairn/shared": ["libs/shared/src/index.ts"],
+      "@cairn/auth": ["libs/auth/src/index.ts"],
       "@cairn/github": ["libs/github/src/index.ts"],
       "@cairn/profile": ["libs/profile/src/index.ts"],
       "@cairn/matching": ["libs/matching/src/index.ts"],

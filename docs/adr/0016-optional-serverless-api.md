@@ -1,8 +1,12 @@
 # 0016. Optional serverless API
 
-- Status: Proposed (future)
+- Status: Accepted
 - Date: 2026-08-30
 - Deciders: Project owner
+
+> **2026-09-02.** Moved Proposed → Accepted: the first function landed —
+> [ADR-0024](0024-github-oauth-token-exchange-function.md), the GitHub OAuth
+> token-exchange Worker. The per-function ADR gate below is now in force for real.
 
 ## Context
 
@@ -22,7 +26,9 @@ services are down.
   noting: why a server is unavoidable, what data it touches, its retention, and its
   failure mode in the client.
 - Likely first functions, in order of probability:
-  1. **OAuth token exchange** (LinkedIn/Google) if public-client PKCE is insufficient.
+  1. **OAuth token exchange** — **done for GitHub**
+     ([ADR-0024](0024-github-oauth-token-exchange-function.md)); GitHub has no PKCE.
+     LinkedIn/Google to follow.
   2. **Payment/sponsorship webhooks** from the hosted store/checkout
      ([ADR-0018](0018-monetization-donations-and-no-backend-paid-features.md)).
   3. **Sponsored-repository submission + moderation** queue

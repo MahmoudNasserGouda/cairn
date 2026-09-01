@@ -56,6 +56,25 @@ jobs:
           workingDirectory: apps/web
           command: deploy
 
+  deploy-auth-worker:
+    name: Cloudflare Workers (auth token-exchange)
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: production
+      url: https://cairn-auth.mahmoudnasser98.workers.dev/
+    steps:
+      - uses: actions/checkout@v4
+      # GITHUB_CLIENT_SECRET is set once out-of-band via `wrangler secret put` and
+      # persists across deploys. Only the public client ID is injected here.
+      - name: Deploy cairn-auth
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_PAGES_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: api/optional-serverless/github-oauth
+          command: deploy --var GITHUB_CLIENT_ID:${{ vars.GITHUB_OAUTH_CLIENT_ID }}
+
   publish-extension:
     name: Extension artifact (manual store gate)
     runs-on: ubuntu-latest

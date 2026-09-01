@@ -5,6 +5,7 @@ import {
 } from '@angular/core';
 import { provideRouter, withHashLocation } from '@angular/router';
 import { routes } from './app.routes';
+import { provideAuth } from './core/auth/auth.providers';
 
 /**
  * Zoneless (no zone.js payload). Hash location keeps deep links working on any
@@ -15,5 +16,6 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideZonelessChangeDetection(),
     provideRouter(routes, withHashLocation()),
+    provideAuth(),
   ],
 };
