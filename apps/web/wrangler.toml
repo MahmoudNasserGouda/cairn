@@ -1,0 +1,13 @@
+# Cloudflare Workers — static-assets-only deployment for apps/web.
+# No `main` script: Wrangler deploys the asset bundle and serves it directly,
+# published at https://cairn.<account-subdomain>.workers.dev/.
+# The `_headers` / `_redirects` files emitted into dist/browser (from public/)
+# are honoured by Workers static assets, so the strict CSP still ships.
+name = "cairn"
+compatibility_date = "2026-09-01"
+
+[assets]
+directory = "./dist/browser"
+# App uses hash routing; serve index.html for any unknown path so deep links and
+# refreshes resolve instead of 404ing.
+not_found_handling = "single-page-application"

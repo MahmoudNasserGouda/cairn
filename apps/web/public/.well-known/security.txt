@@ -2,7 +2,7 @@ Contact: https://github.com/MahmoudNasserGouda/cairn/security/advisories/new
 Contact: mailto:mahmoudnasser98@gmail.com
 Expires: 2027-01-01T00:00:00.000Z
 Preferred-Languages: en, ar
-Canonical: https://cairn-dev.pages.dev/.well-known/security.txt
+Canonical: https://cairn.mahmoudnasser98.workers.dev/.well-known/security.txt
 Policy: https://github.com/MahmoudNasserGouda/cairn/blob/main/SECURITY.md
 
 # Report privately via GitHub Security Advisories (preferred) or email.

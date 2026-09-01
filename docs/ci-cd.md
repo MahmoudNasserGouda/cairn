@@ -25,8 +25,8 @@ the sole path to production and the enforcement point for the security posture i
 | Dependency scanning | OSV-Scanner + `npm audit` |
 | Secret scanning | gitleaks (CI + pre-commit) |
 | SBOM | CycloneDX, on release |
-| Preview hosting | Cloudflare Pages preview deployments |
-| Production hosting | Cloudflare Pages (primary), GitHub Pages (mirror) |
+| Preview hosting | Cloudflare Workers preview (`wrangler versions upload`) |
+| Production hosting | Cloudflare Workers static assets (primary), GitHub Pages (mirror) |
 | Dependency updates | Renovate (or Dependabot) |
 
 ## Pipeline
@@ -54,9 +54,9 @@ flowchart TD
     end
 
     Sec --> PreviewGate{branch?}
-    PreviewGate -- "PR" --> Preview["Cloudflare Pages preview deploy"]
+    PreviewGate -- "PR" --> Preview["Cloudflare Workers preview upload"]
     PreviewGate -- "main" --> SBOM["generate SBOM (CycloneDX)"]
-    SBOM --> DeployWeb["deploy apps/web → Cloudflare Pages + GitHub Pages"]
+    SBOM --> DeployWeb["deploy apps/web → Cloudflare Workers + GitHub Pages"]
     SBOM --> ExtArtifact["build signed extension artifact"]
     ExtArtifact --> ManualGate["manual approval"]
     ManualGate --> StoreSubmit["submit to Chrome / Firefox stores"]
@@ -102,7 +102,8 @@ it, adopt Nx for its affected-graph and remote cache — tracked as a future ADR
 
 | Secret | Used by | Scope |
 |--------|---------|-------|
-| `CLOUDFLARE_PAGES_TOKEN` | production + preview deploy | Pages project only |
+| `CLOUDFLARE_PAGES_TOKEN` | production + preview deploy | token needs **Workers Scripts: Edit** (name kept for continuity) |
+| `CLOUDFLARE_ACCOUNT_ID` | production + preview deploy | account identifier |
 | `GITHUB_PAGES_TOKEN` (or `GITHUB_TOKEN`) | mirror deploy | Pages publish only |
 | `CHROME_STORE_*` / `FIREFOX_AMO_*` | extension submission (manual gate) | store upload only |
 

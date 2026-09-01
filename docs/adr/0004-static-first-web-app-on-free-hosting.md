@@ -1,8 +1,15 @@
 # 0004. Static-first web app on free hosting
 
-- Status: Accepted
+- Status: Accepted (amended 2026-09-01)
 - Date: 2026-08-30
 - Deciders: Project owner
+
+> **Amendment 2026-09-01.** Primary host is **Cloudflare Workers static assets**
+> (`wrangler deploy`, no `main` script) rather than Cloudflare Pages. Same vendor,
+> same free tier, same `_headers`/`_redirects` support and unlimited bandwidth; the
+> Workers platform is where Cloudflare is investing and it publishes to the account's
+> `*.workers.dev` subdomain (`cairn.mahmoudnasser98.workers.dev`) with no paid custom
+> domain required. GitHub Pages stays the mirror. Nothing else in this ADR changes.
 
 ## Context
 
@@ -15,8 +22,9 @@ infrastructure cost of $0/month.
 The web app will be a **fully static, client-rendered single-page application**,
 built to a folder of static assets and served from a CDN-backed static host.
 
-- **Primary host:** Cloudflare Pages (custom security headers, unlimited bandwidth on
-  the free tier, preview deployments).
+- **Primary host:** Cloudflare Workers static assets (custom security headers via
+  `_headers`, unlimited bandwidth on the free tier, preview uploads). _(Was Cloudflare
+  Pages until the 2026-09-01 amendment above.)_
 - **Fallback / mirror:** GitHub Pages.
 - No server-side rendering, no serverless runtime as a launch dependency.
 - The app must work when opened from a plain file server; deep-link routing uses a
@@ -27,7 +35,8 @@ built to a folder of static assets and served from a CDN-backed static host.
 - SEO for marketing pages is limited under pure client rendering; if it matters we
   pre-render the landing/about routes at build time (still static output).
 - Security headers and CSP ([ADR-0019](0019-security-first-rendering.md)) are configured
-  at the host (`_headers` file on Cloudflare Pages) and must be part of CI verification.
+  at the host (`_headers` file, honoured by Cloudflare Workers static assets) and must be
+part of CI verification.
 - Bandwidth and build minutes stay within free tiers; CI must fail if the bundle grows
   past an agreed budget.
 
