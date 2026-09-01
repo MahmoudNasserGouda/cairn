@@ -70,10 +70,16 @@ jobs:
         with:
           name: web-dist
           path: dist
+      # The Angular build emits the servable site into dist/browser/, and index.html
+      # ships <base href="/">. GitHub Pages serves this repo at /cairn/, so rewrite
+      # the base href and publish the browser/ subdirectory (not its parent, which
+      # has no index.html). Cloudflare (primary) keeps the "/" base and is unaffected.
+      - name: Rebase for the /cairn/ Pages path
+        run: sed -i 's|<base href="/">|<base href="/cairn/">|' dist/browser/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: dist/browser
       - id: deployment
         uses: actions/deploy-pages@v4
 
