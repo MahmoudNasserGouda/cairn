@@ -141,9 +141,11 @@ Cloudflare Workers static assets (`apps/web/wrangler.toml`) + the `cairn-auth`
 token-exchange Worker + extension artifact (manual store gate). Details:
 [`docs/ci-cd.md`](docs/ci-cd.md).
 
-The `cairn-auth` Worker needs, set once out-of-band: `wrangler secret put
-GITHUB_CLIENT_SECRET`, and the repo variable `GITHUB_OAUTH_CLIENT_ID`. The OAuth
-App's callback URL must equal `GITHUB_OAUTH.redirectUri` in `libs/shared/src/config.ts`.
+Per enabled provider, set once out-of-band: `wrangler secret put
+<PROVIDER>_CLIENT_SECRET` on the `cairn-auth` Worker, and the GitHub Actions repo
+**variable** `OAUTH_<PROVIDER>_CLIENT_ID` (the `GITHUB_` prefix is reserved by
+Actions, hence `OAUTH_GITHUB_…`). Each OAuth app's callback URL must equal the
+provider's `redirectUri` in `libs/shared/src/config.ts`.
 
 ## Decisions & open questions
 
