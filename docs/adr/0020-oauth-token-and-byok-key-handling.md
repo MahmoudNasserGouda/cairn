@@ -1,8 +1,15 @@
 # 0020. OAuth token and BYOK key handling
 
-- Status: Accepted
+- Status: Accepted (refined by [ADR-0024](0024-github-oauth-token-exchange-function.md), 2026-09-02)
 - Date: 2026-08-30
 - Deciders: Project owner
+
+> **Correction 2026-09-02 ([ADR-0024](0024-github-oauth-token-exchange-function.md)).**
+> The line below expecting GitHub OAuth to work without a token-exchange function is
+> **wrong** — GitHub supports neither PKCE nor a CORS-enabled device flow. GitHub now
+> uses the stateless token-exchange Worker described in the fallback clause. Also:
+> the identity slice requests only `read:user` (not `public_repo`, which grants
+> *write*); reading public repos needs no scope at all.
 
 ## Context
 

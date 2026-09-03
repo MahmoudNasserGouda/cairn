@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@cairn/shared': r('./libs/shared/src/index.ts'),
+      '@cairn/auth': r('./libs/auth/src/index.ts'),
       '@cairn/github': r('./libs/github/src/index.ts'),
       '@cairn/profile': r('./libs/profile/src/index.ts'),
       '@cairn/matching': r('./libs/matching/src/index.ts'),

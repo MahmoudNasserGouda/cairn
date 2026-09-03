@@ -16,6 +16,7 @@
     "@angular/platform-browser": "^20.3.0",
     "@angular/router": "^20.3.0",
     "@cairn/ai": "0.1.0",
+    "@cairn/auth": "0.1.0",
     "@cairn/github": "0.1.0",
     "@cairn/issue-analysis": "0.1.0",
     "@cairn/matching": "0.1.0",

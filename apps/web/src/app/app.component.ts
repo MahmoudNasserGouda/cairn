@@ -1,5 +1,6 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { AuthService } from './core/auth/auth.service';
 
 @Component({
   selector: 'cn-root',
@@ -15,6 +16,46 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
         <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
         <a routerLink="/repositories" routerLinkActive="active">Repositories</a>
       </nav>
+
+      <div class="account">
+        @if (auth.error(); as message) {
+          <span class="auth-error" role="alert">{{ message }}</span>
+        }
+
+        @switch (auth.status()) {
+          @case ('authenticated') {
+            @if (auth.viewer(); as viewer) {
+              <a
+                class="who"
+                [href]="viewer.htmlUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <img
+                  class="avatar"
+                  [src]="viewer.avatarUrl"
+                  alt=""
+                  width="24"
+                  height="24"
+                />
+                {{ viewer.name || viewer.login }}
+              </a>
+            }
+            <button type="button" class="link-btn" (click)="auth.signOut()">
+              Sign out
+            </button>
+          }
+          @case ('authenticating') {
+            <span class="muted">Signing in…</span>
+          }
+          @default {
+            <button type="button" class="signin" (click)="auth.signIn()">
+              Sign in with GitHub
+            </button>
+          }
+        }
+      </div>
+
       <a class="support" href="https://github.com/sponsors" rel="noopener noreferrer"
         >Sponsor</a
       >
@@ -51,8 +92,52 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
       nav a.active {
         color: var(--fg);
       }
-      .support {
+      .account {
         margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.9rem;
+      }
+      .who {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        color: var(--fg);
+        text-decoration: none;
+      }
+      .avatar {
+        border-radius: 50%;
+        display: block;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .auth-error {
+        color: #f87171;
+        max-width: 22rem;
+      }
+      .signin {
+        font: inherit;
+        cursor: pointer;
+        padding: 0.4rem 0.8rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        color: var(--fg);
+      }
+      .link-btn {
+        font: inherit;
+        cursor: pointer;
+        border: 0;
+        background: none;
+        color: var(--muted);
+        padding: 0;
+      }
+      .link-btn:hover {
+        color: var(--fg);
+      }
+      .support {
         font-size: 0.85rem;
       }
       main {
@@ -63,4 +148,6 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
     `,
   ],
 })
-export class AppComponent {}
+export class AppComponent {
+  protected readonly auth = inject(AuthService);
+}

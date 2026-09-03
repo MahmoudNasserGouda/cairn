@@ -17,7 +17,7 @@
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "lint": "eslint .",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/extension/tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p apps/extension/tsconfig.json --noEmit && tsc -p api/optional-serverless/github-oauth/tsconfig.json --noEmit",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "build:libs": "tsc -p tsconfig.build.json",

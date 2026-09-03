@@ -70,7 +70,8 @@ Scopes are minimised at the source: GitHub `public_repo`/`read:user` only, Linke
 | T1 | **XSS** → token/key theft | Malicious HTML/script in a repo README, issue body, PR body, contributor name, or AI response rendered by the app | Strict CSP (`script-src 'self'`, no `unsafe-inline`/`eval`); Trusted Types; allowlist HTML sanitiser on all Markdown/AI output; Angular sanitiser defaults, no `bypassSecurityTrust*` | [ADR-0019](docs/adr/0019-security-first-rendering.md); CI guard; host `_headers` |
 | T2 | **Token exfiltration** despite no XSS | Compromised dependency reads memory/storage and beacons out | Minimal pinned deps + OSV/secret/license scans; CSP `connect-src` allowlist blocks unknown exfil origins; tokens in-memory by default | [ADR-0021](docs/adr/0021-supply-chain-and-dependency-security.md); CI |
 | T3 | **BYOK key exfiltration** | Same as T1/T2, or accidental logging | Keys never logged; telemetry redaction of key patterns; AI request bodies never sent to telemetry; direct-to-provider calls only | [ADR-0010](docs/adr/0010-ai-key-privacy-and-data-disclosure.md) |
-| T4 | **OAuth code interception / CSRF** | Auth-code flow without PKCE; open redirect; forged `state` | Authorization Code + PKCE, no implicit flow; exact static redirect-URI allowlist; single-use `state` + `code_verifier` in `sessionStorage`, cleared post-callback | [ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md) |
+| T4 | **OAuth code interception / CSRF** | Auth-code flow, open redirect, forged `state` | No implicit flow; exact static redirect-URI allowlist; single-use `state` in `sessionStorage`, cleared post-callback. GitHub has no PKCE — the `code -> token` step runs in the stateless `cairn-auth` Worker (holds the client secret, stores nothing, CORS-locked to the app origin) | [ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md), [ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md) |
+| T4b | **Token-exchange Worker abuse** | Attacker POSTs codes from another origin, or the Worker logs/stores tokens | CORS `Access-Control-Allow-Origin` = single app origin (else `403`); Worker holds no state, sets no cookies, logs no request body; token returned to the browser only, held in memory | [ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md) |
 | T5 | **`postMessage` / popup abuse** | OAuth popup or embedded frame posting to a wildcard target/origin | `postMessage` targets a specific origin; listeners verify `event.origin` against an allowlist; `frame-ancestors 'none'` | [ADR-0019](docs/adr/0019-security-first-rendering.md) |
 | T6 | **Supply-chain compromise** | Malicious/typosquatted npm package, hijacked transitive dep, poisoned CI action | Lockfile + `npm ci`; OSV/`npm audit` fail-on-high; license allowlist; Renovate + full CI gate; CI actions pinned by SHA; least-privilege `GITHUB_TOKEN`; SBOM per release | [ADR-0021](docs/adr/0021-supply-chain-and-dependency-security.md); [docs/ci-cd.md](docs/ci-cd.md) |
 | T7 | **Malicious CV file** | Zip-bomb DOCX, parser-exploit PDF, embedded macro/OLE | Parse in a sandboxed Web Worker; hard file-size cap; worker CPU/time budget with termination; never execute macros/embedded objects; treat extracted text as untrusted | [ADR-0011](docs/adr/0011-local-first-cv-processing.md) |
@@ -98,9 +99,10 @@ Scopes are minimised at the source: GitHub `public_repo`/`read:user` only, Linke
 
 ## 5. Secrets management
 
-- The repository contains **no secrets**. OAuth uses public-client PKCE
-  ([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)); client IDs are not
-  secret.
+- The repository contains **no secrets**. OAuth client IDs are public; the only OAuth
+  **client secret** (`GITHUB_CLIENT_SECRET`) lives solely in the `cairn-auth` Worker
+  environment, set via `wrangler secret put`, never in the repo, app bundle, or CI
+  ([ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md)).
 - CI holds only deploy tokens (Cloudflare Workers, extension store), as encrypted
   GitHub secrets, least-privilege.
 - The premium license-signing **private key** lives only in the issuer's environment
@@ -140,9 +142,16 @@ Scopes are minimised at the source: GitHub `public_repo`/`read:user` only, Linke
    `SafeHtmlService.trust()`, applied only to output already run through DOMPurify
    and the Angular sanitizer.
 2. All external content (GitHub, AI, CV, user free-text) is sanitised before rendering.
-3. OAuth tokens and BYOK keys are never logged, never sent to Cairn infrastructure, never
-   placed in URLs or query strings.
+3. OAuth tokens and BYOK keys are never logged, never stored by Cairn infrastructure,
+   never placed in URLs or query strings. The GitHub token transits the stateless
+   `cairn-auth` Worker once during the code exchange (GitHub → Worker → browser) and is
+   held only in browser memory thereafter
+   ([ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md)).
 4. No secret is committed to the repository.
-5. OAuth is Authorization Code + PKCE with an exact redirect-URI allowlist.
+5. OAuth is Authorization Code with an exact redirect-URI allowlist and a single-use
+   `state`. PKCE where the provider supports it; where it does not (GitHub), the
+   `code -> token` exchange runs in the stateless, CORS-locked `cairn-auth` Worker that
+   holds the client secret and stores nothing
+   ([ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md)).
 6. New runtime dependencies and new outbound origins require explicit review.
 7. The core product must remain functional and safe with no backend and no AI key.

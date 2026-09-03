@@ -52,8 +52,10 @@ Done:
 
 Next:
 
-1. GitHub OAuth (Authorization Code + PKCE) → first real unified-profile slice
-   ([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)).
+1. **In progress** — GitHub sign-in. Auth + identity slice done (`libs/auth`,
+   `AuthService`, header sign-in, `cairn-auth` token-exchange Worker — GitHub has no
+   PKCE, [ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md)). Still to
+   do: derive a `UnifiedProfile` fragment from GitHub, replace `DEMO_*` fixtures.
 2. Wire the CV upload flow: sandboxed Web Worker text extraction → `parseCvText`.
 3. Readiness dashboard on the real profile (replace `DEMO_*` fixtures).
 
@@ -75,11 +77,13 @@ libs/issue-analysis/       analyzeIssue — deterministic difficulty + required-
 libs/github/               GithubClient (cache + dedup + ETag + rate-limit), repo/health fetchers
 libs/profile/              UnifiedProfile + mergeProfile, CV parser, skills taxonomy (v1)
 libs/portfolio/            metrics, static HTML/MD generator, Ed25519 license verify
+libs/auth/                 framework-free GitHub OAuth helpers (authorize URL, state, exchange, viewer)
 libs/ai/                   IAIProvider (OpenAI/Gemini/OpenRouter), fenced prompts, disclosure, fallbacks
-api/optional-serverless/   stateless functions                         [future — ADR-0016]
+apps/web/src/app/core/auth/ AuthService — in-memory token, redirect flow, header sign-in
+api/optional-serverless/github-oauth/  cairn-auth Worker: stateless code→token (ADR-0024)
 scripts/                   check-csp, check-bundle-origins, check-licenses, setup-hooks
 brand/                     logo.svg / logo-dark.svg / mark.svg + brand/README.md
-docs/adr/                  23 ADRs · docs/ci-cd.md · docs/branch-protection.md
+docs/adr/                  24 ADRs · docs/ci-cd.md · docs/branch-protection.md
 ```
 
 ## How we work (conventions)
@@ -130,19 +134,29 @@ npm run -w @cairn/extension build:watch     # rebuild extension on change
 ```
 
 Deploy is **CI-only** (`.github/workflows/deploy.yml`, on push to `main`):
-Cloudflare Workers static assets (`apps/web/wrangler.toml`) + extension artifact
-(manual store gate). Details: [`docs/ci-cd.md`](docs/ci-cd.md).
+Cloudflare Workers static assets (`apps/web/wrangler.toml`) + the `cairn-auth`
+token-exchange Worker + extension artifact (manual store gate). Details:
+[`docs/ci-cd.md`](docs/ci-cd.md).
+
+The `cairn-auth` Worker needs, set once out-of-band: `wrangler secret put
+GITHUB_CLIENT_SECRET`, and the repo variable `GITHUB_OAUTH_CLIENT_ID`. The OAuth
+App's callback URL must equal `GITHUB_OAUTH.redirectUri` in `libs/shared/src/config.ts`.
 
 ## Decisions & open questions
 
-- **Decisions:** [`docs/adr/`](docs/adr/README.md) — 23 ADRs. Accepted: 0001–0014,
-  0017–0023. Future: 0015 (desktop), 0016 (serverless API).
+- **Decisions:** [`docs/adr/`](docs/adr/README.md) — 24 ADRs. Accepted: 0001–0014,
+  0016–0024. Future: 0015 (desktop).
 - **Open questions:**
   - Per-resource cache TTLs — draft values in `libs/shared/src/config.ts`
     (`CACHE_TTL_MS`); still need calibration ([ADR-0006](docs/adr/0006-direct-github-api-usage.md)).
-  - LinkedIn/Google OAuth: public-client PKCE from a static origin, or a token-exchange
-    function at MVP? ([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md),
+  - LinkedIn/Google OAuth: own token-exchange function, or extend `cairn-auth` with a
+    provider parameter? ([ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md),
     [ADR-0012](docs/adr/0012-linkedin-as-oauth-identity-only.md)).
+  - ~~GitHub OAuth: PKCE from a static origin?~~ → **no** — GitHub has no PKCE;
+    resolved via the `cairn-auth` Worker (2026-09-02,
+    [ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md)).
+  - "Stay signed in" (opt-in encrypted-at-rest token in IndexedDB) not built yet —
+    token is in-memory only ([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)).
   - Health-engine thresholds need a calibration data set
     ([ADR-0008](docs/adr/0008-ai-free-repository-health-engine.md)).
   - ~~Jest vs Vitest~~ → **Vitest** (2026-08-31).
@@ -152,6 +166,30 @@ Cloudflare Workers static assets (`apps/web/wrangler.toml`) + extension artifact
     (`helpers:pinGitHubActionDigests`) converts them on its first PR.
 
 ## Changelog
+
+### 2026-09-02 — GitHub sign-in: auth + identity slice
+
+- **`libs/auth`** (new, framework-free): authorize-URL builder, single-use `state`,
+  `exchangeCodeForToken`, `fetchViewer`. 12 Vitest tests.
+- **`cairn-auth` Worker** (`api/optional-serverless/github-oauth/`): stateless
+  `code -> token` exchange. GitHub supports neither PKCE nor a CORS-enabled device
+  flow, so [ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)'s "no
+  function needed for GitHub" assumption was wrong. **New [ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md);
+  [ADR-0016](docs/adr/0016-optional-serverless-api.md) Proposed → Accepted** (first
+  function landed).
+- **`apps/web`**: `AuthService` (in-memory token, redirect flow, `state` in
+  `sessionStorage`, sign-out wipes the `gh:` cache), header "Sign in with GitHub" /
+  avatar + name / "Sign out", `provideAuth()` app initializer.
+- **Config/CI**: `GITHUB_OAUTH` + `cairn-auth` origin in `libs/shared/src/config.ts`
+  and `_headers` connect-src; `deploy.yml` gains a `deploy-auth-worker` job;
+  `typecheck` now covers the Worker.
+- **Docs**: ADR-0020 correction (GitHub has no PKCE; identity scope is `read:user`
+  only, not `public_repo`); `SECURITY.md` T4/T4b + non-negotiables 3 & 5 updated for
+  the token-exchange Worker.
+- Scope note: this is **auth + identity only**. Deriving a `UnifiedProfile` from
+  GitHub and replacing the dashboard `DEMO_*` fixtures is the next slice.
+- Drift: none. ⚠ **Owner ratification wanted** on the reworded `SECURITY.md` §8
+  non-negotiables 3 and 5 (token now transits the Worker; PKCE "where supported").
 
 ### 2026-09-02 — Live on GitHub; single-host deploy
 
