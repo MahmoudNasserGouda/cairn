@@ -76,9 +76,9 @@ jobs:
           workingDirectory: api/optional-serverless/oauth
           command: >-
             deploy
-            --var GITHUB_CLIENT_ID:${{ vars.GITHUB_OAUTH_CLIENT_ID }}
-            --var LINKEDIN_CLIENT_ID:${{ vars.LINKEDIN_OAUTH_CLIENT_ID }}
-            --var GOOGLE_CLIENT_ID:${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
+            --var GITHUB_CLIENT_ID:${{ vars.OAUTH_GITHUB_CLIENT_ID }}
+            --var LINKEDIN_CLIENT_ID:${{ vars.OAUTH_LINKEDIN_CLIENT_ID }}
+            --var GOOGLE_CLIENT_ID:${{ vars.OAUTH_GOOGLE_CLIENT_ID }}
 
   publish-extension:
     name: Extension artifact (manual store gate)
