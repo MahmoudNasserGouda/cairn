@@ -1,0 +1,87 @@
+import { fetchIdentity } from './identity';
+import { AuthError, type OAuthProvider } from './provider';
+
+const GITHUB: OAuthProvider = {
+  id: 'github',
+  label: 'GitHub',
+  kind: 'github',
+  clientId: 'Iv1.real',
+  authorizeUrl: 'https://github.com/login/oauth/authorize',
+  tokenExchangeUrl: 'https://auth.example.test/github/token',
+  userInfoUrl: 'https://api.github.com/user',
+  redirectUri: 'https://app.example.test/',
+  scopes: ['read:user'],
+};
+
+const LINKEDIN: OAuthProvider = {
+  ...GITHUB,
+  id: 'linkedin',
+  label: 'LinkedIn',
+  kind: 'oidc',
+  userInfoUrl: 'https://api.linkedin.com/v2/userinfo',
+  scopes: ['openid', 'profile', 'email'],
+};
+
+function json(body: unknown, init: { status?: number } = {}): Response {
+  return new Response(JSON.stringify(body), {
+    status: init.status ?? 200,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+describe('fetchIdentity', () => {
+  it('maps a GitHub user and sends the GitHub headers', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      json({
+        login: 'octocat',
+        name: 'The Octocat',
+        avatar_url: 'https://avatars.githubusercontent.com/u/1',
+        html_url: 'https://github.com/octocat',
+        email: null,
+      }),
+    );
+    const identity = await fetchIdentity({ provider: GITHUB, token: 'gho_x', fetchImpl });
+    expect(identity).toEqual({
+      provider: 'github',
+      subject: 'octocat',
+      displayName: 'The Octocat',
+      email: null,
+      avatarUrl: 'https://avatars.githubusercontent.com/u/1',
+      profileUrl: 'https://github.com/octocat',
+    });
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.github.com/user');
+    expect((init.headers as Record<string, string>)['authorization']).toBe(
+      'Bearer gho_x',
+    );
+    expect((init.headers as Record<string, string>)['x-github-api-version']).toBe(
+      '2022-11-28',
+    );
+  });
+
+  it('maps an OIDC userinfo payload, falling back for the display name', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(json({ sub: 'abc123', email: 'a@b.com' }));
+    const identity = await fetchIdentity({
+      provider: LINKEDIN,
+      token: 'li_x',
+      fetchImpl,
+    });
+    expect(identity).toEqual({
+      provider: 'linkedin',
+      subject: 'abc123',
+      displayName: 'a@b.com',
+      email: 'a@b.com',
+      avatarUrl: null,
+      profileUrl: null,
+    });
+  });
+
+  it('throws AuthError on a non-OK response', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(json({}, { status: 401 }));
+    await expect(
+      fetchIdentity({ provider: GITHUB, token: 'bad', fetchImpl }),
+    ).rejects.toBeInstanceOf(AuthError);
+  });
+});

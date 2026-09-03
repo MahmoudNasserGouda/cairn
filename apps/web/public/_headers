@@ -1,5 +1,5 @@
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://avatars.githubusercontent.com; font-src 'self'; connect-src 'self' https://api.github.com https://cairn-auth.mahmoudnasser98.workers.dev https://api.openai.com https://generativelanguage.googleapis.com https://openrouter.ai https://www.linkedin.com https://accounts.google.com https://oauth2.googleapis.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; require-trusted-types-for 'script'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://avatars.githubusercontent.com; font-src 'self'; connect-src 'self' https://api.github.com https://cairn-auth.mahmoudnasser98.workers.dev https://api.linkedin.com https://openidconnect.googleapis.com https://api.openai.com https://generativelanguage.googleapis.com https://openrouter.ai https://www.linkedin.com https://accounts.google.com https://oauth2.googleapis.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; require-trusted-types-for 'script'; upgrade-insecure-requests
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin

@@ -1,1 +1,2 @@
-export * from './github-oauth';
+export * from './provider';
+export * from './identity';

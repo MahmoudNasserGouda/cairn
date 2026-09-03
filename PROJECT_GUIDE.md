@@ -52,10 +52,13 @@ Done:
 
 Next:
 
-1. **In progress** — GitHub sign-in. Auth + identity slice done (`libs/auth`,
-   `AuthService`, header sign-in, `cairn-auth` token-exchange Worker — GitHub has no
-   PKCE, [ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md)). Still to
-   do: derive a `UnifiedProfile` fragment from GitHub, replace `DEMO_*` fixtures.
+1. **In progress** — sign-in. Multi-provider identity done (`libs/auth`,
+   `AuthService`, header buttons, `cairn-auth` token-exchange Worker): GitHub +
+   LinkedIn + Google, none support static-origin PKCE
+   ([ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md),
+   [ADR-0025](docs/adr/0025-multi-provider-identity.md)). GitHub is the only data
+   connection; LinkedIn/Google are identity only. Still to do: derive a
+   `UnifiedProfile` fragment from GitHub, replace `DEMO_*` fixtures.
 2. Wire the CV upload flow: sandboxed Web Worker text extraction → `parseCvText`.
 3. Readiness dashboard on the real profile (replace `DEMO_*` fixtures).
 
@@ -77,13 +80,13 @@ libs/issue-analysis/       analyzeIssue — deterministic difficulty + required-
 libs/github/               GithubClient (cache + dedup + ETag + rate-limit), repo/health fetchers
 libs/profile/              UnifiedProfile + mergeProfile, CV parser, skills taxonomy (v1)
 libs/portfolio/            metrics, static HTML/MD generator, Ed25519 license verify
-libs/auth/                 framework-free GitHub OAuth helpers (authorize URL, state, exchange, viewer)
+libs/auth/                 framework-free multi-provider OAuth (providers, authorize URL, state, exchange, identity)
 libs/ai/                   IAIProvider (OpenAI/Gemini/OpenRouter), fenced prompts, disclosure, fallbacks
-apps/web/src/app/core/auth/ AuthService — in-memory token, redirect flow, header sign-in
-api/optional-serverless/github-oauth/  cairn-auth Worker: stateless code→token (ADR-0024)
+apps/web/src/app/core/auth/ AuthService — in-memory tokens, multi-provider redirect flow, header sign-in
+api/optional-serverless/oauth/  cairn-auth Worker: stateless code→token, GitHub/LinkedIn/Google (ADR-0024/0025)
 scripts/                   check-csp, check-bundle-origins, check-licenses, setup-hooks
 brand/                     logo.svg / logo-dark.svg / mark.svg + brand/README.md
-docs/adr/                  24 ADRs · docs/ci-cd.md · docs/branch-protection.md
+docs/adr/                  25 ADRs · docs/ci-cd.md · docs/branch-protection.md
 ```
 
 ## How we work (conventions)
@@ -144,16 +147,18 @@ App's callback URL must equal `GITHUB_OAUTH.redirectUri` in `libs/shared/src/con
 
 ## Decisions & open questions
 
-- **Decisions:** [`docs/adr/`](docs/adr/README.md) — 24 ADRs. Accepted: 0001–0014,
-  0016–0024. Future: 0015 (desktop).
+- **Decisions:** [`docs/adr/`](docs/adr/README.md) — 25 ADRs. Accepted: 0001–0014,
+  0016–0025. Future: 0015 (desktop).
 - **Open questions:**
   - Per-resource cache TTLs — draft values in `libs/shared/src/config.ts`
     (`CACHE_TTL_MS`); still need calibration ([ADR-0006](docs/adr/0006-direct-github-api-usage.md)).
-  - LinkedIn/Google OAuth: own token-exchange function, or extend `cairn-auth` with a
-    provider parameter? ([ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md),
-    [ADR-0012](docs/adr/0012-linkedin-as-oauth-identity-only.md)).
-  - ~~GitHub OAuth: PKCE from a static origin?~~ → **no** — GitHub has no PKCE;
-    resolved via the `cairn-auth` Worker (2026-09-02,
+  - Job-board ingestion: which public APIs (Adzuna / Remotive / …) and the extension
+    "save this listing" capture pattern — needs its own ADR
+    ([ADR-0025](docs/adr/0025-multi-provider-identity.md) §Job data).
+  - ~~LinkedIn/Google OAuth: own function or shared?~~ → **shared** `cairn-auth` with a
+    per-provider route; identity only ([ADR-0025](docs/adr/0025-multi-provider-identity.md), 2026-09-02).
+  - ~~GitHub OAuth: PKCE from a static origin?~~ → **no** — no provider does; resolved
+    via the `cairn-auth` Worker (2026-09-02,
     [ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md)).
   - "Stay signed in" (opt-in encrypted-at-rest token in IndexedDB) not built yet —
     token is in-memory only ([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)).
@@ -167,29 +172,42 @@ App's callback URL must equal `GITHUB_OAUTH.redirectUri` in `libs/shared/src/con
 
 ## Changelog
 
-### 2026-09-02 — GitHub sign-in: auth + identity slice
+### 2026-09-02 — Sign-in: multi-provider identity slice
 
-- **`libs/auth`** (new, framework-free): authorize-URL builder, single-use `state`,
-  `exchangeCodeForToken`, `fetchViewer`. 12 Vitest tests.
-- **`cairn-auth` Worker** (`api/optional-serverless/github-oauth/`): stateless
-  `code -> token` exchange. GitHub supports neither PKCE nor a CORS-enabled device
-  flow, so [ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)'s "no
-  function needed for GitHub" assumption was wrong. **New [ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md);
-  [ADR-0016](docs/adr/0016-optional-serverless-api.md) Proposed → Accepted** (first
-  function landed).
-- **`apps/web`**: `AuthService` (in-memory token, redirect flow, `state` in
-  `sessionStorage`, sign-out wipes the `gh:` cache), header "Sign in with GitHub" /
-  avatar + name / "Sign out", `provideAuth()` app initializer.
-- **Config/CI**: `GITHUB_OAUTH` + `cairn-auth` origin in `libs/shared/src/config.ts`
-  and `_headers` connect-src; `deploy.yml` gains a `deploy-auth-worker` job;
-  `typecheck` now covers the Worker.
-- **Docs**: ADR-0020 correction (GitHub has no PKCE; identity scope is `read:user`
-  only, not `public_repo`); `SECURITY.md` T4/T4b + non-negotiables 3 & 5 updated for
-  the token-exchange Worker.
-- Scope note: this is **auth + identity only**. Deriving a `UnifiedProfile` from
-  GitHub and replacing the dashboard `DEMO_*` fixtures is the next slice.
+Branch `feat/github-oauth-identity`. Scope: **auth + identity only** — deriving a
+`UnifiedProfile` from GitHub and replacing the dashboard `DEMO_*` fixtures is the
+next slice.
+
+- **`libs/auth`** (new, framework-free): `OAuthProvider` records, `buildAuthorizeUrl`,
+  single-use `state`, `exchangeCodeForToken`, `fetchIdentity` (GitHub REST + OIDC
+  `userinfo`), `isProviderConfigured`. 12 Vitest tests.
+- **`cairn-auth` Worker** (`api/optional-serverless/oauth/`): stateless
+  `POST /<provider>/token` for GitHub / LinkedIn / Google — none support usable
+  static-origin PKCE (GitHub has none at all; the OIDC pair still need the secret).
+  JSON body for GitHub, form-encoded for OIDC. **New [ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md)
+  (generalized) + [ADR-0025](docs/adr/0025-multi-provider-identity.md);
+  [ADR-0016](docs/adr/0016-optional-serverless-api.md) Proposed → Accepted.**
+- **Provider policy ([ADR-0025](docs/adr/0025-multi-provider-identity.md)):** GitHub is
+  the only *data* connection (token kept for repo reads); LinkedIn + Google are
+  *identity only* (name/email/avatar, token discarded after `userinfo`). LinkedIn has
+  no profile-data API — confirmed, not just chosen. "Import from Wuzzuf / Indeed /
+  Gulf Talent / …" is **out of scope** — no APIs, and credential scraping is barred by
+  SECURITY.md §5. Profile data comes from CV upload + GitHub + manual entry; job data
+  from public listing feeds + the extension.
+- **`apps/web`**: `AuthService` (per-provider in-memory tokens, redirect flow with
+  `{provider,state}` in `sessionStorage`, sign-out wipes the `gh:` cache), header
+  shows a "Sign in with …" button per configured provider / primary identity + "Sign
+  out", `provideAuth()` initializer. Buttons hidden until a real client ID is set.
+- **Config/CI**: `OAUTH_PROVIDERS` + `api.linkedin.com` / `openidconnect.googleapis.com`
+  / `cairn-auth` origins in `libs/shared/src/config.ts` and `_headers` connect-src;
+  `deploy.yml` `deploy-auth-worker` job injects all three client IDs; `typecheck`
+  covers the Worker.
+- **Docs**: ADR-0020 corrected (no provider PKCE; `read:user` only); ADR-0012
+  generalized; `SECURITY.md` T4/T4b + non-negotiables 3 & 5.
 - Drift: none. ⚠ **Owner ratification wanted** on the reworded `SECURITY.md` §8
-  non-negotiables 3 and 5 (token now transits the Worker; PKCE "where supported").
+  non-negotiables 3 & 5 (token transits the Worker; PKCE "where supported") and on
+  [ADR-0025](docs/adr/0025-multi-provider-identity.md)'s "no job-board data import"
+  scope call.
 
 ### 2026-09-02 — Live on GitHub; single-host deploy
 
