@@ -36,7 +36,7 @@ export const OAUTH_PROVIDERS = {
     id: 'github',
     label: 'GitHub',
     kind: 'github',
-    clientId: 'set-client-id',
+    clientId: 'Ov23lihiwqB2C0ahsnse',
     authorizeUrl: 'https://github.com/login/oauth/authorize',
     tokenExchangeUrl: `${OAUTH_EXCHANGE_BASE}/github/token`,
     userInfoUrl: 'https://api.github.com/user',
