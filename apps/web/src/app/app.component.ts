@@ -49,9 +49,15 @@ import { AuthService } from './core/auth/auth.service';
             <span class="muted">Signing in…</span>
           }
           @default {
-            <button type="button" class="signin" (click)="auth.signIn()">
-              Sign in with GitHub
-            </button>
+            @if (auth.isConfigured) {
+              <button type="button" class="signin" (click)="auth.signIn()">
+                Sign in with GitHub
+              </button>
+            } @else {
+              <span class="muted" title="Set the OAuth App client ID in config to enable">
+                Sign-in not configured
+              </span>
+            }
           }
         }
       </div>

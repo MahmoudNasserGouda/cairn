@@ -35,6 +35,15 @@ export class AuthService {
   readonly error = this._error.asReadonly();
   readonly isAuthenticated = computed(() => this._status() === 'authenticated');
 
+  /**
+   * False until a real OAuth App client ID is set in `libs/shared/src/config.ts`
+   * (and `wrangler secret put GITHUB_CLIENT_SECRET` has been run for `cairn-auth`).
+   * The header hides the button rather than sending the user to a GitHub 404.
+   */
+  readonly isConfigured =
+    GITHUB_OAUTH.clientId.length > 0 &&
+    !GITHUB_OAUTH.clientId.includes('0000000000000000');
+
   /** Access token for the current session, in memory only. */
   get accessToken(): string | null {
     return this.token;
@@ -42,6 +51,10 @@ export class AuthService {
 
   /** Start the redirect flow. Navigates away — nothing after this call runs. */
   signIn(): void {
+    if (!this.isConfigured) {
+      this.fail('GitHub sign-in is not configured yet');
+      return;
+    }
     const state = createStateToken();
     try {
       sessionStorage.setItem(STATE_KEY, state);
