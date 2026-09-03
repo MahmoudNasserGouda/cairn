@@ -22,36 +22,35 @@ import { AuthService } from './core/auth/auth.service';
           <span class="auth-error" role="alert">{{ message }}</span>
         }
 
-        @switch (auth.status()) {
-          @case ('authenticated') {
-            @if (auth.viewer(); as viewer) {
-              <a
-                class="who"
-                [href]="viewer.htmlUrl"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <img
-                  class="avatar"
-                  [src]="viewer.avatarUrl"
-                  alt=""
-                  width="24"
-                  height="24"
-                />
-                {{ viewer.name || viewer.login }}
-              </a>
-            }
-            <button type="button" class="link-btn" (click)="auth.signOut()">
-              Sign out
-            </button>
+        @if (auth.isSignedIn()) {
+          @if (auth.primaryIdentity(); as who) {
+            <span class="who">
+              @if (who.avatarUrl) {
+                <img class="avatar" [src]="who.avatarUrl" alt="" width="24" height="24" />
+              }
+              {{ who.displayName }}
+              @if (who.provider !== 'github') {
+                <span class="tag">{{ who.provider }}</span>
+              }
+            </span>
           }
-          @case ('authenticating') {
-            <span class="muted">Signing in…</span>
-          }
-          @default {
-            <button type="button" class="signin" (click)="auth.signIn()">
-              Sign in with GitHub
+          <button type="button" class="link-btn" (click)="auth.signOut()">
+            Sign out
+          </button>
+        } @else if (auth.status() === 'authenticating') {
+          <span class="muted">Signing in…</span>
+        } @else {
+          @for (provider of auth.availableProviders; track provider.id) {
+            <button type="button" class="signin" (click)="auth.signIn(provider.id)">
+              Sign in with {{ provider.label }}
             </button>
+          } @empty {
+            <span
+              class="muted"
+              title="Set the OAuth client IDs in libs/shared config to enable"
+            >
+              Sign-in not configured
+            </span>
           }
         }
       </div>
@@ -96,7 +95,7 @@ import { AuthService } from './core/auth/auth.service';
         margin-left: auto;
         display: inline-flex;
         align-items: center;
-        gap: 0.75rem;
+        gap: 0.6rem;
         font-size: 0.9rem;
       }
       .who {
@@ -104,11 +103,19 @@ import { AuthService } from './core/auth/auth.service';
         align-items: center;
         gap: 0.4rem;
         color: var(--fg);
-        text-decoration: none;
       }
       .avatar {
         border-radius: 50%;
         display: block;
+      }
+      .tag {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0 0.3rem;
       }
       .muted {
         color: var(--muted);

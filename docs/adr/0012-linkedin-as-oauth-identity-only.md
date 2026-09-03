@@ -1,8 +1,14 @@
 # 0012. LinkedIn as OAuth / identity only
 
-- Status: Accepted
+- Status: Accepted (generalized by [ADR-0025](0025-multi-provider-identity.md), 2026-09-02)
 - Date: 2026-08-30
 - Deciders: Project owner
+
+> **2026-09-02.** [ADR-0025](0025-multi-provider-identity.md) confirms this decision
+> as technical reality — LinkedIn has *no* profile-data API left, so "identity only"
+> is the only option, not just the chosen one. LinkedIn now shares the pluggable
+> identity layer with GitHub and Google; its token is discarded right after the one
+> `userinfo` call. Same "no scraping, CV/GitHub/manual for real history" stance.
 
 ## Context
 

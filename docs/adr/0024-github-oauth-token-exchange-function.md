@@ -1,10 +1,16 @@
-# 0024. GitHub OAuth token-exchange function
+# 0024. OAuth token-exchange function
 
-- Status: Accepted
+- Status: Accepted (generalized 2026-09-02, [ADR-0025](0025-multi-provider-identity.md))
 - Date: 2026-09-02
 - Deciders: Project owner
 - Implements: [ADR-0016](0016-optional-serverless-api.md) (first serverless function)
 - Refines: [ADR-0020](0020-oauth-token-and-byok-key-handling.md)
+
+> **2026-09-02.** Generalized from GitHub-only to a per-provider route
+> (`POST /<provider>/token`, providers `github` / `linkedin` / `google`) when
+> [ADR-0025](0025-multi-provider-identity.md) added LinkedIn and Google as
+> identity-only providers. Same properties: stateless, no storage, CORS-locked,
+> one secret per provider. Directory: `api/optional-serverless/oauth/`.
 
 ## Context
 

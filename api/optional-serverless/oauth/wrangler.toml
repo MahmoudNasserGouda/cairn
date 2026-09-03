@@ -1,0 +1,21 @@
+# Stateless OAuth token-exchange Worker (ADR-0024, ADR-0025).
+#
+# One-time setup (owner, local), per provider you enable:
+#   cd api/optional-serverless/oauth
+#   wrangler secret put GITHUB_CLIENT_SECRET
+#   wrangler secret put LINKEDIN_CLIENT_SECRET     # optional
+#   wrangler secret put GOOGLE_CLIENT_SECRET       # optional
+#
+# Client IDs are public and injected at deploy time from GitHub Actions repository
+# variables (see .github/workflows/deploy.yml). A provider with no client id + secret
+# returns 501 provider_not_configured and its button is hidden in the app.
+name = "cairn-auth"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGIN = "https://cairn.mahmoudnasser98.workers.dev"
+GITHUB_CLIENT_ID = "set-at-deploy-time"
+LINKEDIN_CLIENT_ID = "set-at-deploy-time"
+GOOGLE_CLIENT_ID = "set-at-deploy-time"

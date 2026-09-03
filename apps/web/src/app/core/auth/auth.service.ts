@@ -4,61 +4,105 @@ import {
   buildAuthorizeUrl,
   createStateToken,
   exchangeCodeForToken,
-  fetchViewer,
+  fetchIdentity,
+  isProviderConfigured,
   parseCallbackParams,
-  type GithubViewer,
+  type Identity,
+  type OAuthProvider,
+  type ProviderId,
 } from '@cairn/auth';
-import { GITHUB_OAUTH } from '@cairn/shared';
+import { OAUTH_PROVIDERS } from '@cairn/shared';
 import { IndexedDbStore } from '../indexeddb-store';
 
-const STATE_KEY = 'cairn.oauth.github.state';
+const PENDING_KEY = 'cairn.oauth.pending';
 const GH_CACHE_PREFIX = 'gh:';
+const PROVIDER_ORDER: readonly ProviderId[] = ['github', 'linkedin', 'google'];
 
-export type AuthStatus = 'anonymous' | 'authenticating' | 'authenticated' | 'error';
+const PROVIDERS = OAUTH_PROVIDERS as Record<ProviderId, OAuthProvider>;
+
+export type AuthStatus = 'anonymous' | 'authenticating' | 'ready' | 'error';
+
+interface PendingRedirect {
+  readonly provider: ProviderId;
+  readonly state: string;
+}
 
 /**
- * GitHub sign-in for the web app (ADR-0020). The access token lives in memory for
- * the session only — never LocalStorage, never IndexedDB, never logged. The
- * `code -> token` step goes through the token-exchange Worker (ADR-0024).
+ * Multi-provider sign-in for the web app (ADR-0020, ADR-0025). Access tokens live in
+ * memory for the session only — never LocalStorage, never IndexedDB, never logged.
+ * Only the GitHub token is retained (it reads repositories); LinkedIn / Google are
+ * identity only, so their tokens are dropped right after the profile fetch.
+ * Every `code -> token` exchange goes through the `cairn-auth` Worker (ADR-0024).
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly store = inject(IndexedDbStore);
 
   private readonly _status = signal<AuthStatus>('anonymous');
-  private readonly _viewer = signal<GithubViewer | null>(null);
+  private readonly _identities = signal<readonly Identity[]>([]);
   private readonly _error = signal<string | null>(null);
-  private token: string | null = null;
+  private readonly tokens = new Map<ProviderId, string>();
 
   readonly status = this._status.asReadonly();
-  readonly viewer = this._viewer.asReadonly();
+  readonly identities = this._identities.asReadonly();
   readonly error = this._error.asReadonly();
-  readonly isAuthenticated = computed(() => this._status() === 'authenticated');
+  readonly isSignedIn = computed(() => this._identities().length > 0);
 
-  /** Access token for the current session, in memory only. */
-  get accessToken(): string | null {
-    return this.token;
+  /** Identity shown in the header — GitHub if connected, otherwise the first. */
+  readonly primaryIdentity = computed(
+    () =>
+      this._identities().find((i) => i.provider === 'github') ??
+      this._identities()[0] ??
+      null,
+  );
+
+  /** Providers with a real client ID set, in a stable order. */
+  readonly availableProviders: readonly OAuthProvider[] = PROVIDER_ORDER.map(
+    (id) => PROVIDERS[id],
+  ).filter(isProviderConfigured);
+
+  /** GitHub access token for API calls, if signed in with GitHub. */
+  get githubToken(): string | null {
+    return this.tokens.get('github') ?? null;
   }
 
-  /** Start the redirect flow. Navigates away — nothing after this call runs. */
-  signIn(): void {
+  hasIdentity(provider: ProviderId): boolean {
+    return this._identities().some((i) => i.provider === provider);
+  }
+
+  /** Start the redirect flow for one provider. Navigates away on success. */
+  signIn(providerId: ProviderId): void {
+    const provider = PROVIDERS[providerId];
+    if (!isProviderConfigured(provider)) {
+      this.fail(`${provider.label} sign-in is not configured yet`);
+      return;
+    }
     const state = createStateToken();
+    const pending: PendingRedirect = { provider: providerId, state };
     try {
-      sessionStorage.setItem(STATE_KEY, state);
+      sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending));
     } catch {
       this.fail('this browser blocked session storage, which sign-in needs');
       return;
     }
     this._error.set(null);
-    globalThis.location.assign(buildAuthorizeUrl(GITHUB_OAUTH, state));
+    globalThis.location.assign(buildAuthorizeUrl(provider, state));
   }
 
-  signOut(): void {
-    this.token = null;
-    this._viewer.set(null);
-    this._status.set('anonymous');
+  /** Sign out of one provider, or of everything when called with no argument. */
+  signOut(providerId?: ProviderId): void {
+    if (providerId === undefined) {
+      this.tokens.clear();
+      this._identities.set([]);
+    } else {
+      this.tokens.delete(providerId);
+      this._identities.update((list) => list.filter((i) => i.provider !== providerId));
+    }
+    this._status.set(this._identities().length > 0 ? 'ready' : 'anonymous');
     this._error.set(null);
-    void this.wipeGithubCache();
+    if (providerId === undefined || providerId === 'github') {
+      void this.wipeGithubCache();
+    }
   }
 
   /**
@@ -69,41 +113,40 @@ export class AuthService {
     const params = parseCallbackParams(globalThis.location.search);
     if (params.kind === 'none') return;
 
-    const expected = readAndClearState();
+    const pending = readAndClearPending();
     cleanUrl();
 
     if (params.kind === 'error') {
-      // The user declining on GitHub is a normal outcome, not an error state.
       if (params.error !== 'access_denied') {
         this.fail(params.description ?? params.error);
       }
       return;
     }
-    if (expected === null || params.state !== expected) {
+    if (pending === null || params.state !== pending.state) {
       this.fail('sign-in could not be verified; please try again');
       return;
     }
+    const provider = PROVIDERS[pending.provider];
 
     this._status.set('authenticating');
     try {
-      const token = await exchangeCodeForToken({
-        endpoint: GITHUB_OAUTH.tokenExchangeUrl,
-        code: params.code,
-        redirectUri: GITHUB_OAUTH.redirectUri,
-      });
-      const viewer = await fetchViewer({ token: token.accessToken });
-      this.token = token.accessToken;
-      this._viewer.set(viewer);
-      this._status.set('authenticated');
+      const token = await exchangeCodeForToken({ provider, code: params.code });
+      const identity = await fetchIdentity({ provider, token: token.accessToken });
+      if (provider.id === 'github') {
+        this.tokens.set('github', token.accessToken);
+      }
+      this._identities.update((list) => [
+        ...list.filter((i) => i.provider !== provider.id),
+        identity,
+      ]);
+      this._status.set('ready');
     } catch (e) {
       this.fail(e instanceof AuthError ? e.message : 'sign-in failed');
     }
   }
 
   private fail(message: string): void {
-    this.token = null;
-    this._viewer.set(null);
-    this._status.set('error');
+    this._status.set(this._identities().length > 0 ? 'ready' : 'error');
     this._error.set(message);
   }
 
@@ -118,11 +161,15 @@ export class AuthService {
   }
 }
 
-function readAndClearState(): string | null {
+function readAndClearPending(): PendingRedirect | null {
   try {
-    const value = sessionStorage.getItem(STATE_KEY);
-    sessionStorage.removeItem(STATE_KEY);
-    return value;
+    const raw = sessionStorage.getItem(PENDING_KEY);
+    sessionStorage.removeItem(PENDING_KEY);
+    if (raw === null) return null;
+    const parsed = JSON.parse(raw) as PendingRedirect;
+    return typeof parsed.provider === 'string' && typeof parsed.state === 'string'
+      ? parsed
+      : null;
   } catch {
     return null;
   }

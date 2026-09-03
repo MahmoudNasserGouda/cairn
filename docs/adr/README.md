@@ -61,4 +61,5 @@ supersedes it and update the old record's Status line to point at the new one.
 | 0021 | Supply-chain and dependency security                            | Accepted            |
 | 0022 | CI/CD is mandatory infrastructure                               | Accepted            |
 | 0023 | Living project guide maintained via a skill                     | Accepted            |
-| 0024 | GitHub OAuth token-exchange function                            | Accepted            |
+| 0024 | OAuth token-exchange function                                   | Accepted            |
+| 0025 | Multi-provider identity; GitHub is the only data connection      | Accepted            |

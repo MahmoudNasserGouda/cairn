@@ -8,6 +8,8 @@
 export const ALLOWED_CONNECT_ORIGINS: readonly string[] = [
   'https://api.github.com',
   'https://cairn-auth.mahmoudnasser98.workers.dev',
+  'https://api.linkedin.com',
+  'https://openidconnect.googleapis.com',
   'https://api.openai.com',
   'https://generativelanguage.googleapis.com',
   'https://openrouter.ai',
@@ -17,16 +19,52 @@ export const ALLOWED_CONNECT_ORIGINS: readonly string[] = [
 ];
 
 /**
- * GitHub OAuth (ADR-0020). `clientId` is public. The `code -> token` step goes
- * through the stateless token-exchange Worker (ADR-0024) because GitHub has no PKCE.
- * `redirectUri` must exactly match the OAuth App's registered callback URL.
+ * OAuth sign-in providers (ADR-0020, ADR-0024, ADR-0025). `clientId` values are
+ * public; set the real ones per deployment (empty / placeholder ⇒ that provider is
+ * hidden). The `code -> token` step for every provider runs in the `cairn-auth`
+ * Worker — none offer a usable public-client PKCE flow from a static origin.
+ * `redirectUri` must exactly match each OAuth app's registered callback URL.
+ *
+ * Only `github` is a data connection; `linkedin` and `google` are identity only
+ * (ADR-0025 — LinkedIn has no profile-data API, ADR-0012).
  */
-export const GITHUB_OAUTH = {
-  clientId: 'Iv1.0000000000000000',
-  authorizeUrl: 'https://github.com/login/oauth/authorize',
-  tokenExchangeUrl: 'https://cairn-auth.mahmoudnasser98.workers.dev/github/token',
-  redirectUri: 'https://cairn.mahmoudnasser98.workers.dev/',
-  scopes: ['read:user'] as const,
+const OAUTH_REDIRECT_URI = 'https://cairn.mahmoudnasser98.workers.dev/';
+const OAUTH_EXCHANGE_BASE = 'https://cairn-auth.mahmoudnasser98.workers.dev';
+
+export const OAUTH_PROVIDERS = {
+  github: {
+    id: 'github',
+    label: 'GitHub',
+    kind: 'github',
+    clientId: 'set-client-id',
+    authorizeUrl: 'https://github.com/login/oauth/authorize',
+    tokenExchangeUrl: `${OAUTH_EXCHANGE_BASE}/github/token`,
+    userInfoUrl: 'https://api.github.com/user',
+    redirectUri: OAUTH_REDIRECT_URI,
+    scopes: ['read:user'],
+  },
+  linkedin: {
+    id: 'linkedin',
+    label: 'LinkedIn',
+    kind: 'oidc',
+    clientId: 'set-client-id',
+    authorizeUrl: 'https://www.linkedin.com/oauth/v2/authorization',
+    tokenExchangeUrl: `${OAUTH_EXCHANGE_BASE}/linkedin/token`,
+    userInfoUrl: 'https://api.linkedin.com/v2/userinfo',
+    redirectUri: OAUTH_REDIRECT_URI,
+    scopes: ['openid', 'profile', 'email'],
+  },
+  google: {
+    id: 'google',
+    label: 'Google',
+    kind: 'oidc',
+    clientId: 'set-client-id',
+    authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+    tokenExchangeUrl: `${OAUTH_EXCHANGE_BASE}/google/token`,
+    userInfoUrl: 'https://openidconnect.googleapis.com/v1/userinfo',
+    redirectUri: OAUTH_REDIRECT_URI,
+    scopes: ['openid', 'profile', 'email'],
+  },
 } as const;
 
 /** Per-resource cache TTLs in milliseconds (ADR-0006). Open question: calibration. */
