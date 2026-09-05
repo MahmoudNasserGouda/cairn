@@ -58,7 +58,7 @@ export const OAUTH_PROVIDERS = {
     id: 'google',
     label: 'Google',
     kind: 'oidc',
-    clientId: 'set-client-id',
+    clientId: '240010716894-oa879cie6cre2o86970prhl2f5toukb5.apps.googleusercontent.com',
     authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
     tokenExchangeUrl: `${OAUTH_EXCHANGE_BASE}/google/token`,
     userInfoUrl: 'https://openidconnect.googleapis.com/v1/userinfo',
