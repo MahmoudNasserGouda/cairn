@@ -60,8 +60,11 @@ Trust boundaries:
 | License-signing **private** key | Critical | **Never in repo or app** — issuer environment only | Attacker forges premium unlocks |
 | Portfolio data | Low | IndexedDB + user-exported files | Minor; user chooses to publish it |
 
-Scopes are minimised at the source: GitHub `public_repo`/`read:user` only, LinkedIn
-`openid profile email` only ([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)).
+Scopes are minimised at the source: GitHub `read:user` only (public repository data
+needs no scope; `public_repo` grants _write_ and is not requested), LinkedIn / Google
+`openid profile email` only
+([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md),
+[ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md)).
 
 ## 3. Threat model (STRIDE-lite)
 
