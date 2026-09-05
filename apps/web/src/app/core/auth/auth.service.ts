@@ -61,6 +61,15 @@ export class AuthService {
     (id) => PROVIDERS[id],
   ).filter(isProviderConfigured);
 
+  /** The one data connection (GitHub), if configured. */
+  readonly dataProvider: OAuthProvider | null =
+    this.availableProviders.find((p) => p.role === 'data') ?? null;
+
+  /** Identity-only providers (LinkedIn, Google), if configured. */
+  readonly identityProviders: readonly OAuthProvider[] = this.availableProviders.filter(
+    (p) => p.role === 'identity',
+  );
+
   /** GitHub access token for API calls, if signed in with GitHub. */
   get githubToken(): string | null {
     return this.tokens.get('github') ?? null;
@@ -68,6 +77,11 @@ export class AuthService {
 
   hasIdentity(provider: ProviderId): boolean {
     return this._identities().some((i) => i.provider === provider);
+  }
+
+  /** The connected identity for a provider, or null. */
+  identityFor(provider: ProviderId): Identity | null {
+    return this._identities().find((i) => i.provider === provider) ?? null;
   }
 
   /** Start the redirect flow for one provider. Navigates away on success. */

@@ -70,7 +70,10 @@ ADR when it is built.
 ## Consequences
 
 - The multi-login UI is honest: GitHub is "connect your account", LinkedIn/Google are
-  "faster sign-in". No per-job-board login buttons.
+  "faster sign-in". No per-job-board login buttons. _(Implemented 2026-09-02 as the
+  sign-in modal — `apps/web/src/app/core/auth/sign-in-dialog.component.ts` — with the
+  "Connect your work" vs "Faster sign-in · optional" split; providers carry a
+  `role: 'data' | 'identity'`.)_
 - LinkedIn and Google each need their own OAuth app + `cairn-auth` secret before their
   button appears. Setup is incremental.
 - "Import everything from every site" is explicitly out of scope and will be declined,

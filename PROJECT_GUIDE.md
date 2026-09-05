@@ -82,7 +82,7 @@ libs/profile/              UnifiedProfile + mergeProfile, CV parser, skills taxo
 libs/portfolio/            metrics, static HTML/MD generator, Ed25519 license verify
 libs/auth/                 framework-free multi-provider OAuth (providers, authorize URL, state, exchange, identity)
 libs/ai/                   IAIProvider (OpenAI/Gemini/OpenRouter), fenced prompts, disclosure, fallbacks
-apps/web/src/app/core/auth/ AuthService — in-memory tokens, multi-provider redirect flow, header sign-in
+apps/web/src/app/core/auth/ AuthService (in-memory tokens, redirect flow) + sign-in-dialog (modal)
 api/optional-serverless/oauth/  cairn-auth Worker: stateless code→token, GitHub/LinkedIn/Google (ADR-0024/0025)
 scripts/                   check-csp, check-bundle-origins, check-licenses, setup-hooks
 brand/                     logo.svg / logo-dark.svg / mark.svg + brand/README.md
@@ -173,6 +173,22 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
     (`helpers:pinGitHubActionDigests`) converts them on its first PR.
 
 ## Changelog
+
+### 2026-09-02 — Sign-in moved to a modal; data vs identity made explicit
+
+- The three provider buttons left the nav bar. Nav now shows a single **Sign in**
+  button (anonymous) or the identity chip + **Sign out** (signed in); the chip opens
+  the dialog to manage connections.
+- New `SignInDialogComponent` + `SignInDialogService` (`apps/web/src/app/core/auth/`).
+  The modal splits into **"Connect your work"** (GitHub — reads repos + contribution
+  history) and **"Faster sign-in · optional"** (LinkedIn / Google — name, email, photo
+  only, no repos or job history), implementing [ADR-0025](docs/adr/0025-multi-provider-identity.md)'s
+  stated UI intent. Backdrop / Esc / close-button dismiss; focus moves in on open and
+  is restored on close; minimal Tab trap; auto-opens on a redirect-callback error.
+- `OAuthProvider` gains `role: 'data' | 'identity'` (`libs/auth`), set in
+  `OAUTH_PROVIDERS`. `AuthService` exposes `dataProvider` / `identityProviders` /
+  `identityFor(id)`.
+- Drift: none. No new dependency (no Angular CDK — the modal is ~120 lines).
 
 ### 2026-09-02 — Fix: LinkedIn sign-in ("could not reach LinkedIn")
 

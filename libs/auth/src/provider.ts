@@ -20,6 +20,12 @@ export type ProviderId = 'github' | 'linkedin' | 'google';
 export interface OAuthProvider {
   readonly id: ProviderId;
   readonly label: string;
+  /**
+   * `data` — the token is kept and used to read the user's content (GitHub repos).
+   * `identity` — sign-in only; the token is discarded after the one userinfo call
+   * and Cairn only ever gets name / email / avatar (ADR-0025).
+   */
+  readonly role: 'data' | 'identity';
   /** `github` uses the REST user endpoint; `oidc` uses an OpenID `userinfo` endpoint. */
   readonly kind: 'github' | 'oidc';
   /** OAuth client ID. Public, not a secret. Empty / placeholder ⇒ provider disabled. */

@@ -39,6 +39,7 @@ export const OAUTH_PROVIDERS = {
   github: {
     id: 'github',
     label: 'GitHub',
+    role: 'data',
     kind: 'github',
     clientId: 'Ov23lihiwqB2C0ahsnse',
     authorizeUrl: 'https://github.com/login/oauth/authorize',
@@ -50,6 +51,7 @@ export const OAUTH_PROVIDERS = {
   linkedin: {
     id: 'linkedin',
     label: 'LinkedIn',
+    role: 'identity',
     kind: 'oidc',
     clientId: '781m6umb51095v',
     authorizeUrl: 'https://www.linkedin.com/oauth/v2/authorization',
@@ -63,6 +65,7 @@ export const OAUTH_PROVIDERS = {
   google: {
     id: 'google',
     label: 'Google',
+    role: 'identity',
     kind: 'oidc',
     clientId: '240010716894-oa879cie6cre2o86970prhl2f5toukb5.apps.googleusercontent.com',
     authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',

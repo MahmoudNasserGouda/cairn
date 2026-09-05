@@ -4,6 +4,7 @@ import { AuthError, type OAuthProvider } from './provider';
 const GITHUB: OAuthProvider = {
   id: 'github',
   label: 'GitHub',
+  role: 'data',
   kind: 'github',
   clientId: 'Iv1.real',
   authorizeUrl: 'https://github.com/login/oauth/authorize',
@@ -17,6 +18,7 @@ const GOOGLE: OAuthProvider = {
   ...GITHUB,
   id: 'google',
   label: 'Google',
+  role: 'identity',
   kind: 'oidc',
   userInfoUrl: 'https://openidconnect.googleapis.com/v1/userinfo',
   scopes: ['openid', 'profile', 'email'],
@@ -26,6 +28,7 @@ const LINKEDIN: OAuthProvider = {
   ...GITHUB,
   id: 'linkedin',
   label: 'LinkedIn',
+  role: 'identity',
   kind: 'oidc',
   userInfoUrl: 'https://api.linkedin.com/v2/userinfo',
   identityViaWorker: true,

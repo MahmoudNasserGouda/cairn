@@ -11,6 +11,7 @@ import {
 const GITHUB: OAuthProvider = {
   id: 'github',
   label: 'GitHub',
+  role: 'data',
   kind: 'github',
   clientId: 'Iv1.real',
   authorizeUrl: 'https://github.com/login/oauth/authorize',
@@ -24,6 +25,7 @@ const GOOGLE: OAuthProvider = {
   ...GITHUB,
   id: 'google',
   label: 'Google',
+  role: 'identity',
   kind: 'oidc',
   authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
   tokenExchangeUrl: 'https://auth.example.test/google/token',
