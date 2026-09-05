@@ -1,5 +1,5 @@
 import { repositoryMatch, issueMatch, contributionConfidence, skillGap } from './match';
-import { jaccard, experienceFit, skillCoverage } from './primitives';
+import { jaccard, experienceFit, skillCoverage, technologyCoverage } from './primitives';
 import { juniorDev, angularRepo, goodFirstIssue } from './__fixtures__/snapshots';
 
 describe('primitives', () => {
@@ -18,6 +18,14 @@ describe('primitives', () => {
   it('skillCoverage is proficiency-weighted', () => {
     expect(skillCoverage(juniorDev, ['typescript', 'html'])).toBeCloseTo((0.4 + 0.7) / 2);
     expect(skillCoverage(juniorDev, [])).toBe(1);
+  });
+
+  it('technologyCoverage is directional — no penalty for extra skills', () => {
+    // dev knows a superset of the stack -> full coverage
+    expect(technologyCoverage(['ts', 'js', 'go', 'rust'], ['ts', 'js'])).toBe(1);
+    // half the stack known
+    expect(technologyCoverage(['ts'], ['ts', 'rxjs'])).toBe(0.5);
+    expect(technologyCoverage(['ts'], [])).toBe(0);
   });
 });
 
@@ -48,7 +56,7 @@ describe('repositoryMatch', () => {
   });
 
   it('locks the fixture score (snapshot — change only deliberately)', () => {
-    expect(repositoryMatch(juniorDev, angularRepo).percent).toMatchInlineSnapshot(`51`);
+    expect(repositoryMatch(juniorDev, angularRepo).percent).toMatchInlineSnapshot(`53`);
   });
 });
 
