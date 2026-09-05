@@ -47,7 +47,7 @@ export const OAUTH_PROVIDERS = {
     id: 'linkedin',
     label: 'LinkedIn',
     kind: 'oidc',
-    clientId: 'set-client-id',
+    clientId: '781m6umb51095v',
     authorizeUrl: 'https://www.linkedin.com/oauth/v2/authorization',
     tokenExchangeUrl: `${OAUTH_EXCHANGE_BASE}/linkedin/token`,
     userInfoUrl: 'https://api.linkedin.com/v2/userinfo',
