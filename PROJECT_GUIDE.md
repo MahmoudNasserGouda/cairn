@@ -17,28 +17,30 @@ context: [`ARCHITECTURE.md`](ARCHITECTURE.md) §1; roadmap: [§15](ARCHITECTURE.
 
 ## Current status
 
-**Phase 1 — Foundation. Monorepo + CI/CD live; the web app is deployed on two hosts.**
+**Phase 1 — Foundation. Monorepo + CI/CD live, web app deployed, multi-provider
+sign-in working.**
 
 Done:
 
 - Architecture docs: [`ARCHITECTURE.md`](ARCHITECTURE.md), [`SECURITY.md`](SECURITY.md),
-  [`docs/ci-cd.md`](docs/ci-cd.md), ADRs 0001–0023.
+  [`docs/ci-cd.md`](docs/ci-cd.md), ADRs 0001–0025.
 - **Monorepo scaffold** — npm workspaces, TS strict, path aliases, ESLint flat config
   with the `libs → apps` import-boundary rule, Prettier, Vitest.
-- **All nine `libs/*` implemented** with real logic and **68 passing unit tests**:
+- **Ten `libs/*` implemented** with real logic and **81 passing unit tests**:
   deterministic matching + scoring, AI-free repository health, issue difficulty, the
   cached GitHub client (dedup + ETag + rate-limit floor), CV parser + skills taxonomy,
   BYOK AI provider abstraction + non-AI fallbacks + prompt-injection fencing,
-  client-side portfolio generator + offline Ed25519 license verification.
+  client-side portfolio generator + offline Ed25519 license verification, framework-free
+  multi-provider OAuth (`libs/auth`).
 - **`apps/web`** — Angular 20 standalone + zoneless, hash routing, DOMPurify sanitiser
-  service, IndexedDB store, dashboard + repository-analysis pages. Production build
-  ≈ 64 kB transfer.
+  service, IndexedDB store, dashboard + repositories pages, multi-provider sign-in
+  modal. Production build ≈ 70 kB transfer.
 - **`apps/extension`** — Manifest V3, esbuild build, GitHub content-script panel using
   the shared engines via a background service worker.
 - **CI/CD** — `.github/workflows/ci.yml` (verify · build · dependency-scan ·
-  secret-scan · SBOM · `ci-ok` gate), `codeql.yml`, `deploy.yml` (Cloudflare Workers +
-  extension artifact behind a manual gate). Custom guards:
-  `check-csp.mjs`, `check-bundle-origins.mjs`, `check-licenses.mjs`.
+  secret-scan · SBOM · `ci-ok` gate), `codeql.yml`, `deploy.yml` (Cloudflare Workers
+  static assets · `cairn-auth` Worker · extension artifact behind a manual gate).
+  Custom guards: `check-csp.mjs`, `check-bundle-origins.mjs`, `check-licenses.mjs`.
 - `npm run verify` passes; `npm audit` clean (0 vulnerabilities).
 - **Repo is on GitHub** (`MahmoudNasserGouda/cairn`, default `main`). Branch protection
   active in **solo mode** — required checks (`CI passed`, CodeQL `Analyze`) + linear
@@ -46,32 +48,36 @@ Done:
   sole maintainer can merge. Switch to team mode (1 approval, no bypass) when a second
   maintainer joins — see [`docs/branch-protection.md`](docs/branch-protection.md).
 - **Web app is live** — Cloudflare Workers, `https://cairn.mahmoudnasser98.workers.dev/`
-  (sole host; the GitHub Pages mirror was dropped 2026-09-02, see changelog).
-  `production` / `extension-store` environments exist; `extension-store` secrets
-  deferred until store submission.
+  (sole host; the GitHub Pages mirror was dropped, see changelog). `production` /
+  `extension-store` environments exist; `extension-store` secrets deferred.
+- **Sign-in works** — GitHub, LinkedIn, and Google OAuth apps are configured and the
+  `cairn-auth` Worker is deployed with all three secrets. GitHub is the data
+  connection (reads repos); LinkedIn/Google are identity only. UI is a modal
+  (`core/auth/sign-in-dialog`), not nav-bar buttons
+  ([ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md),
+  [ADR-0025](docs/adr/0025-multi-provider-identity.md)).
 
 Next:
 
-1. **In progress** — sign-in. Multi-provider identity done (`libs/auth`,
-   `AuthService`, header buttons, `cairn-auth` token-exchange Worker): GitHub +
-   LinkedIn + Google, none support static-origin PKCE
-   ([ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md),
-   [ADR-0025](docs/adr/0025-multi-provider-identity.md)). GitHub is the only data
-   connection; LinkedIn/Google are identity only. Still to do: derive a
-   `UnifiedProfile` fragment from GitHub, replace `DEMO_*` fixtures.
-2. Wire the CV upload flow: sandboxed Web Worker text extraction → `parseCvText`.
-3. Readiness dashboard on the real profile (replace `DEMO_*` fixtures).
+1. Derive a `UnifiedProfile` fragment from the GitHub token (languages / contribution
+   activity → skills) and replace the dashboard `DEMO_*` fixtures.
+2. Wire the CV upload flow: sandboxed Web Worker text extraction → `parseCvText`
+   ([ADR-0011](docs/adr/0011-local-first-cv-processing.md)).
+3. Readiness dashboard on the real profile.
+4. Job-board ingestion ADR (public feeds + the extension "save this listing" pattern).
 
 ## Repo map
 
 ```
-apps/web/                  Angular 20 SPA — primary MVP                 [built: shell + 2 pages]
+apps/web/                  Angular 20 SPA — primary MVP                 [built: shell + 2 pages + sign-in]
   src/app/core/            SafeHtmlService (DOMPurify), IndexedDbStore
+  src/app/core/auth/       AuthService (in-memory tokens, redirect flow) + sign-in-dialog modal
   src/app/pages/           dashboard, repositories
   public/_headers          security headers + CSP, applied by Cloudflare Workers
   wrangler.toml            Cloudflare Workers static-assets deploy config
 apps/extension/            Manifest V3 extension (esbuild)              [built: content + background]
 apps/desktop/              Tauri local agent                           [future — ADR-0015]
+api/optional-serverless/oauth/  cairn-auth Worker: stateless code→token + LinkedIn identity relay
 libs/shared/               Result, math, redacting logger, KeyValueStore, sanitizer contract, config
 libs/scoring/              weightedScore + explanation, versioned WEIGHTS (WEIGHTS_VERSION=1)
 libs/matching/             repositoryMatch / issueMatch / contributionConfidence / skillGap
@@ -80,12 +86,10 @@ libs/issue-analysis/       analyzeIssue — deterministic difficulty + required-
 libs/github/               GithubClient (cache + dedup + ETag + rate-limit), repo/health fetchers
 libs/profile/              UnifiedProfile + mergeProfile, CV parser, skills taxonomy (v1)
 libs/portfolio/            metrics, static HTML/MD generator, Ed25519 license verify
-libs/auth/                 framework-free multi-provider OAuth (providers, authorize URL, state, exchange, identity)
+libs/auth/                 framework-free multi-provider OAuth (provider records, state, exchange, identity)
 libs/ai/                   IAIProvider (OpenAI/Gemini/OpenRouter), fenced prompts, disclosure, fallbacks
-apps/web/src/app/core/auth/ AuthService (in-memory tokens, redirect flow) + sign-in-dialog (modal)
-api/optional-serverless/oauth/  cairn-auth Worker: stateless code→token, GitHub/LinkedIn/Google (ADR-0024/0025)
 scripts/                   check-csp, check-bundle-origins, check-licenses, setup-hooks
-brand/                     logo.svg / logo-dark.svg / mark.svg + brand/README.md
+brand/                     logo.svg / logo-dark.svg / logo.png / mark.svg + brand/README.md
 docs/adr/                  25 ADRs · docs/ci-cd.md · docs/branch-protection.md
 ```
 
@@ -103,8 +107,9 @@ docs/adr/                  25 ADRs · docs/ci-cd.md · docs/branch-protection.md
 - **Weights:** changing one means bumping `WEIGHTS_VERSION` in
   `libs/scoring/src/weights.ts` and updating inline snapshots on purpose.
 - **AI is optional** — every AI feature has a non-AI fallback (`libs/ai/src/fallback.ts`).
-- **Commits:** Conventional Commits. **Branches:** no direct push to `main`; PR + 1
-  review + all required checks (see [`docs/branch-protection.md`](docs/branch-protection.md)).
+- **Commits:** Conventional Commits. **Branches:** no direct push to `main`; PR + all
+  required checks + (in team mode) 1 review. Currently **solo mode** — 0 approvals,
+  admin bypass (see [`docs/branch-protection.md`](docs/branch-protection.md)).
 
 ## Security non-negotiables
 
@@ -117,9 +122,14 @@ Full list: [`SECURITY.md`](SECURITY.md) §8. Enforced by CI (`check-csp.mjs`,
    (`cairn-security-reviewed`) exception — one ratified: `SafeHtmlService.trust()`,
    post-DOMPurify + post-Angular-sanitizer only.
 2. All external content (GitHub, AI, CV, user free-text) is sanitised before rendering.
-3. OAuth tokens and BYOK keys: never logged, never sent to Cairn, never in URLs.
-4. No secret is committed to the repo.
-5. OAuth is Authorization Code + PKCE with an exact redirect-URI allowlist.
+3. OAuth tokens and BYOK keys: never logged, never stored by Cairn, never in URLs.
+   The GitHub token transits the stateless `cairn-auth` Worker once during the code
+   exchange (and LinkedIn's identity relay), then lives only in browser memory.
+4. No secret is committed to the repo. OAuth client secrets live only in the
+   `cairn-auth` Worker env.
+5. OAuth is Authorization Code + single-use `state` + exact redirect-URI allowlist.
+   PKCE where the provider supports it; where it does not (all three today), the
+   `code → token` step runs in the CORS-locked `cairn-auth` Worker.
 6. New runtime dependencies and new outbound origins need explicit review; origins go in
    `libs/shared/src/config.ts` **and** `apps/web/public/_headers`.
 7. The core product stays functional and safe with no backend and no AI key.
@@ -158,10 +168,14 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
     "save this listing" capture pattern — needs its own ADR
     ([ADR-0025](docs/adr/0025-multi-provider-identity.md) §Job data).
   - ~~LinkedIn/Google OAuth: own function or shared?~~ → **shared** `cairn-auth` with a
-    per-provider route; identity only ([ADR-0025](docs/adr/0025-multi-provider-identity.md), 2026-09-02).
+    per-provider route; identity only ([ADR-0025](docs/adr/0025-multi-provider-identity.md), 2026-09-03).
   - ~~GitHub OAuth: PKCE from a static origin?~~ → **no** — no provider does; resolved
-    via the `cairn-auth` Worker (2026-09-02,
+    via the `cairn-auth` Worker (2026-09-03,
     [ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md)).
+  - The §8 non-negotiables 3 & 5 were reworded for the `cairn-auth` Worker but never
+    got an explicit owner "ratified" note the way the CSP exceptions did — treat as
+    accepted-by-merge unless the owner says otherwise. (The `public_repo` scope wording
+    in `SECURITY.md` §2 was swept out 2026-09-05 — `read:user` only.)
   - "Stay signed in" (opt-in encrypted-at-rest token in IndexedDB) not built yet —
     token is in-memory only ([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)).
   - Health-engine thresholds need a calibration data set
@@ -174,44 +188,39 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
 
 ## Changelog
 
-### 2026-09-02 — Sign-in moved to a modal; data vs identity made explicit
+### 2026-09-05 — Sign-in: LinkedIn CORS fix, modal UI, all providers live
 
-- The three provider buttons left the nav bar. Nav now shows a single **Sign in**
-  button (anonymous) or the identity chip + **Sign out** (signed in); the chip opens
-  the dialog to manage connections.
-- New `SignInDialogComponent` + `SignInDialogService` (`apps/web/src/app/core/auth/`).
-  The modal splits into **"Connect your work"** (GitHub — reads repos + contribution
-  history) and **"Faster sign-in · optional"** (LinkedIn / Google — name, email, photo
-  only, no repos or job history), implementing [ADR-0025](docs/adr/0025-multi-provider-identity.md)'s
-  stated UI intent. Backdrop / Esc / close-button dismiss; focus moves in on open and
-  is restored on close; minimal Tab trap; auto-opens on a redirect-callback error.
-- `OAuthProvider` gains `role: 'data' | 'identity'` (`libs/auth`), set in
-  `OAUTH_PROVIDERS`. `AuthService` exposes `dataProvider` / `identityProviders` /
-  `identityFor(id)`.
-- Drift: none. No new dependency (no Angular CDK — the modal is ~120 lines).
+- **All three OAuth apps configured and live** — GitHub / LinkedIn / Google client IDs
+  merged into config; `cairn-auth` deployed with all three secrets. Sign-in works
+  end to end at `https://cairn.mahmoudnasser98.workers.dev/`.
+- **LinkedIn "could not reach LinkedIn" fixed.** Its `userinfo` endpoint sends no CORS
+  headers, so a direct browser fetch is blocked. `cairn-auth` gained a
+  `POST /linkedin/identity` route that relays the call server-side with only the
+  access token (no client secret). `OAuthProvider` gained `identityViaWorker` /
+  `identityExchangeUrl`; `fetchIdentity` branches on it. GitHub and Google stay direct.
+  `https://api.linkedin.com` removed from the connect-src allowlist. If Google ever
+  shows the same symptom the fix is identical (`/google/identity` route half-scaffolded).
+- **Sign-in moved off the nav bar into a modal** (`core/auth/sign-in-dialog`). Nav is
+  now a single **Sign in** button (or identity chip + **Sign out**). The modal splits
+  into **"Connect your work"** (GitHub — reads repos + contribution history) and
+  **"Faster sign-in · optional"** (LinkedIn / Google — name, email, photo only),
+  implementing [ADR-0025](docs/adr/0025-multi-provider-identity.md)'s UI intent.
+  `OAuthProvider` gained `role: 'data' | 'identity'`. Backdrop / Esc / close dismiss;
+  focus moves in on open and is restored on close; minimal Tab trap; auto-opens on a
+  redirect-callback error. **No new dependency** (no Angular CDK).
+- CI-var rename: `vars.GITHUB_OAUTH_CLIENT_ID` → `vars.OAUTH_GITHUB_CLIENT_ID`
+  (Actions reserves the `GITHUB_` prefix); LinkedIn/Google match the pattern.
+- `verify` + `build` + guards green; 81 tests (14 files).
+- Guide sections updated: Status, Repo map, Security non-negotiables (synced to
+  `SECURITY.md` §8 wording), Decisions & open questions, this changelog.
+- Drift: none. (`SECURITY.md` §2's stale `public_repo` scope wording was swept out in
+  a follow-up — `read:user` only, per
+  [ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md).)
 
-### 2026-09-02 — Fix: LinkedIn sign-in ("could not reach LinkedIn")
+### 2026-09-03 — Sign-in: multi-provider identity slice
 
-- Multi-provider identity shipped and all three sign-in buttons render (real client
-  IDs merged for GitHub/LinkedIn/Google). Clicking **LinkedIn** failed at the identity
-  step: its `userinfo` endpoint sends no CORS headers, so the browser's direct fetch
-  is blocked and surfaces as "could not reach LinkedIn".
-- Fix: `cairn-auth` gains a second route, `POST /linkedin/identity` — relays the
-  `userinfo` call server-side using only the access token (no client secret). `libs/auth`'s
-  `OAuthProvider` gets `identityViaWorker` / `identityExchangeUrl`; `fetchIdentity`
-  branches on it. GitHub and Google's endpoints do support CORS and stay direct.
-- Removed `https://api.linkedin.com` from `ALLOWED_CONNECT_ORIGINS` / `_headers`
-  connect-src — the browser no longer talks to it directly.
-- If Google ever shows the same symptom, the identical fix applies (`google/identity`
-  route already scaffolded, just needs `userInfoUrl` added to the Worker's provider
-  config and the flag flipped in `libs/shared/src/config.ts`).
-- Drift: none.
-
-### 2026-09-02 — Sign-in: multi-provider identity slice
-
-Branch `feat/github-oauth-identity`. Scope: **auth + identity only** — deriving a
-`UnifiedProfile` from GitHub and replacing the dashboard `DEMO_*` fixtures is the
-next slice.
+PRs #10–12. Scope: **auth + identity only** — deriving a `UnifiedProfile` from GitHub
+and replacing the dashboard `DEMO_*` fixtures is the next slice.
 
 - **`libs/auth`** (new, framework-free): `OAuthProvider` records, `buildAuthorizeUrl`,
   single-use `state`, `exchangeCodeForToken`, `fetchIdentity` (GitHub REST + OIDC
@@ -230,19 +239,17 @@ next slice.
   SECURITY.md §5. Profile data comes from CV upload + GitHub + manual entry; job data
   from public listing feeds + the extension.
 - **`apps/web`**: `AuthService` (per-provider in-memory tokens, redirect flow with
-  `{provider,state}` in `sessionStorage`, sign-out wipes the `gh:` cache), header
-  shows a "Sign in with …" button per configured provider / primary identity + "Sign
-  out", `provideAuth()` initializer. Buttons hidden until a real client ID is set.
-- **Config/CI**: `OAUTH_PROVIDERS` + `api.linkedin.com` / `openidconnect.googleapis.com`
-  / `cairn-auth` origins in `libs/shared/src/config.ts` and `_headers` connect-src;
-  `deploy.yml` `deploy-auth-worker` job injects all three client IDs; `typecheck`
-  covers the Worker.
+  `{provider,state}` in `sessionStorage`, sign-out wipes the `gh:` cache),
+  `provideAuth()` initializer. (Nav-bar buttons — later replaced by the modal, see the
+  2026-09-05 entry.)
+- **Config/CI**: `OAUTH_PROVIDERS` + `openidconnect.googleapis.com` / `cairn-auth`
+  origins in `libs/shared/src/config.ts` and `_headers` connect-src; `deploy.yml`
+  `deploy-auth-worker` job; `typecheck` covers the Worker.
 - **Docs**: ADR-0020 corrected (no provider PKCE; `read:user` only); ADR-0012
   generalized; `SECURITY.md` T4/T4b + non-negotiables 3 & 5.
-- Drift: none. ⚠ **Owner ratification wanted** on the reworded `SECURITY.md` §8
-  non-negotiables 3 & 5 (token transits the Worker; PKCE "where supported") and on
-  [ADR-0025](docs/adr/0025-multi-provider-identity.md)'s "no job-board data import"
-  scope call.
+- Drift: none at the time. (Owner ratification of the reworded `SECURITY.md` §8
+  non-negotiables and ADR-0025's "no job-board import" scope was never explicitly
+  recorded — see Decisions & open questions; treat as accepted-by-merge.)
 
 ### 2026-09-02 — Live on GitHub; single-host deploy
 
