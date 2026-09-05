@@ -31,7 +31,7 @@ import { SignInDialogService } from './sign-in-dialog.service';
             &times;
           </button>
           <h2 id="cn-signin-title">
-            {{ auth.isSignedIn() ? 'Your accounts' : 'Sign in to Cairn' }}
+            {{ auth.isSignedIn() ? 'Your accounts' : 'Sign in to Rujoom' }}
           </h2>
 
           @if (auth.error(); as message) {
@@ -46,7 +46,7 @@ import { SignInDialogService } from './sign-in-dialog.service';
             <section class="group">
               <h3>Connect your work</h3>
               <p class="muted">
-                Cairn reads your public repositories and contribution history from
+                Rujoom reads your public repositories and contribution history from
                 {{ gh.label }} — this is where your profile and project matches come from.
               </p>
               @if (auth.identityFor(gh.id); as who) {
@@ -72,7 +72,7 @@ import { SignInDialogService } from './sign-in-dialog.service';
             <section class="group">
               <h3>Faster sign-in <span class="opt">optional</span></h3>
               <p class="muted">
-                Use these only to sign in. Cairn receives your name, email, and photo —
+                Use these only to sign in. Rujoom receives your name, email, and photo —
                 nothing else, and no repositories or job history. (LinkedIn has no API for
                 work history; add that with a CV upload.)
               </p>

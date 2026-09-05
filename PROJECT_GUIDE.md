@@ -1,4 +1,4 @@
-# Cairn — Project Guide
+# Rujoom — Project Guide
 
 The living orientation document for this repo: **where things are and how we work.**
 This is a snapshot with a changelog, not a real-time view. The authoritative record of
@@ -9,7 +9,7 @@ or meaningful step.
 
 ## Product in one line
 
-Cairn helps students, junior devs, and developers in emerging markets discover
+Rujoom helps students, junior devs, and developers in emerging markets discover
 open-source projects, understand codebases, contribute, and turn contributions into a
 career. (Renamed from "Open Source Compass" 2026-08-31 — the compass was only the
 discovery slice; internal npm scope is `@cairn/*`, component prefix `cn-`.) Full
@@ -117,7 +117,7 @@ Full list: [`SECURITY.md`](SECURITY.md) §8. Enforced by CI (`check-csp.mjs`,
    (`cairn-security-reviewed`) exception — one ratified: `SafeHtmlService.trust()`,
    post-DOMPurify + post-Angular-sanitizer only.
 2. All external content (GitHub, AI, CV, user free-text) is sanitised before rendering.
-3. OAuth tokens and BYOK keys: never logged, never sent to Cairn, never in URLs.
+3. OAuth tokens and BYOK keys: never logged, never sent to Rujoom, never in URLs.
 4. No secret is committed to the repo.
 5. OAuth is Authorization Code + PKCE with an exact redirect-URI allowlist.
 6. New runtime dependencies and new outbound origins need explicit review; origins go in
@@ -274,9 +274,9 @@ next slice.
 - Drift: none — both items raised in the first draft of this entry are now resolved
   (solo/team-mode doc; mirror dropped).
 
-### 2026-08-31 — Rename to Cairn + publish prep
+### 2026-08-31 — Rename to Rujoom + publish prep
 
-- Renamed the product **Open Source Compass → Cairn** ("compass" described only
+- Renamed the product **Open Source Compass → Rujoom** ("compass" described only
   discovery; the product spans profile → discovery → understanding → portfolio →
   career). Mechanical sweep across all tracked files: npm scope `@osc/* → @cairn/*`,
   root package `cairn`, Angular selector prefix `osc- → cn-`, marker

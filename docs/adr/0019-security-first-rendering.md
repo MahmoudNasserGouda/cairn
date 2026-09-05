@@ -43,7 +43,7 @@ BYOK AI keys. XSS is the highest-impact threat.
   bypass re-labels known-clean HTML rather than trusting raw input. Any further
   exception needs the same review.
 - **AI output is untrusted** and goes through the same sanitiser; it is also visually
-  attributed so users do not mistake it for Cairn content.
+  attributed so users do not mistake it for Rujoom content.
 - **Prompt-injection awareness:** repository text included in AI prompts is fenced and
   labelled as untrusted data in the system prompt; the user disclosure panel
   ([ADR-0010](0010-ai-key-privacy-and-data-disclosure.md)) shows exactly what is sent.

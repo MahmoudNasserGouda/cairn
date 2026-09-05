@@ -7,7 +7,7 @@
 ## Context
 
 The spec's AI privacy requirements: API keys must remain on the user's device, never be
-stored on Cairn servers, never be logged, never be transmitted to Cairn infrastructure. The
+stored on Rujoom servers, never be logged, never be transmitted to Rujoom infrastructure. The
 UI must explain what data is sent to the selected provider, and users should be able to
 control what is included where practical.
 
@@ -18,7 +18,7 @@ control what is included where practical.
   re-entry each session. Keys are never placed in LocalStorage, URLs, query strings, or
   analytics.
 - **Transmission:** keys go only to the provider endpoint the user selected. There is no
-  Cairn endpoint that receives, forwards, or proxies AI traffic
+  Rujoom endpoint that receives, forwards, or proxies AI traffic
   ([ADR-0009](0009-byok-ai-optional-enhancement.md)).
 - **Logging:** the app's logging/telemetry redacts anything matching a key pattern;
   request/response bodies for AI calls are never sent to any telemetry sink.

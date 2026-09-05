@@ -6,18 +6,18 @@
 
 ## Context
 
-Cairn targets students, junior developers, and developers in emerging
+Rujoom targets students, junior developers, and developers in emerging
 markets. The product must be sustainable for a solo/small team with no funding. The
 revised technical architecture mandates: $0 operating cost for the MVP, no
-Cairn-owned AI inference bill, no mandatory database, no mandatory
+Rujoom-owned AI inference bill, no mandatory database, no mandatory
 application backend, and maximum browser/device computation.
 
 ## Decision
 
-We will build Cairn as a **local-first** application. The core product —
+We will build Rujoom as a **local-first** application. The core product —
 profile building, repository and issue discovery, matching, health analysis, portfolio
 generation — will run entirely in the user's browser against third-party APIs and local
-storage. No Cairn-owned infrastructure is required for the core experience.
+storage. No Rujoom-owned infrastructure is required for the core experience.
 
 Optional cloud services may be added later (see [ADR-0016](0016-optional-serverless-api.md))
 only where they deliver clear business value, and the core product must keep working if

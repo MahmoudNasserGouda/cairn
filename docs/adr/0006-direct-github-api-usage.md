@@ -8,7 +8,7 @@
 
 GitHub is the central data source: repository metadata, languages, issues, pull
 requests, contributors, and commit activity. The spec is explicit: use GitHub directly
-whenever possible, do not route every request through an Cairn backend, and implement
+whenever possible, do not route every request through an Rujoom backend, and implement
 caching, deduplication, rate-limit awareness, pagination, and incremental loading.
 
 ## Decision
@@ -47,7 +47,7 @@ caching and clear UI messaging.
 
 ## Alternatives considered
 
-- **Proxy all GitHub traffic through Cairn.** Rejected: bandwidth cost, a single shared
+- **Proxy all GitHub traffic through Rujoom.** Rejected: bandwidth cost, a single shared
   rate-limit bucket, privacy regression, and a mandatory backend.
 - **No caching, rely on GitHub limits.** Rejected: 5000 req/h is quickly exhausted by
   discovery + health analysis over many repos.

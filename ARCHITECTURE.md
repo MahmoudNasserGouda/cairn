@@ -1,6 +1,6 @@
-# Cairn — Architecture Overview
+# Rujoom — Architecture Overview
 
-This is the entry point for the Cairn architecture. It gives the system
+This is the entry point for the Rujoom architecture. It gives the system
 picture and links to the deeper documents:
 
 - **Decisions:** [`docs/adr/`](docs/adr/README.md) — 23 Architecture Decision Records.
@@ -10,7 +10,7 @@ picture and links to the deeper documents:
 
 ## 1. Product summary & positioning
 
-Cairn helps students, junior developers, and developers in emerging
+Rujoom helps students, junior developers, and developers in emerging
 markets discover suitable open-source projects, understand unfamiliar codebases, make
 meaningful contributions, and turn those contributions into professional opportunities.
 
@@ -29,7 +29,7 @@ The product is organised around five questions:
 | Principle | Consequence | ADR |
 |-----------|-------------|-----|
 | **Local-first** | Core product runs in the browser against third-party APIs + local storage | [0001](docs/adr/0001-local-first-zero-cost-architecture.md) |
-| **$0 operating cost for the MVP** | Static hosting, no backend, no DB, no Cairn AI bill | [0001](docs/adr/0001-local-first-zero-cost-architecture.md), [0004](docs/adr/0004-static-first-web-app-on-free-hosting.md) |
+| **$0 operating cost for the MVP** | Static hosting, no backend, no DB, no Rujoom AI bill | [0001](docs/adr/0001-local-first-zero-cost-architecture.md), [0004](docs/adr/0004-static-first-web-app-on-free-hosting.md) |
 | **No mandatory backend** | Server code only as stateless serverless functions, added per concrete need | [0002](docs/adr/0002-no-mandatory-application-backend.md), [0016](docs/adr/0016-optional-serverless-api.md) |
 | **No mandatory database** | IndexedDB + LocalStorage; sync deferred | [0003](docs/adr/0003-no-mandatory-database-local-first-storage.md) |
 | **Maximum browser/device computation** | Matching, health, CV parsing, portfolio generation all client-side | [0007](docs/adr/0007-deterministic-explainable-matching-engine.md), [0008](docs/adr/0008-ai-free-repository-health-engine.md), [0011](docs/adr/0011-local-first-cv-processing.md), [0013](docs/adr/0013-client-side-portfolio-generation.md) |
@@ -45,7 +45,7 @@ The product is organised around five questions:
 flowchart TB
     User([Developer / student])
 
-    subgraph Clients["Cairn clients"]
+    subgraph Clients["Rujoom clients"]
         Web["Web app (primary MVP)<br/>static SPA"]
         Ext["Browser extension<br/>(after web MVP)"]
         Desktop["Desktop / local agent<br/>(future)"]
@@ -209,7 +209,7 @@ sequenceDiagram
     App->>D: show provider, model, exact payload<br/>(system prompt + fenced untrusted repo text)
     U->>D: (optional) trim files / context
     U->>D: Send
-    App->>Prov: direct request with user's key (never via Cairn)
+    App->>Prov: direct request with user's key (never via Rujoom)
     Prov-->>App: response
     App->>App: sanitise output (allowlist), label as AI-generated
     App->>U: render
@@ -239,7 +239,7 @@ sequenceDiagram
 | Class | Examples | Where | Policy |
 |-------|----------|-------|--------|
 | **User-specific** | Unified profile, skills, interests, saved repos/issues, preferences, AI config | IndexedDB (local only) | Source of truth; export/import JSON for backup; sync deferred ([ADR-0003](docs/adr/0003-no-mandatory-database-local-first-storage.md)) |
-| **Secrets** | GitHub token, BYOK AI keys | Memory by default; encrypted IndexedDB / isolated store opt-in | Never logged, never to Cairn, never in URLs ([ADR-0010](docs/adr/0010-ai-key-privacy-and-data-disclosure.md), [ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)) |
+| **Secrets** | GitHub token, BYOK AI keys | Memory by default; encrypted IndexedDB / isolated store opt-in | Never logged, never to Rujoom, never in URLs ([ADR-0010](docs/adr/0010-ai-key-privacy-and-data-disclosure.md), [ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)) |
 | **Public repo data** | Metadata, languages, issues, PRs, contributors, commit activity | IndexedDB cache from GitHub | Per-resource TTL, ETag revalidation, size cap + LRU eviction ([ADR-0006](docs/adr/0006-direct-github-api-usage.md)) |
 | **Derived** | Match Score, Health Score, Difficulty, Confidence, portfolio metrics | Not persisted (recomputed) or cached briefly with inputs | Deterministic, explainable ([ADR-0007](docs/adr/0007-deterministic-explainable-matching-engine.md), [ADR-0008](docs/adr/0008-ai-free-repository-health-engine.md)) |
 

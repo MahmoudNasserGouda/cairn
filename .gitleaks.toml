@@ -1,4 +1,4 @@
-# gitleaks configuration for Cairn.
+# gitleaks configuration for Rujoom.
 # The repo must contain zero secrets (SECURITY.md section 5, ADR-0021).
 [extend]
 useDefault = true

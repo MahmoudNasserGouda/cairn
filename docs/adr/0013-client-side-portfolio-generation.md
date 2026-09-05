@@ -9,7 +9,7 @@
 Phase 5 (Contributor Identity) turns contributions into a portfolio / open-source
 resume / contribution timeline. The spec: portfolio generation should be client-side
 (unified profile → generator → static HTML/Markdown), users deploy the result to
-GitHub Pages / Cloudflare Pages / other static hosting, and Cairn does not need to host
+GitHub Pages / Cloudflare Pages / other static hosting, and Rujoom does not need to host
 portfolios.
 
 ## Decision
@@ -29,8 +29,8 @@ unified profile and contribution data:
 
 ## Consequences
 
-- Cairn hosts nothing user-generated → no moderation, storage, or takedown burden at MVP.
-- Public shareable profiles hosted *by Cairn* (Phase 5/6) would need
+- Rujoom hosts nothing user-generated → no moderation, storage, or takedown burden at MVP.
+- Public shareable profiles hosted *by Rujoom* (Phase 5/6) would need
   [ADR-0016](0016-optional-serverless-api.md) and are out of scope here.
 - Generated HTML must itself be safe (no injected script from profile free-text fields) —
   the generator sanitises user input ([SECURITY.md](../../SECURITY.md)).
@@ -39,7 +39,7 @@ unified profile and contribution data:
 
 ## Alternatives considered
 
-- **Cairn-hosted portfolio pages.** Deferred: attractive for network effects but pulls in
+- **Rujoom-hosted portfolio pages.** Deferred: attractive for network effects but pulls in
   hosting, accounts, and moderation.
 - **Server-side static site generation.** Rejected: unnecessary; templating in the
   browser is sufficient.

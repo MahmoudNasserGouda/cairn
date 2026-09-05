@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="brand/logo-dark.svg" />
-    <img alt="Cairn" src="brand/logo.svg" width="240" />
+    <img alt="Rujoom" src="brand/logo.svg" width="240" />
   </picture>
 </p>
 
@@ -16,7 +16,7 @@
 
 ---
 
-**Cairn** helps students, junior developers, and developers in emerging markets
+**Rujoom** helps students, junior developers, and developers in emerging markets
 **discover** suitable open-source projects, **understand** unfamiliar codebases, make
 **meaningful contributions**, and turn those contributions into a **career**.
 
@@ -26,7 +26,7 @@ am I?"* to *"what should I contribute to?"* to *"how do I start?"* to *"how do I
 what I've done?"*.
 
 It is **local-first**: the core runs entirely in your browser against public APIs and
-your own device storage. No account, no backend, no database, and no Cairn-funded AI
+your own device storage. No account, no backend, no database, and no Rujoom-funded AI
 bill — you bring your own API key if you want AI features at all.
 
 ## Why it's different
@@ -68,7 +68,7 @@ You → your skills → readiness → recommendations → contribution → portf
 Everything user-specific lives in IndexedDB. Public repository data is fetched straight
 from the GitHub API (with caching, dedup, ETag revalidation and rate-limit awareness)
 and cached locally. Scores are derived on-device. AI calls, if enabled, go directly from
-your browser to your chosen provider — never through Cairn.
+your browser to your chosen provider — never through Rujoom.
 
 Read the full picture in [`ARCHITECTURE.md`](ARCHITECTURE.md): C4 diagrams, data flows,
 the scoring engines, the cost model, and the 23 [Architecture Decision Records](docs/adr/README.md).
@@ -131,7 +131,7 @@ or email `mahmoudnasser98@gmail.com` — please don't open a public issue.
 
 ## Sustainability
 
-Cairn is free. It is supported by **donations** (GitHub Sponsors, Ko-fi, Buy Me a
+Rujoom is free. It is supported by **donations** (GitHub Sponsors, Ko-fi, Buy Me a
 Coffee) and optional **premium portfolio themes / features** that unlock client-side
 with no backend. The free feature set stays fully functional. Sponsored content, when it
 exists, is clearly labelled and never influences organic scores
