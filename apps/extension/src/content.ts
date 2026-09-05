@@ -58,7 +58,7 @@ async function run(): Promise<void> {
   const id = repoFromPath();
   if (!id) return;
   const host = panel('cn-panel');
-  host.textContent = 'Cairn — analysing…';
+  host.textContent = 'Rujoom — analysing…';
 
   try {
     const repo = await ghGet<RepoLite>(`/repos/${id.owner}/${id.repo}`);
@@ -92,7 +92,7 @@ async function run(): Promise<void> {
       newcomer: health.newContributorSupport,
     });
   } catch (e) {
-    host.textContent = `Cairn — ${e instanceof Error ? e.message : 'error'}`;
+    host.textContent = `Rujoom — ${e instanceof Error ? e.message : 'error'}`;
   }
 }
 
@@ -112,7 +112,7 @@ function render(
 ): void {
   host.replaceChildren();
   const h = document.createElement('strong');
-  h.textContent = `Cairn · Health ${data.health}`;
+  h.textContent = `Rujoom · Health ${data.health}`;
   const p = document.createElement('p');
   p.style.margin = '6px 0 0';
   p.textContent = `Activity: ${data.activity} · Newcomer support: ${data.newcomer}`;

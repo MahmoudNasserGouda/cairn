@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Cairn",
+  "name": "Rujoom",
   "version": "0.1.0",
   "description": "Repository match, health, and beginner-friendliness — inline on GitHub.",
   "minimum_chrome_version": "116",
@@ -19,7 +19,7 @@
       "run_at": "document_idle"
     }
   ],
-  "action": { "default_title": "Cairn" },
+  "action": { "default_title": "Rujoom" },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'"
   }

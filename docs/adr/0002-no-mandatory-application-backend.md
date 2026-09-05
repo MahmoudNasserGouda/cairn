@@ -10,7 +10,7 @@
 lists potential future backend responsibilities (payments, sponsorship management,
 optional sync, server-side OAuth where required, abuse prevention, anonymous analytics,
 cached public repo data, business administration) but insists the MVP must not depend on
-an Cairn backend.
+an Rujoom backend.
 
 ## Decision
 

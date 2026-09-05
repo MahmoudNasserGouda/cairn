@@ -1,4 +1,4 @@
-# Contributing to Cairn
+# Contributing to Rujoom
 
 ## Setup
 

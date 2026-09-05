@@ -9,7 +9,7 @@
 
 ## The mark
 
-A cairn — stacked trail-marker stones. Four rounded stones, alternating slight tilt,
+Rujoom (رجوم) is the Arabic word for cairns — stacked trail-marker stones. Four rounded stones, alternating slight tilt,
 gradient `#8FB4FA → #3E68C0` top-to-bottom, hairline white stroke at 18% for separation.
 
 ## Colours
@@ -24,7 +24,7 @@ gradient `#8FB4FA → #3E68C0` top-to-bottom, hairline white stroke at 18% for s
 
 ## Wordmark
 
-"Cairn" — system sans (`ui-sans-serif, system-ui, …`), weight 650, letter-spacing −0.5.
+"Rujoom" — system sans (`ui-sans-serif, system-ui, …`), weight 650, letter-spacing −0.5.
 
 ## TODO before store submission
 

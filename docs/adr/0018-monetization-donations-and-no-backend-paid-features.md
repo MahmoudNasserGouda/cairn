@@ -14,7 +14,7 @@ stays deferred.
 
 ## Decision
 
-**Live from the MVP (no backend, no Cairn-hosted payment code):**
+**Live from the MVP (no backend, no Rujoom-hosted payment code):**
 
 - **Donations** — GitHub Sponsors, Ko-fi, and Buy Me a Coffee links surfaced in-app
   (About, footer, a non-intrusive support prompt). Pure outbound links; no integration.
@@ -24,7 +24,7 @@ stays deferred.
 - **Unlock mechanism** — the user pastes a license key; `libs/portfolio` / the relevant
   feature validates it **client-side** (offline-verifiable signed license, e.g. Ed25519
   signature over the license payload with a public key shipped in the app). No
-  server call needed to unlock; no Cairn endpoint.
+  server call needed to unlock; no Rujoom endpoint.
 - Premium features are strictly additive (extra themes, advanced analytics views,
   export options). The free product per the spec's "Free Features" list stays fully
   functional.

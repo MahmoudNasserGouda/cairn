@@ -1,4 +1,4 @@
-# CI/CD Architecture — Cairn
+# CI/CD Architecture — Rujoom
 
 CI/CD is **mandatory infrastructure**
 ([ADR-0022](adr/0022-ci-cd-is-mandatory-infrastructure.md)), present from day one. It is

@@ -1,4 +1,4 @@
-# Cairn — Project Guide
+# Rujoom — Project Guide
 
 The living orientation document for this repo: **where things are and how we work.**
 This is a snapshot with a changelog, not a real-time view. The authoritative record of
@@ -9,7 +9,7 @@ or meaningful step.
 
 ## Product in one line
 
-Cairn helps students, junior devs, and developers in emerging markets discover
+Rujoom helps students, junior devs, and developers in emerging markets discover
 open-source projects, understand codebases, contribute, and turn contributions into a
 career. (Renamed from "Open Source Compass" 2026-08-31 — the compass was only the
 discovery slice; internal npm scope is `@cairn/*`, component prefix `cn-`.) Full
@@ -281,9 +281,9 @@ and replacing the dashboard `DEMO_*` fixtures is the next slice.
 - Drift: none — both items raised in the first draft of this entry are now resolved
   (solo/team-mode doc; mirror dropped).
 
-### 2026-08-31 — Rename to Cairn + publish prep
+### 2026-08-31 — Rename to Rujoom + publish prep
 
-- Renamed the product **Open Source Compass → Cairn** ("compass" described only
+- Renamed the product **Open Source Compass → Rujoom** ("compass" described only
   discovery; the product spans profile → discovery → understanding → portfolio →
   career). Mechanical sweep across all tracked files: npm scope `@osc/* → @cairn/*`,
   root package `cairn`, Angular selector prefix `osc- → cn-`, marker

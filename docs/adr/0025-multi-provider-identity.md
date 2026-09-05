@@ -10,7 +10,7 @@
 ## Context
 
 Users asked to "sign in with GitHub, LinkedIn, Wuzzuf, Indeed, Gulf Talent, …" and
-have Cairn pull their profile, repositories, and job history from each. Most of that
+have Rujoom pull their profile, repositories, and job history from each. Most of that
 is not possible:
 
 - **LinkedIn** — "Sign In with LinkedIn (OpenID Connect)" returns `name`, `email`,
@@ -25,7 +25,7 @@ is not possible:
 The only way to get a user's data out of a site with no API is to drive it with the
 user's password. That is prohibited by
 [SECURITY.md](../../SECURITY.md) §5 and the assistant's own operating rules, breaks
-every one of those sites' Terms of Service, and would make Cairn a store of every
+every one of those sites' Terms of Service, and would make Rujoom a store of every
 user's credentials — the worst possible breach target.
 
 ## Decision
@@ -58,7 +58,7 @@ Skills, work history, and education come from, in order of trust:
 
 ### Job / opportunity data — public listings only
 
-Cairn ingests *public* job and issue listings to match the user against; it does not
+Rujoom ingests *public* job and issue listings to match the user against; it does not
 read any user's account on a job board. Sources are limited to services with a real
 API or feed (GitHub issues today; Adzuna / Remotive / USAJobs / Arbeitnow and similar
 later, each behind its own mini-ADR). Where a user wants a specific board with no API,

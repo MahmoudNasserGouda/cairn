@@ -44,7 +44,7 @@ credentials are the crown jewels; their handling needs a dedicated decision.
 - A "sign out" control wipes tokens and provider-derived cache.
 
 **BYOK AI keys:** governed by
-[ADR-0010](0010-ai-key-privacy-and-data-disclosure.md) — device-only, never to Cairn,
+[ADR-0010](0010-ai-key-privacy-and-data-disclosure.md) — device-only, never to Rujoom,
 never logged, redacted in any telemetry, "session only" option, direct-to-provider
 calls.
 
@@ -66,5 +66,5 @@ to content scripts; background service worker mediates provider calls.
   referrer.
 - **Always persist tokens in LocalStorage.** Rejected: readable by any successful XSS;
   contradicts [ADR-0019](0019-security-first-rendering.md)'s threat model.
-- **Route all provider calls through an Cairn proxy to hide tokens.** Rejected:
+- **Route all provider calls through an Rujoom proxy to hide tokens.** Rejected:
   mandatory backend, and the proxy would then hold every user's token — a worse target.

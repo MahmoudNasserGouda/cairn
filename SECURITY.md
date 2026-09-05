@@ -1,6 +1,6 @@
-# Security Architecture & Threat Model — Cairn
+# Security Architecture & Threat Model — Rujoom
 
-Security is the **#1 requirement** for Cairn. This document defines the
+Security is the **#1 requirement** for Rujoom. This document defines the
 trust model, the assets we protect, the threats we design against, and the controls that
 mitigate them. It complements the security ADRs:
 [0019 rendering/CSP](docs/adr/0019-security-first-rendering.md),
@@ -9,7 +9,7 @@ mitigate them. It complements the security ADRs:
 
 ## 1. Trust model
 
-Cairn is a browser client with (initially) no backend
+Rujoom is a browser client with (initially) no backend
 ([ADR-0001](docs/adr/0001-local-first-zero-cost-architecture.md),
 [ADR-0002](docs/adr/0002-no-mandatory-application-backend.md)). The **trusted core** is
 our own audited application code running on our own origin. **Everything else is
@@ -147,7 +147,7 @@ needs no scope; `public_repo` grants _write_ and is not requested), LinkedIn / G
    `SafeHtmlService.trust()`, applied only to output already run through DOMPurify
    and the Angular sanitizer.
 2. All external content (GitHub, AI, CV, user free-text) is sanitised before rendering.
-3. OAuth tokens and BYOK keys are never logged, never stored by Cairn infrastructure,
+3. OAuth tokens and BYOK keys are never logged, never stored by Rujoom infrastructure,
    never placed in URLs or query strings. The GitHub token transits the stateless
    `cairn-auth` Worker once during the code exchange (GitHub → Worker → browser) and is
    held only in browser memory thereafter

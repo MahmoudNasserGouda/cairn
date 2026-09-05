@@ -12,7 +12,7 @@ import { SignInDialogService } from './core/auth/sign-in-dialog.service';
     <header class="topbar">
       <span class="brand">
         <img src="favicon.svg" alt="" width="22" height="22" />
-        Cairn
+        Rujoom
       </span>
       <nav>
         <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
