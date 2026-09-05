@@ -85,6 +85,9 @@ export const CACHE_TTL_MS = {
   pulls: 60 * 60 * 1000,
   commitActivity: 6 * 60 * 60 * 1000,
   releases: 12 * 60 * 60 * 1000,
+  viewer: 60 * 60 * 1000,
+  viewerRepos: 60 * 60 * 1000,
+  mergedPrCount: 60 * 60 * 1000,
 } as const;
 
 /** Total cache budget before LRU eviction kicks in. */
