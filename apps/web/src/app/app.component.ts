@@ -1,11 +1,13 @@
 import { Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth/auth.service';
+import { SignInDialogComponent } from './core/auth/sign-in-dialog.component';
+import { SignInDialogService } from './core/auth/sign-in-dialog.service';
 
 @Component({
   selector: 'cn-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, SignInDialogComponent],
   template: `
     <header class="topbar">
       <span class="brand">
@@ -18,40 +20,26 @@ import { AuthService } from './core/auth/auth.service';
       </nav>
 
       <div class="account">
-        @if (auth.error(); as message) {
-          <span class="auth-error" role="alert">{{ message }}</span>
-        }
-
         @if (auth.isSignedIn()) {
           @if (auth.primaryIdentity(); as who) {
-            <span class="who">
+            <button type="button" class="who" (click)="dialog.show()">
               @if (who.avatarUrl) {
                 <img class="avatar" [src]="who.avatarUrl" alt="" width="24" height="24" />
               }
               {{ who.displayName }}
-              @if (who.provider !== 'github') {
-                <span class="tag">{{ who.provider }}</span>
-              }
-            </span>
+            </button>
           }
           <button type="button" class="link-btn" (click)="auth.signOut()">
             Sign out
           </button>
         } @else if (auth.status() === 'authenticating') {
           <span class="muted">Signing in…</span>
+        } @else if (auth.availableProviders.length > 0) {
+          <button type="button" class="signin" (click)="dialog.show()">Sign in</button>
         } @else {
-          @for (provider of auth.availableProviders; track provider.id) {
-            <button type="button" class="signin" (click)="auth.signIn(provider.id)">
-              Sign in with {{ provider.label }}
-            </button>
-          } @empty {
-            <span
-              class="muted"
-              title="Set the OAuth client IDs in libs/shared config to enable"
-            >
-              Sign-in not configured
-            </span>
-          }
+          <span class="muted" title="Set the OAuth client IDs in libs/shared config">
+            Sign-in not configured
+          </span>
         }
       </div>
 
@@ -60,6 +48,7 @@ import { AuthService } from './core/auth/auth.service';
       >
     </header>
     <main><router-outlet /></main>
+    <cn-sign-in-dialog />
   `,
   styles: [
     `
@@ -103,26 +92,18 @@ import { AuthService } from './core/auth/auth.service';
         align-items: center;
         gap: 0.4rem;
         color: var(--fg);
+        font: inherit;
+        cursor: pointer;
+        border: 0;
+        background: none;
+        padding: 0;
       }
       .avatar {
         border-radius: 50%;
         display: block;
       }
-      .tag {
-        font-size: 0.7rem;
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
-        color: var(--muted);
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        padding: 0 0.3rem;
-      }
       .muted {
         color: var(--muted);
-      }
-      .auth-error {
-        color: #f87171;
-        max-width: 22rem;
       }
       .signin {
         font: inherit;
@@ -157,4 +138,5 @@ import { AuthService } from './core/auth/auth.service';
 })
 export class AppComponent {
   protected readonly auth = inject(AuthService);
+  protected readonly dialog = inject(SignInDialogService);
 }
