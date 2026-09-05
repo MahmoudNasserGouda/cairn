@@ -16,17 +16,14 @@ the smallest thing that holds the secrets and does that one step.
 
 ## Interface
 
+Two routes, both CORS-locked to `ALLOWED_ORIGIN` (any other `Origin` gets `403`).
+
 | | |
 |---|---|
-| Route | `POST /<provider>/token` — `<provider>` ∈ `github` \| `linkedin` \| `google` |
-| Body | `{ "code": "...", "redirect_uri": "..." }` from the app origin only |
-| Talks to | the provider's token endpoint (JSON for GitHub, form-encoded for OIDC) |
-| Output | `{ access_token, token_type, scope }` (or `{ error }`) |
-| Stores | **nothing** — no KV, no DB, no cookies, no logging of the body |
-| Secrets | `<PROVIDER>_CLIENT_SECRET`; vars `<PROVIDER>_CLIENT_ID`, `ALLOWED_ORIGIN` |
+| `POST /<provider>/token` | `{ "code": "...", "redirect_uri": "..." }` → `{ access_token, token_type, scope }` (or `{ error }`). `<provider>` ∈ `github` \| `linkedin` \| `google`. JSON body for GitHub, form-encoded for the OIDC pair. `501 provider_not_configured` if that provider's id/secret aren't set. |
+| `POST /linkedin/identity` | `{ "token": "..." }` → the raw LinkedIn `userinfo` JSON, passed through verbatim. **Only needs the access token, no client secret** — LinkedIn's `userinfo` endpoint sends no CORS headers, so the browser cannot call it directly and this relays it. GitHub and Google's `userinfo`/`user` endpoints do support CORS and are called directly by the client; `/github/identity` and `/google/identity` return `404 not_relayed`. |
 
-CORS is locked to `ALLOWED_ORIGIN`; any other `Origin` gets `403`. A provider with no
-id + secret configured returns `501 provider_not_configured`.
+Stores **nothing** for either route — no KV, no DB, no cookies, no logging of bodies.
 
 ## Client failure mode
 

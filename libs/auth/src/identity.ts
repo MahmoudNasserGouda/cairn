@@ -30,19 +30,35 @@ export interface FetchIdentityOptions {
  */
 export async function fetchIdentity(opts: FetchIdentityOptions): Promise<Identity> {
   const doFetch = opts.fetchImpl ?? globalThis.fetch.bind(globalThis);
-  const headers: Record<string, string> = {
-    accept:
-      opts.provider.kind === 'github'
-        ? 'application/vnd.github+json'
-        : 'application/json',
-    authorization: `Bearer ${opts.token}`,
-  };
-  if (opts.provider.kind === 'github') headers['x-github-api-version'] = '2022-11-28';
 
   let res: Response;
   try {
-    res = await doFetch(opts.provider.userInfoUrl, { headers });
-  } catch {
+    if (opts.provider.identityViaWorker === true) {
+      // userInfoUrl has no CORS headers for this provider — relay through
+      // cairn-auth instead. Only the access token crosses; no client secret needed.
+      if (opts.provider.identityExchangeUrl === undefined) {
+        throw new AuthError(`${opts.provider.label} sign-in is misconfigured`);
+      }
+      res = await doFetch(opts.provider.identityExchangeUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({ token: opts.token }),
+      });
+    } else {
+      const headers: Record<string, string> = {
+        accept:
+          opts.provider.kind === 'github'
+            ? 'application/vnd.github+json'
+            : 'application/json',
+        authorization: `Bearer ${opts.token}`,
+      };
+      if (opts.provider.kind === 'github') {
+        headers['x-github-api-version'] = '2022-11-28';
+      }
+      res = await doFetch(opts.provider.userInfoUrl, { headers });
+    }
+  } catch (e) {
+    if (e instanceof AuthError) throw e;
     throw new AuthError(`could not reach ${opts.provider.label}`);
   }
   if (!res.ok) {
