@@ -12,10 +12,10 @@ import { DIFFICULTY_RANK, EXPERIENCE_RANK, type SkillTag } from '@cairn/shared';
 import type { DeveloperSnapshot, RepositorySnapshot, IssueSnapshot } from './model';
 import {
   experienceFit,
-  jaccard,
   learningValue,
   missingSkills,
   skillCoverage,
+  technologyCoverage,
 } from './primitives';
 
 export interface RepositoryMatchOptions {
@@ -30,13 +30,18 @@ export function repositoryMatch(
 ): ScoreBreakdown {
   const weights = opts.weights ?? repositoryWeightsFor(opts.preset ?? 'balanced');
   const devTags = dev.skills.map((s) => s.tag);
+  const stack = [...new Set([...repo.technologies, ...repo.topics])];
+  const knownInStack = stack.filter((t) => devTags.includes(t)).length;
   return weightedScore(
     {
       skill: {
         value: skillCoverage(dev, repo.technologies),
         note: `covers ${repo.technologies.length - missingSkills(dev, repo.technologies).length}/${repo.technologies.length} of the stack`,
       },
-      technology: jaccard(devTags, [...repo.technologies, ...repo.topics]),
+      technology: {
+        value: technologyCoverage(devTags, stack),
+        note: `knows ${knownInStack}/${stack.length} of the repo's tech + topics`,
+      },
       experience: experienceFit(dev.experience, repo.requiredExperience),
       activity: repo.activity,
       learning: learningValue(dev, repo.technologies),

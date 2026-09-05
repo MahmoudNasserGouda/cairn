@@ -50,6 +50,23 @@ export function experienceFit(
   return 0.25; // diff <= -2: under-qualified
 }
 
+/**
+ * Directional technology fit: the share of a repo's stack (technologies + topics)
+ * the developer already knows, in [0, 1]. Unlike `jaccard`, a broad generalist is
+ * not penalised for knowing things the repo doesn't use.
+ */
+export function technologyCoverage(
+  devTags: readonly string[],
+  stack: readonly string[],
+): number {
+  const unique = new Set(stack);
+  if (unique.size === 0) return 0;
+  const have = new Set(devTags);
+  let covered = 0;
+  for (const t of unique) if (have.has(t)) covered++;
+  return covered / unique.size;
+}
+
 /** Learning value: the share of a repo's stack that is new to the developer. */
 export function learningValue(
   dev: DeveloperSnapshot,
