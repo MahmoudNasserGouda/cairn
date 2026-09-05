@@ -1,14 +1,19 @@
 /**
- * Stateless OAuth token-exchange Worker (ADR-0016, ADR-0024, ADR-0025).
+ * Stateless OAuth Worker for GitHub, LinkedIn, and Google (ADR-0016, ADR-0024,
+ * ADR-0025).
  *
- * One job: turn an authorization `code` into an access token for GitHub, LinkedIn,
- * or Google, because none offer a usable public-client PKCE flow from a static
- * origin and the exchange needs a client secret. Holds `<PROVIDER>_CLIENT_ID` (var)
- * and `<PROVIDER>_CLIENT_SECRET` (secret) per provider. Stores nothing, logs nothing
- * about the request body, sets no cookies. If it is down, sign-in fails and the rest
- * of the app still works.
+ * Two jobs, both because none of these providers offer a usable public-client PKCE
+ * flow from a static origin:
  *
- * Route: `POST /<provider>/token` with `{ "code": "...", "redirect_uri": "..." }`.
+ * 1. `POST /<provider>/token` — turn an authorization `code` into an access token.
+ *    Needs the client secret, so it cannot run in the browser. Holds
+ *    `<PROVIDER>_CLIENT_ID` (var) and `<PROVIDER>_CLIENT_SECRET` (secret).
+ * 2. `POST /<provider>/identity` — relay the `userinfo` call for a provider whose
+ *    endpoint sends no CORS headers (LinkedIn). Needs only the access token the
+ *    browser already has — no client secret.
+ *
+ * Stores nothing, logs nothing about request bodies, sets no cookies. If it is down,
+ * sign-in fails and the rest of the app still works.
  */
 
 export interface Env {
@@ -29,6 +34,8 @@ interface ProviderConfig {
   readonly encoding: 'json' | 'form';
   readonly clientIdKey: keyof Env;
   readonly clientSecretKey: keyof Env;
+  /** Only set for providers whose `userinfo` call is relayed (ADR-0025). */
+  readonly userInfoUrl?: string;
 }
 
 const PROVIDERS: Record<ProviderId, ProviderConfig> = {
@@ -43,6 +50,7 @@ const PROVIDERS: Record<ProviderId, ProviderConfig> = {
     encoding: 'form',
     clientIdKey: 'LINKEDIN_CLIENT_ID',
     clientSecretKey: 'LINKEDIN_CLIENT_SECRET',
+    userInfoUrl: 'https://api.linkedin.com/v2/userinfo',
   },
   google: {
     tokenUrl: 'https://oauth2.googleapis.com/token',
@@ -63,6 +71,15 @@ interface TokenResponse {
   readonly scope?: string;
   readonly error?: string;
   readonly error_description?: string;
+}
+
+interface IdentityRequest {
+  readonly token?: unknown;
+}
+
+interface Route {
+  readonly provider: ProviderId;
+  readonly action: 'token' | 'identity';
 }
 
 function corsHeaders(env: Env): Record<string, string> {
@@ -86,10 +103,148 @@ function jsonResponse(body: unknown, status: number, env: Env): Response {
   });
 }
 
-function parseProvider(pathname: string): ProviderId | null {
-  const match = /^\/([a-z]+)\/token$/.exec(pathname);
+function parseRoute(pathname: string): Route | null {
+  const match = /^\/([a-z]+)\/(token|identity)$/.exec(pathname);
   const id = match?.[1];
-  return id === 'github' || id === 'linkedin' || id === 'google' ? id : null;
+  const action = match?.[2];
+  if (
+    (id === 'github' || id === 'linkedin' || id === 'google') &&
+    (action === 'token' || action === 'identity')
+  ) {
+    return { provider: id, action };
+  }
+  return null;
+}
+
+async function handleToken(
+  request: Request,
+  env: Env,
+  providerId: ProviderId,
+): Promise<Response> {
+  const provider = PROVIDERS[providerId];
+  const clientId = env[provider.clientIdKey];
+  const clientSecret = env[provider.clientSecretKey];
+  if (
+    typeof clientId !== 'string' ||
+    clientId.length === 0 ||
+    typeof clientSecret !== 'string' ||
+    clientSecret.length === 0
+  ) {
+    return jsonResponse({ error: 'provider_not_configured' }, 501, env);
+  }
+
+  let payload: ExchangeRequest;
+  try {
+    payload = (await request.json()) as ExchangeRequest;
+  } catch {
+    return jsonResponse({ error: 'invalid_json' }, 400, env);
+  }
+  if (typeof payload.code !== 'string' || payload.code.length === 0) {
+    return jsonResponse({ error: 'missing_code' }, 400, env);
+  }
+  const redirectUri =
+    typeof payload.redirect_uri === 'string' ? payload.redirect_uri : '';
+
+  const fields: Record<string, string> = {
+    grant_type: 'authorization_code',
+    client_id: clientId,
+    client_secret: clientSecret,
+    code: payload.code,
+  };
+  if (redirectUri.length > 0) fields['redirect_uri'] = redirectUri;
+
+  const init: RequestInit =
+    provider.encoding === 'json'
+      ? {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', accept: 'application/json' },
+          body: JSON.stringify(fields),
+        }
+      : {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/x-www-form-urlencoded',
+            accept: 'application/json',
+          },
+          body: new URLSearchParams(fields).toString(),
+        };
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(provider.tokenUrl, init);
+  } catch {
+    return jsonResponse({ error: 'provider_unreachable' }, 502, env);
+  }
+
+  let token: TokenResponse;
+  try {
+    token = (await upstream.json()) as TokenResponse;
+  } catch {
+    return jsonResponse({ error: 'provider_bad_response' }, 502, env);
+  }
+
+  if (token.error !== undefined || token.access_token === undefined) {
+    return jsonResponse(
+      {
+        error: token.error ?? 'exchange_failed',
+        error_description: token.error_description,
+      },
+      400,
+      env,
+    );
+  }
+
+  return jsonResponse(
+    {
+      access_token: token.access_token,
+      token_type: token.token_type ?? 'bearer',
+      scope: token.scope ?? '',
+    },
+    200,
+    env,
+  );
+}
+
+async function handleIdentity(
+  request: Request,
+  env: Env,
+  providerId: ProviderId,
+): Promise<Response> {
+  const provider = PROVIDERS[providerId];
+  if (provider.userInfoUrl === undefined) {
+    return jsonResponse({ error: 'not_relayed' }, 404, env);
+  }
+
+  let payload: IdentityRequest;
+  try {
+    payload = (await request.json()) as IdentityRequest;
+  } catch {
+    return jsonResponse({ error: 'invalid_json' }, 400, env);
+  }
+  if (typeof payload.token !== 'string' || payload.token.length === 0) {
+    return jsonResponse({ error: 'missing_token' }, 400, env);
+  }
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(provider.userInfoUrl, {
+      headers: { authorization: `Bearer ${payload.token}`, accept: 'application/json' },
+    });
+  } catch {
+    return jsonResponse({ error: 'provider_unreachable' }, 502, env);
+  }
+
+  let body: unknown;
+  try {
+    body = await upstream.json();
+  } catch {
+    return jsonResponse({ error: 'provider_bad_response' }, 502, env);
+  }
+  if (!upstream.ok) {
+    return jsonResponse({ error: 'identity_fetch_failed' }, upstream.status, env);
+  }
+  // Passed through verbatim; the client (libs/auth) maps the OIDC userinfo shape.
+  return jsonResponse(body, 200, env);
 }
 
 export default {
@@ -106,91 +261,13 @@ export default {
       return jsonResponse({ error: 'origin_not_allowed' }, 403, env);
     }
 
-    const providerId = parseProvider(new URL(request.url).pathname);
-    if (providerId === null) {
-      return jsonResponse({ error: 'unknown_provider' }, 404, env);
-    }
-    const provider = PROVIDERS[providerId];
-    const clientId = env[provider.clientIdKey];
-    const clientSecret = env[provider.clientSecretKey];
-    if (
-      typeof clientId !== 'string' ||
-      clientId.length === 0 ||
-      typeof clientSecret !== 'string' ||
-      clientSecret.length === 0
-    ) {
-      return jsonResponse({ error: 'provider_not_configured' }, 501, env);
+    const route = parseRoute(new URL(request.url).pathname);
+    if (route === null) {
+      return jsonResponse({ error: 'unknown_route' }, 404, env);
     }
 
-    let payload: ExchangeRequest;
-    try {
-      payload = (await request.json()) as ExchangeRequest;
-    } catch {
-      return jsonResponse({ error: 'invalid_json' }, 400, env);
-    }
-    if (typeof payload.code !== 'string' || payload.code.length === 0) {
-      return jsonResponse({ error: 'missing_code' }, 400, env);
-    }
-    const redirectUri =
-      typeof payload.redirect_uri === 'string' ? payload.redirect_uri : '';
-
-    const fields: Record<string, string> = {
-      grant_type: 'authorization_code',
-      client_id: clientId,
-      client_secret: clientSecret,
-      code: payload.code,
-    };
-    if (redirectUri.length > 0) fields['redirect_uri'] = redirectUri;
-
-    const init: RequestInit =
-      provider.encoding === 'json'
-        ? {
-            method: 'POST',
-            headers: { 'content-type': 'application/json', accept: 'application/json' },
-            body: JSON.stringify(fields),
-          }
-        : {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/x-www-form-urlencoded',
-              accept: 'application/json',
-            },
-            body: new URLSearchParams(fields).toString(),
-          };
-
-    let upstream: Response;
-    try {
-      upstream = await fetch(provider.tokenUrl, init);
-    } catch {
-      return jsonResponse({ error: 'provider_unreachable' }, 502, env);
-    }
-
-    let token: TokenResponse;
-    try {
-      token = (await upstream.json()) as TokenResponse;
-    } catch {
-      return jsonResponse({ error: 'provider_bad_response' }, 502, env);
-    }
-
-    if (token.error !== undefined || token.access_token === undefined) {
-      return jsonResponse(
-        {
-          error: token.error ?? 'exchange_failed',
-          error_description: token.error_description,
-        },
-        400,
-        env,
-      );
-    }
-
-    return jsonResponse(
-      {
-        access_token: token.access_token,
-        token_type: token.token_type ?? 'bearer',
-        scope: token.scope ?? '',
-      },
-      200,
-      env,
-    );
+    return route.action === 'token'
+      ? handleToken(request, env, route.provider)
+      : handleIdentity(request, env, route.provider);
   },
 };

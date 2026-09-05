@@ -29,6 +29,13 @@ export interface OAuthProvider {
   readonly tokenExchangeUrl: string;
   /** `https://api.github.com/user` or the provider's OIDC `userinfo` URL. */
   readonly userInfoUrl: string;
+  /**
+   * True when `userInfoUrl` has no CORS headers, so the browser cannot call it
+   * directly — the identity fetch is relayed through `cairn-auth`'s
+   * `identityExchangeUrl` instead (needs only the access token, no client secret).
+   */
+  readonly identityViaWorker?: boolean;
+  readonly identityExchangeUrl?: string;
   /** Exact redirect URI; must match what is registered on the OAuth app. */
   readonly redirectUri: string;
   readonly scopes: readonly string[];
