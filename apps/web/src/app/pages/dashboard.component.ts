@@ -56,14 +56,42 @@ const DEMO_ISSUE: IssueSnapshot = {
       data only).
     </p>
 
-    @if (!profileSvc.profile()) {
-      <p class="muted">
-        {{
-          profileSvc.loading()
-            ? 'Loading your GitHub profile…'
-            : 'Showing demo data — connect GitHub for your real profile.'
-        }}
+    @if (profileSvc.error(); as err) {
+      <p class="notice error">Couldn't load your GitHub profile: {{ err }}</p>
+    } @else if (profileSvc.loading()) {
+      <p class="notice muted">Loading your GitHub profile…</p>
+    } @else if (!profileSvc.profile()) {
+      <p class="notice muted">
+        Showing demo data — connect GitHub for your real profile.
       </p>
+    }
+
+    @if (profile(); as p) {
+      <section class="panel profile">
+        <h2>Your profile</h2>
+        <p class="sub">
+          @if (p.displayName) {
+            <strong>{{ p.displayName }}</strong> ·
+          }
+          {{ p.experienceLevel }} · ~{{ p.totalYears }} yrs ·
+          {{ profileSvc.priorContributions() }} merged PRs
+        </p>
+        <div class="tags">
+          @for (s of p.skills; track s.tag) {
+            <span class="tag">{{ s.tag }} {{ percent(s.level) }}%</span>
+          } @empty {
+            <span class="muted">No languages detected in your public repos yet.</span>
+          }
+        </div>
+        @if (p.interests.length) {
+          <p class="sub">Interests</p>
+          <div class="tags">
+            @for (t of p.interests; track t) {
+              <span class="tag ghost">{{ t }}</span>
+            }
+          </div>
+        }
+      </section>
     }
 
     <section class="metrics">
@@ -144,6 +172,36 @@ const DEMO_ISSUE: IssueSnapshot = {
         white-space: pre-wrap;
         font-size: 0.85rem;
       }
+      .notice {
+        margin: 1rem 0 0;
+      }
+      .notice.error {
+        color: #f87171;
+      }
+      .profile {
+        margin-top: 1.5rem;
+      }
+      .profile h2 {
+        margin-top: 0;
+      }
+      .sub {
+        color: var(--muted);
+        margin: 0.75rem 0 0.35rem;
+      }
+      .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+      }
+      .tag {
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.1rem 0.6rem;
+        font-size: 0.8rem;
+      }
+      .tag.ghost {
+        color: var(--muted);
+      }
     `,
   ],
 })
@@ -156,6 +214,23 @@ export class DashboardComponent {
     const p = this.profileSvc.profile();
     return p ? profileToSnapshot(p, this.profileSvc.priorContributions()) : DEMO_DEV;
   });
+
+  /** The loaded GitHub profile, flattened for the template. */
+  protected readonly profile = computed(() => {
+    const p = this.profileSvc.profile();
+    if (!p) return null;
+    return {
+      displayName: p.identities.find((i) => i.provider === 'github')?.displayName ?? '',
+      experienceLevel: p.experienceLevel,
+      totalYears: p.totalYears,
+      skills: [...p.skills].sort((a, b) => b.level - a.level),
+      interests: p.interests,
+    };
+  });
+
+  protected percent(level: number): number {
+    return Math.round(level * 100);
+  }
 
   protected readonly match = computed(() => repositoryMatch(this.dev(), DEMO_REPO));
   protected readonly confidence = computed(() =>
