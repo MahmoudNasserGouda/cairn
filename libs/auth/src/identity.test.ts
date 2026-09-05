@@ -13,12 +13,23 @@ const GITHUB: OAuthProvider = {
   scopes: ['read:user'],
 };
 
+const GOOGLE: OAuthProvider = {
+  ...GITHUB,
+  id: 'google',
+  label: 'Google',
+  kind: 'oidc',
+  userInfoUrl: 'https://openidconnect.googleapis.com/v1/userinfo',
+  scopes: ['openid', 'profile', 'email'],
+};
+
 const LINKEDIN: OAuthProvider = {
   ...GITHUB,
   id: 'linkedin',
   label: 'LinkedIn',
   kind: 'oidc',
   userInfoUrl: 'https://api.linkedin.com/v2/userinfo',
+  identityViaWorker: true,
+  identityExchangeUrl: 'https://auth.example.test/linkedin/identity',
   scopes: ['openid', 'profile', 'email'],
 };
 
@@ -59,10 +70,31 @@ describe('fetchIdentity', () => {
     );
   });
 
-  it('maps an OIDC userinfo payload, falling back for the display name', async () => {
+  it('maps a direct OIDC userinfo payload, falling back for the display name', async () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValue(json({ sub: 'abc123', email: 'a@b.com' }));
+    const identity = await fetchIdentity({
+      provider: GOOGLE,
+      token: 'go_x',
+      fetchImpl,
+    });
+    expect(identity).toEqual({
+      provider: 'google',
+      subject: 'abc123',
+      displayName: 'a@b.com',
+      email: 'a@b.com',
+      avatarUrl: null,
+      profileUrl: null,
+    });
+    const [url] = fetchImpl.mock.calls[0] as [string];
+    expect(url).toBe('https://openidconnect.googleapis.com/v1/userinfo');
+  });
+
+  it('relays through cairn-auth when identityViaWorker is set (LinkedIn: no CORS)', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(json({ sub: 'li456', name: 'Lin Person' }));
     const identity = await fetchIdentity({
       provider: LINKEDIN,
       token: 'li_x',
@@ -70,12 +102,16 @@ describe('fetchIdentity', () => {
     });
     expect(identity).toEqual({
       provider: 'linkedin',
-      subject: 'abc123',
-      displayName: 'a@b.com',
-      email: 'a@b.com',
+      subject: 'li456',
+      displayName: 'Lin Person',
+      email: null,
       avatarUrl: null,
       profileUrl: null,
     });
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://auth.example.test/linkedin/identity');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({ token: 'li_x' });
   });
 
   it('throws AuthError on a non-OK response', async () => {

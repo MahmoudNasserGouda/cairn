@@ -174,6 +174,23 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
 
 ## Changelog
 
+### 2026-09-02 — Fix: LinkedIn sign-in ("could not reach LinkedIn")
+
+- Multi-provider identity shipped and all three sign-in buttons render (real client
+  IDs merged for GitHub/LinkedIn/Google). Clicking **LinkedIn** failed at the identity
+  step: its `userinfo` endpoint sends no CORS headers, so the browser's direct fetch
+  is blocked and surfaces as "could not reach LinkedIn".
+- Fix: `cairn-auth` gains a second route, `POST /linkedin/identity` — relays the
+  `userinfo` call server-side using only the access token (no client secret). `libs/auth`'s
+  `OAuthProvider` gets `identityViaWorker` / `identityExchangeUrl`; `fetchIdentity`
+  branches on it. GitHub and Google's endpoints do support CORS and stay direct.
+- Removed `https://api.linkedin.com` from `ALLOWED_CONNECT_ORIGINS` / `_headers`
+  connect-src — the browser no longer talks to it directly.
+- If Google ever shows the same symptom, the identical fix applies (`google/identity`
+  route already scaffolded, just needs `userInfoUrl` added to the Worker's provider
+  config and the flag flipped in `libs/shared/src/config.ts`).
+- Drift: none.
+
 ### 2026-09-02 — Sign-in: multi-provider identity slice
 
 Branch `feat/github-oauth-identity`. Scope: **auth + identity only** — deriving a

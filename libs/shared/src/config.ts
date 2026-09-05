@@ -8,7 +8,6 @@
 export const ALLOWED_CONNECT_ORIGINS: readonly string[] = [
   'https://api.github.com',
   'https://cairn-auth.mahmoudnasser98.workers.dev',
-  'https://api.linkedin.com',
   'https://openidconnect.googleapis.com',
   'https://api.openai.com',
   'https://generativelanguage.googleapis.com',
@@ -27,6 +26,11 @@ export const ALLOWED_CONNECT_ORIGINS: readonly string[] = [
  *
  * Only `github` is a data connection; `linkedin` and `google` are identity only
  * (ADR-0025 — LinkedIn has no profile-data API, ADR-0012).
+ *
+ * `identityViaWorker`: LinkedIn's `userinfo` endpoint has no CORS headers, so the
+ * browser cannot call it directly — the identity fetch is relayed through
+ * `cairn-auth` instead (`identityExchangeUrl`), which needs only the access token,
+ * not the client secret (ADR-0024).
  */
 const OAUTH_REDIRECT_URI = 'https://cairn.mahmoudnasser98.workers.dev/';
 const OAUTH_EXCHANGE_BASE = 'https://cairn-auth.mahmoudnasser98.workers.dev';
@@ -51,6 +55,8 @@ export const OAUTH_PROVIDERS = {
     authorizeUrl: 'https://www.linkedin.com/oauth/v2/authorization',
     tokenExchangeUrl: `${OAUTH_EXCHANGE_BASE}/linkedin/token`,
     userInfoUrl: 'https://api.linkedin.com/v2/userinfo',
+    identityViaWorker: true,
+    identityExchangeUrl: `${OAUTH_EXCHANGE_BASE}/linkedin/identity`,
     redirectUri: OAUTH_REDIRECT_URI,
     scopes: ['openid', 'profile', 'email'],
   },
