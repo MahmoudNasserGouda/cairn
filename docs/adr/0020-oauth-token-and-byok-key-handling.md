@@ -1,10 +1,10 @@
 # 0020. OAuth token and BYOK key handling
 
-- Status: Accepted (refined by [ADR-0024](0024-github-oauth-token-exchange-function.md), 2026-09-02)
+- Status: Accepted (refined by [ADR-0024](0024-github-oauth-token-exchange-function.md), 2026-09-03)
 - Date: 2026-08-30
 - Deciders: Project owner
 
-> **Correction 2026-09-02 ([ADR-0024](0024-github-oauth-token-exchange-function.md)).**
+> **Correction 2026-09-03 ([ADR-0024](0024-github-oauth-token-exchange-function.md)).**
 > The line below expecting GitHub OAuth to work without a token-exchange function is
 > **wrong** — GitHub supports neither PKCE nor a CORS-enabled device flow. GitHub now
 > uses the stateless token-exchange Worker described in the fallback clause. Also:
@@ -32,8 +32,9 @@ credentials are the crown jewels; their handling needs a dedicated decision.
   ([ADR-0016](0016-optional-serverless-api.md)) whose sole job is code→token; it stores
   nothing. GitHub OAuth is expected to work without it; LinkedIn is the likely
   exception.
-- Request the **narrowest scopes** that work: GitHub `public_repo` / `read:user` (no
-  `repo`, no write scopes at MVP); LinkedIn `openid profile email` only.
+- Request the **narrowest scopes** that work: GitHub ~~`public_repo` /~~ `read:user`
+  only (no `repo`, no write scopes — see the correction above); LinkedIn / Google
+  `openid profile email` only.
 
 **Token storage:**
 
