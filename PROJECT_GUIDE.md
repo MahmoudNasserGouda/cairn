@@ -172,12 +172,10 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
   - ~~GitHub OAuth: PKCE from a static origin?~~ → **no** — no provider does; resolved
     via the `cairn-auth` Worker (2026-09-03,
     [ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md)).
-  - **`SECURITY.md` needs a small sweep:** §2 still says GitHub scope is
-    `public_repo`/`read:user`; [ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md)
-    dropped `public_repo` (identity slice is `read:user` only). The §8 non-negotiables
-    3 & 5 were reworded for the `cairn-auth` Worker but never got an explicit owner
-    "ratified" note the way the CSP exceptions did — treat as accepted-by-merge unless
-    the owner says otherwise.
+  - The §8 non-negotiables 3 & 5 were reworded for the `cairn-auth` Worker but never
+    got an explicit owner "ratified" note the way the CSP exceptions did — treat as
+    accepted-by-merge unless the owner says otherwise. (The `public_repo` scope wording
+    in `SECURITY.md` §2 was swept out 2026-09-05 — `read:user` only.)
   - "Stay signed in" (opt-in encrypted-at-rest token in IndexedDB) not built yet —
     token is in-memory only ([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)).
   - Health-engine thresholds need a calibration data set
@@ -215,10 +213,9 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
 - `verify` + `build` + guards green; 81 tests (14 files).
 - Guide sections updated: Status, Repo map, Security non-negotiables (synced to
   `SECURITY.md` §8 wording), Decisions & open questions, this changelog.
-- Drift: ⚠ `SECURITY.md` §2 still lists `public_repo` for GitHub —
-  [ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md) dropped it (identity
-  slice is `read:user` only). Needs a one-line sweep; this skill can't edit
-  `SECURITY.md`. Nothing else.
+- Drift: none. (`SECURITY.md` §2's stale `public_repo` scope wording was swept out in
+  a follow-up — `read:user` only, per
+  [ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md).)
 
 ### 2026-09-03 — Sign-in: multi-provider identity slice
 
