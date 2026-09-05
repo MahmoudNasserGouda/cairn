@@ -18,7 +18,7 @@ context: [`ARCHITECTURE.md`](ARCHITECTURE.md) §1; roadmap: [§15](ARCHITECTURE.
 ## Current status
 
 **Phase 1 — Foundation. Monorepo + CI/CD live, web app deployed, multi-provider
-sign-in working.**
+sign-in working, real GitHub profile feeding the dashboard.**
 
 Done:
 
@@ -26,7 +26,7 @@ Done:
   [`docs/ci-cd.md`](docs/ci-cd.md), ADRs 0001–0025.
 - **Monorepo scaffold** — npm workspaces, TS strict, path aliases, ESLint flat config
   with the `libs → apps` import-boundary rule, Prettier, Vitest.
-- **Ten `libs/*` implemented** with real logic and **81 passing unit tests**:
+- **Ten `libs/*` implemented** with real logic and **92 passing unit tests**:
   deterministic matching + scoring, AI-free repository health, issue difficulty, the
   cached GitHub client (dedup + ETag + rate-limit floor), CV parser + skills taxonomy,
   BYOK AI provider abstraction + non-AI fallbacks + prompt-injection fencing,
@@ -35,6 +35,12 @@ Done:
 - **`apps/web`** — Angular 20 standalone + zoneless, hash routing, DOMPurify sanitiser
   service, IndexedDB store, dashboard + repositories pages, multi-provider sign-in
   modal. Production build ≈ 70 kB transfer.
+- **Real GitHub profile on the dashboard** — for a user signed in with GitHub,
+  `libs/github` viewer fetchers + `libs/profile`'s `githubToProfile` build a
+  `UnifiedProfile` (repo languages → weighted skills, topics → interests, account age
+  → experience level, merged-PR count) which drives the match / contribution-confidence
+  / skill-gap scores and a "Your profile" panel. Anonymous / identity-only users keep
+  the `DEMO_*` fixtures. Orchestrated by `apps/web` `ProfileService` (`core/profile/`).
 - **`apps/extension`** — Manifest V3, esbuild build, GitHub content-script panel using
   the shared engines via a background service worker.
 - **CI/CD** — `.github/workflows/ci.yml` (verify · build · dependency-scan ·
@@ -59,10 +65,11 @@ Done:
 
 Next:
 
-1. Derive a `UnifiedProfile` fragment from the GitHub token (languages / contribution
-   activity → skills) and replace the dashboard `DEMO_*` fixtures.
-2. Wire the CV upload flow: sandboxed Web Worker text extraction → `parseCvText`
-   ([ADR-0011](docs/adr/0011-local-first-cv-processing.md)).
+1. Wire the CV upload flow: sandboxed Web Worker text extraction → `parseCvText`
+   ([ADR-0011](docs/adr/0011-local-first-cv-processing.md)), merged onto the GitHub
+   profile via `mergeProfile`.
+2. Replace the dashboard's `DEMO_REPO` / `DEMO_ISSUE` targets with real repos/issues
+   (the developer side is now real; the comparison target is still fixed to `vercel/swr`).
 3. Readiness dashboard on the real profile.
 4. Job-board ingestion ADR (public feeds + the extension "save this listing" pattern).
 
@@ -72,6 +79,7 @@ Next:
 apps/web/                  Angular 20 SPA — primary MVP                 [built: shell + 2 pages + sign-in]
   src/app/core/            SafeHtmlService (DOMPurify), IndexedDbStore
   src/app/core/auth/       AuthService (in-memory tokens, redirect flow) + sign-in-dialog modal
+  src/app/core/profile/    ProfileService — GitHub token → collectGithubActivity → githubToProfile
   src/app/pages/           dashboard, repositories
   public/_headers          security headers + CSP, applied by Cloudflare Workers
   wrangler.toml            Cloudflare Workers static-assets deploy config
@@ -83,8 +91,8 @@ libs/scoring/              weightedScore + explanation, versioned WEIGHTS (WEIGH
 libs/matching/             repositoryMatch / issueMatch / contributionConfidence / skillGap
 libs/repository-analysis/  healthScore (AI-free), architecture model + readingOrder
 libs/issue-analysis/       analyzeIssue — deterministic difficulty + required-knowledge
-libs/github/               GithubClient (cache + dedup + ETag + rate-limit), repo/health fetchers
-libs/profile/              UnifiedProfile + mergeProfile, CV parser, skills taxonomy (v1)
+libs/github/               GithubClient (cache + dedup + ETag + rate-limit); repo/health + viewer (user.ts) fetchers
+libs/profile/              UnifiedProfile + mergeProfile, githubToProfile, CV parser, skills taxonomy (v1)
 libs/portfolio/            metrics, static HTML/MD generator, Ed25519 license verify
 libs/auth/                 framework-free multi-provider OAuth (provider records, state, exchange, identity)
 libs/ai/                   IAIProvider (OpenAI/Gemini/OpenRouter), fenced prompts, disclosure, fallbacks
@@ -187,6 +195,40 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
     (`helpers:pinGitHubActionDigests`) converts them on its first PR.
 
 ## Changelog
+
+### 2026-09-05 — Real GitHub profile feeds the dashboard
+
+PRs #21–23 merged; #24 in flight.
+
+- **`libs/github/src/user.ts`** (new) — viewer-scoped fetchers on `GithubClient.get`:
+  `fetchViewer` (`/user`), `fetchViewerRepos` (fork-filtered, pushed-sorted, one page
+  of 100), `fetchRepoLanguages`, `fetchMergedPrCount` (Search API, best-effort).
+  `collectGithubActivity` composes them, pulling languages for the 15 most-recently
+  pushed repos. New `CACHE_TTL_MS` entries: `viewer`, `viewerRepos`, `mergedPrCount`
+  (1 h each — still uncalibrated, see open questions).
+- **`libs/profile/src/github.ts`** (new) — `githubToProfile(activity, base?)`, mirroring
+  `cvToProfile`: aggregate language bytes → `SkillProficiency` levels (share of the
+  top language, 0.3 floor), repo topics → interests, account `created_at` → one
+  `ExperienceEntry` so `mergeProfile` derives `experienceLevel` / `totalYears`. Uses a
+  local `GithubActivityInput` interface — **no `libs/profile → libs/github` import
+  edge** (keeps the lib boundary clean).
+- **`apps/web` `ProfileService`** (`core/profile/`) — an `effect` on the GitHub
+  identity + token builds a token-scoped `GithubClient` (shared `gh:` IndexedDB cache),
+  runs the fetch + map, exposes `profile()` / `priorContributions()` / `loading()` /
+  `error()` signals; stale-token results are dropped. `DashboardComponent.dev` is now a
+  `computed` (real snapshot or `DEMO_DEV`); a **"Your profile"** panel renders the
+  loaded skills / experience / merged-PR count, and load error/loading states are shown
+  explicitly instead of silently falling back to demo.
+- **#24 (open):** `repositoryMatch`'s `technology` sub-score switches from symmetric
+  `jaccard` to directional `technologyCoverage` (share of the repo's stack the dev
+  knows) — a broad generalist is no longer penalised for extra skills. Fixture
+  snapshot 51 → 53.
+- 92 tests (16 files); `verify` + `build:web` + guards green. GitHub OAuth scope stays
+  `read:user` — `/user/repos` returns the viewer's **public** repos on that scope,
+  which is all the profile needs.
+- Guide sections updated: Status (done + next), Repo map (`libs/github`, `libs/profile`,
+  `apps/web/core/profile`), this changelog.
+- Drift: none.
 
 ### 2026-09-05 — Sign-in: LinkedIn CORS fix, modal UI, all providers live
 
