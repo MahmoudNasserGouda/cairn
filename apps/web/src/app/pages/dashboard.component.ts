@@ -1,4 +1,4 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import {
   repositoryMatch,
   contributionConfidence,
@@ -8,8 +8,9 @@ import {
   type IssueSnapshot,
 } from '@cairn/matching';
 import { explain } from '@cairn/scoring';
+import { ProfileService, profileToSnapshot } from '../core/profile/profile.service';
 
-/** Demo profile until Phase 1 identity + CV flows are wired up. */
+/** Fallback profile for visitors without a connected GitHub identity. */
 const DEMO_DEV: DeveloperSnapshot = {
   experience: 'beginner',
   interests: ['web', 'developer-tools'],
@@ -54,6 +55,16 @@ const DEMO_ISSUE: IssueSnapshot = {
       >
       data only).
     </p>
+
+    @if (!profileSvc.profile()) {
+      <p class="muted">
+        {{
+          profileSvc.loading()
+            ? 'Loading your GitHub profile…'
+            : 'Showing demo data — connect GitHub for your real profile.'
+        }}
+      </p>
+    }
 
     <section class="metrics">
       <div class="card">
@@ -139,8 +150,12 @@ const DEMO_ISSUE: IssueSnapshot = {
 export class DashboardComponent {
   protected readonly demoRepo = DEMO_REPO;
   protected readonly demoIssue = DEMO_ISSUE;
+  protected readonly profileSvc = inject(ProfileService);
 
-  private readonly dev = signal<DeveloperSnapshot>(DEMO_DEV);
+  private readonly dev = computed<DeveloperSnapshot>(() => {
+    const p = this.profileSvc.profile();
+    return p ? profileToSnapshot(p, this.profileSvc.priorContributions()) : DEMO_DEV;
+  });
 
   protected readonly match = computed(() => repositoryMatch(this.dev(), DEMO_REPO));
   protected readonly confidence = computed(() =>
