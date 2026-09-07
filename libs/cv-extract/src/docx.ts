@@ -1,0 +1,74 @@
+/**
+ * DOCX → plain text (ADR-0011). Reads exactly one part — `word/document.xml` —
+ * out of the OOXML package and turns its runs into lines. `vbaProject.bin`,
+ * embedded OLE objects and every other part are never touched, which is how
+ * SECURITY.md T7's "never execute macros/embedded objects" is met: they are not
+ * read at all, let alone interpreted.
+ *
+ * Tag handling is by regex, not DOMParser — a dedicated worker has no DOMParser
+ * and neither does the Vitest node environment.
+ */
+import { normalizeLines } from './text';
+import { readZipEntry, ZipError } from './zip';
+
+const DOCUMENT_PART = 'word/document.xml';
+
+/** Field codes (`HYPERLINK ...`) and tracked deletions are markup, not CV prose. */
+const DROP_ELEMENTS = /<w:(instrText|delText|delInstrText)\b[^>]*>[\s\S]*?<\/w:\1>/g;
+const TAB = /<w:tab\b[^>]*\/?>/g;
+const BREAK = /<w:(?:br|cr)\b[^>]*\/?>/g;
+/** A paragraph that ends a table cell must not also end the line. */
+const PARAGRAPH_END_IN_CELL = /<\/w:p>(?=\s*<\/w:(?:tc|tr)>)/g;
+const PARAGRAPH_END = /<\/w:p>/g;
+const ROW_END = /<\/w:tr>/g;
+const CELL_END = /<\/w:tc>/g;
+const ANY_TAG = /<[^>]*>/g;
+
+const NAMED_ENTITIES: Readonly<Record<string, string>> = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&apos;': "'",
+  '&nbsp;': ' ',
+};
+
+function decodeEntities(text: string): string {
+  return text.replace(/&(?:#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match) => {
+    const named = NAMED_ENTITIES[match.toLowerCase()];
+    if (named !== undefined) return named;
+    const numeric = /^&#x([0-9a-f]+);$/i.exec(match) ?? /^&#(\d+);$/.exec(match);
+    if (!numeric) return match;
+    const code = Number.parseInt(numeric[1]!, /^&#x/i.test(match) ? 16 : 10);
+    return Number.isFinite(code) && code > 0 && code <= 0x10ffff
+      ? String.fromCodePoint(code)
+      : '';
+  });
+}
+
+/** Turn `word/document.xml` markup into newline-separated plain text. */
+export function documentXmlToText(xml: string): string {
+  const withBreaks = xml
+    .replace(DROP_ELEMENTS, '')
+    .replace(TAB, '\t')
+    .replace(BREAK, '\n')
+    .replace(PARAGRAPH_END_IN_CELL, '')
+    .replace(CELL_END, '\t')
+    .replace(ROW_END, '\n')
+    .replace(PARAGRAPH_END, '\n')
+    .replace(ANY_TAG, '');
+
+  return normalizeLines(decodeEntities(withBreaks));
+}
+
+/**
+ * Extract the visible text of a DOCX. Throws when the file is not a readable
+ * OOXML package or trips a zip limit; returns `''` for a document with no runs.
+ */
+export async function extractDocxText(bytes: Uint8Array): Promise<string> {
+  const part = await readZipEntry(bytes, DOCUMENT_PART);
+  if (!part) {
+    throw new ZipError(`not a Word document (no ${DOCUMENT_PART})`);
+  }
+  return documentXmlToText(new TextDecoder('utf-8').decode(part));
+}

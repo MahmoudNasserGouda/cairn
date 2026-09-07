@@ -43,6 +43,14 @@ const IGNORE = [
   'https://tools.ietf.org',
   'https://datatracker.ietf.org',
   'https://caniuse.com',
+  // Reviewed 2026-09-07 (CV upload slice). Placeholder hosts inside the pdf.js
+  // worker chunk, never fetched: core-js probes URL/URLSearchParams support by
+  // constructing `new URL("...", "https://a")` and `new URL("https://x")`, and
+  // pdf.js resolves links found inside a PDF against the dummy base
+  // "https://foo.bar" purely to validate and reject them.
+  'https://a',
+  'https://x',
+  'https://foo.bar',
 ];
 
 const ASSET_EXT = new Set(['.js', '.mjs', '.css', '.html', '.json']);

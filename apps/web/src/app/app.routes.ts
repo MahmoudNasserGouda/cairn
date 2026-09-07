@@ -8,6 +8,11 @@ export const routes: Routes = [
       import('./pages/dashboard.component').then((m) => m.DashboardComponent),
   },
   {
+    path: 'profile',
+    loadComponent: () =>
+      import('./pages/profile.component').then((m) => m.ProfileComponent),
+  },
+  {
     path: 'repositories',
     loadComponent: () =>
       import('./pages/repositories.component').then((m) => m.RepositoriesComponent),

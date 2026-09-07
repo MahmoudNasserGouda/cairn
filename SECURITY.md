@@ -142,10 +142,17 @@ needs no scope; `public_repo` grants _write_ and is not requested), LinkedIn / G
    `script-src-elem`, `default-src`). `style-src 'unsafe-inline'` is an accepted
    exception for Angular component styles on a nonce-less static host (ratified
    2026-08-31, [ADR-0019](docs/adr/0019-security-first-rendering.md)); it is not
-   permitted in any other directive. No `bypassSecurityTrust*` without a reviewed
-   exception marked `cairn-security-reviewed` in the source — currently one:
-   `SafeHtmlService.trust()`, applied only to output already run through DOMPurify
-   and the Angular sanitizer.
+   permitted in any other directive. No `bypassSecurityTrust*`, and no Trusted Types
+   policy, without a reviewed exception marked `cairn-security-reviewed` in the
+   source — currently two:
+   - `SafeHtmlService.trust()`, applied only to output already run through DOMPurify
+     and the Angular sanitizer;
+   - the `default` Trusted Types policy in `core/cv/worker-url.ts`, which exists only
+     because `require-trusted-types-for 'script'` makes the `Worker` constructor a
+     `TrustedScriptURL` sink. It admits a script URL only when it is same-origin
+     *and* arrives during the single synchronous call that starts the CV extraction
+     worker, and rejects every other script URL outright
+     ([ADR-0011](docs/adr/0011-local-first-cv-processing.md)).
 2. All external content (GitHub, AI, CV, user free-text) is sanitised before rendering.
 3. OAuth tokens and BYOK keys are never logged, never stored by Rujoom infrastructure,
    never placed in URLs or query strings. The GitHub token transits the stateless

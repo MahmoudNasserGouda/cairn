@@ -62,7 +62,7 @@ const DEMO_ISSUE: IssueSnapshot = {
       <p class="notice muted">Loading your GitHub profile…</p>
     } @else if (!profileSvc.profile()) {
       <p class="notice muted">
-        Showing demo data — connect GitHub for your real profile.
+        Showing demo data — connect GitHub or import a CV for your real profile.
       </p>
     }
 
