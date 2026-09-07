@@ -10,6 +10,7 @@
   },
   "sideEffects": false,
   "dependencies": {
+    "@cairn/scoring": "0.1.0",
     "@cairn/shared": "0.1.0"
   }
 }

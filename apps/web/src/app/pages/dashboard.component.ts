@@ -8,6 +8,7 @@ import {
   type IssueSnapshot,
 } from '@cairn/matching';
 import { explain } from '@cairn/scoring';
+import { contributionReadiness } from '@cairn/profile';
 import { ProfileService, profileToSnapshot } from '../core/profile/profile.service';
 
 /** Fallback profile for visitors without a connected GitHub identity. */
@@ -40,6 +41,15 @@ const DEMO_ISSUE: IssueSnapshot = {
   requiredSkills: ['typescript', 'react'],
   scopeClarity: 0.7,
   mentorshipOffered: true,
+};
+
+/** Display copy for the readiness score-part keys. */
+const PART_LABELS: Readonly<Record<string, string>> = {
+  skillDepth: 'Skill depth',
+  skillBreadth: 'Skill breadth',
+  experience: 'Experience',
+  track: 'Track record',
+  completeness: 'Sources connected',
 };
 
 @Component({
@@ -93,6 +103,50 @@ const DEMO_ISSUE: IssueSnapshot = {
         }
       </section>
     }
+
+    <section class="panel readiness">
+      <h2>Contribution readiness</h2>
+      @if (readiness(); as r) {
+        <p class="headline">
+          <span class="big">{{ r.score.percent }}%</span>
+          <span class="band" [attr.data-band]="r.band">{{ r.band }}</span>
+        </p>
+        <ul class="parts">
+          @for (part of r.score.parts; track part.key) {
+            <li>
+              <span>{{ partLabel(part.key) }}</span>
+              <span class="bar"
+                ><span class="fill" [style.width.%]="part.value * 100"></span
+              ></span>
+              <span class="muted small">{{ part.note }}</span>
+            </li>
+          }
+        </ul>
+        <p class="sub">Profile sources</p>
+        <div class="tags">
+          @for (source of r.completeness.have; track source) {
+            <span class="tag done">✓ {{ source }}</span>
+          }
+          @for (source of r.completeness.missing; track source) {
+            <span class="tag ghost">+ {{ source }}</span>
+          }
+        </div>
+        @if (r.nextSteps.length) {
+          <p class="sub">Next steps</p>
+          <ul class="steps">
+            @for (step of r.nextSteps; track step.key) {
+              <li>
+                {{ step.label }} <span class="muted small">+{{ step.impact }} pts</span>
+              </li>
+            }
+          </ul>
+        }
+      } @else {
+        <p class="muted">
+          Connect GitHub or import a CV to see how ready you are to contribute.
+        </p>
+      }
+    </section>
 
     <section class="metrics">
       <div class="card">
@@ -202,6 +256,68 @@ const DEMO_ISSUE: IssueSnapshot = {
       .tag.ghost {
         color: var(--muted);
       }
+      .readiness {
+        margin-top: 1.5rem;
+      }
+      .readiness h2 {
+        margin-top: 0;
+      }
+      .headline {
+        display: flex;
+        align-items: baseline;
+        gap: 0.6rem;
+        margin: 0;
+      }
+      .band {
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .band[data-band='High'] {
+        color: var(--good);
+      }
+      .band[data-band='Medium'] {
+        color: var(--accent);
+      }
+      .parts {
+        list-style: none;
+        padding: 0;
+        margin: 1rem 0 0;
+        display: grid;
+        gap: 0.5rem;
+      }
+      .parts li {
+        display: grid;
+        grid-template-columns: 8.5rem 1fr auto;
+        align-items: center;
+        gap: 0.6rem;
+      }
+      .bar {
+        height: 0.4rem;
+        border-radius: 999px;
+        background: var(--border);
+        overflow: hidden;
+      }
+      .fill {
+        display: block;
+        height: 100%;
+        background: var(--good);
+      }
+      .tag.done {
+        color: var(--good);
+        border-color: var(--good);
+      }
+      .steps {
+        margin: 0.35rem 0 0;
+        padding-left: 1.1rem;
+      }
+      .small {
+        font-size: 0.8rem;
+      }
+      @media (max-width: 560px) {
+        .parts li {
+          grid-template-columns: 1fr;
+        }
+      }
     `,
   ],
 })
@@ -227,6 +343,21 @@ export class DashboardComponent {
       interests: p.interests,
     };
   });
+
+  /** Target-free readiness on the merged profile; null until there is one. */
+  protected readonly readiness = computed(() => {
+    const p = this.profileSvc.profile();
+    if (!p) return null;
+    return contributionReadiness({
+      profile: p,
+      priorContributions: this.profileSvc.priorContributions(),
+      hasCv: this.profileSvc.hasCv(),
+    });
+  });
+
+  protected partLabel(key: string): string {
+    return PART_LABELS[key] ?? key;
+  }
 
   protected percent(level: number): number {
     return Math.round(level * 100);
