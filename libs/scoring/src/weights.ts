@@ -31,6 +31,18 @@ export const CONTRIBUTION_CONFIDENCE_WEIGHTS: WeightMap = {
   priorContributions: 0.05,
 };
 
+/**
+ * Contribution readiness (ADR-0007). Scored against the merged profile alone — there
+ * is no target repository, so it is meaningful before any discovery has happened.
+ */
+export const READINESS_WEIGHTS: WeightMap = {
+  skillDepth: 0.25,
+  skillBreadth: 0.2,
+  experience: 0.2,
+  track: 0.2,
+  completeness: 0.15,
+};
+
 export const HEALTH_WEIGHTS: WeightMap = {
   commitActivity: 0.25,
   maintainerActivity: 0.2,

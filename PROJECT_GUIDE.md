@@ -18,7 +18,8 @@ context: [`ARCHITECTURE.md`](ARCHITECTURE.md) §1; roadmap: [§15](ARCHITECTURE.
 ## Current status
 
 **Phase 1 — Foundation. Monorepo + CI/CD live, web app deployed, multi-provider
-sign-in working, real GitHub profile and CV import feeding the dashboard.**
+sign-in working, real GitHub profile, CV import, and contribution readiness feeding the
+dashboard.**
 
 Done:
 
@@ -26,7 +27,7 @@ Done:
   [`docs/ci-cd.md`](docs/ci-cd.md), ADRs 0001–0026.
 - **Monorepo scaffold** — npm workspaces, TS strict, path aliases, ESLint flat config
   with the `libs → apps` import-boundary rule, Prettier, Vitest.
-- **Eleven `libs/*` implemented** with real logic and **128 passing unit tests**:
+- **Eleven `libs/*` implemented** with real logic and **140 passing unit tests**:
   deterministic matching + scoring, AI-free repository health, issue difficulty, the
   cached GitHub client (dedup + ETag + rate-limit floor), CV parser + skills taxonomy,
   BYOK AI provider abstraction + non-AI fallbacks + prompt-injection fencing,
@@ -70,14 +71,21 @@ Done:
   confirm before anything is committed; `cvToProfile` merges it onto the GitHub profile
   and the reviewed fields persist in IndexedDB. No bytes leave the device and no raw CV
   text is ever stored ([ADR-0011](docs/adr/0011-local-first-cv-processing.md)).
+- **Contribution readiness on the dashboard** — `contributionReadiness` in
+  `libs/profile` scores the merged profile against no target at all: skill depth, skill
+  breadth, experience, track record, and profile completeness, through the same
+  `weightedScore` engine as every other score. It is the first number on the page that
+  means something to a real user, and it needs no repository discovery and no new
+  network call. The panel shows the banded percent, a bar and note per part, the
+  connected/missing sources, and next steps ranked by the points each would recover.
 
 Next:
 
 1. Replace the dashboard's `DEMO_REPO` / `DEMO_ISSUE` targets with real repos/issues
-   (the developer side is now real; the comparison target is still fixed to `vercel/swr`).
-2. Readiness dashboard on the real profile.
-3. Job-board ingestion ADR (public feeds + the extension "save this listing" pattern).
-4. Optional BYOK AI refinement pass over the parsed CV — deliberately deferred out of
+   (both the developer side and readiness are real now; the comparison target is still
+   fixed to `vercel/swr`).
+2. Job-board ingestion ADR (public feeds + the extension "save this listing" pattern).
+3. Optional BYOK AI refinement pass over the parsed CV — deliberately deferred out of
    the CV slice; needs the ADR-0010 disclosure panel wired first.
 
 ## Repo map
@@ -100,7 +108,7 @@ libs/matching/             repositoryMatch / issueMatch / contributionConfidence
 libs/repository-analysis/  healthScore (AI-free), architecture model + readingOrder
 libs/issue-analysis/       analyzeIssue — deterministic difficulty + required-knowledge
 libs/github/               GithubClient (cache + dedup + ETag + rate-limit); repo/health + viewer (user.ts) fetchers
-libs/profile/              UnifiedProfile + mergeProfile, githubToProfile, CV parser, skills taxonomy (v1)
+libs/profile/              UnifiedProfile + mergeProfile, githubToProfile, CV parser, taxonomy (v1), contributionReadiness
 libs/cv-extract/           PDF/DOCX/text → plain text; own ZIP reader, pdf.js text layer (ADR-0011)
 libs/portfolio/            metrics, static HTML/MD generator, Ed25519 license verify
 libs/auth/                 framework-free multi-provider OAuth (provider records, state, exchange, identity)
@@ -218,6 +226,28 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
     (`helpers:pinGitHubActionDigests`) converts them on its first PR.
 
 ## Changelog
+
+### 2026-09-07 — Contribution readiness on the merged profile
+
+- Added `contributionReadiness` (and `profileCompleteness`) to `libs/profile`, scoring
+  the merged `UnifiedProfile` alone — no target repository, no new fetch. Five
+  weighted parts (skill depth, skill breadth, experience, track record, profile
+  completeness) through a new `READINESS_WEIGHTS` map in `libs/scoring`, reusing
+  `weightedScore` / `label` rather than a second scoring path. `WEIGHTS_VERSION` was
+  deliberately not bumped — no existing weight changed.
+- Dashboard gained a "Contribution readiness" panel between "Your profile" and the
+  existing `DEMO_REPO` / `DEMO_ISSUE` metric cards, which are untouched: banded
+  percent, a bar + note per part, connected/missing profile sources, and next steps
+  ranked by the points each would recover (`experience` deliberately excluded from
+  next steps — it isn't something a user can go and do).
+- 12 new tests in `libs/profile/src/readiness.test.ts` (determinism, monotonicity,
+  completeness partition, next-step ranking, an inline snapshot lock); suite is 140
+  tests across 20 files, coverage gate still passes.
+- Guide sections updated: Status (phase line, done list, Next), Repo map
+  (`libs/profile` entry).
+- Drift: none. No new dependency, no new outbound origin, no CSP change; `libs/profile`
+  gaining a `@cairn/scoring` dependency is acyclic (scoring → shared only) and mirrors
+  `libs/matching`'s existing shape.
 
 ### 2026-09-07 — CV upload flow: worker extraction → review → merged profile
 
