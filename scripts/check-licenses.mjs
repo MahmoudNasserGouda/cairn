@@ -26,12 +26,33 @@ const ALLOW = new Set([
 // Packages we have reviewed and accept despite a missing/odd SPDX string.
 const EXCEPTIONS = new Set([]);
 
-const raw = execFileSync('npm', ['ls', '--all', '--json', '--long'], {
-  encoding: 'utf8',
-  maxBuffer: 64 * 1024 * 1024,
-  shell: process.platform === 'win32',
-});
-const tree = JSON.parse(raw);
+const tree = JSON.parse(readNpmLsJson());
+
+/**
+ * `npm ls --json` still prints the full, valid dependency tree to stdout even
+ * when it exits non-zero for a problem unrelated to what we're reading it
+ * for — e.g. `ELSPROBLEMS` when a transitive dependency's own peer range is
+ * stale (currently `@angular/build` declaring `vitest@^3.1.1` against our
+ * `vitest@4.x`, a builder integration this repo never invokes). `execFileSync`
+ * throws on that exit code before handing back stdout, so read it off the
+ * thrown error instead of trusting the exit code — the license data is intact
+ * either way, and a genuinely unparseable output still throws below.
+ */
+function readNpmLsJson() {
+  const opts = {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    shell: process.platform === 'win32',
+  };
+  try {
+    return execFileSync('npm', ['ls', '--all', '--json', '--long'], opts);
+  } catch (error) {
+    if (typeof error.stdout === 'string' && error.stdout.length > 0) {
+      return error.stdout;
+    }
+    throw error;
+  }
+}
 
 const bad = [];
 const seen = new Set();
