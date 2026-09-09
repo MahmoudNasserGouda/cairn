@@ -22,7 +22,28 @@ const PARAGRAPH_END_IN_CELL = /<\/w:p>(?=\s*<\/w:(?:tc|tr)>)/g;
 const PARAGRAPH_END = /<\/w:p>/g;
 const ROW_END = /<\/w:tr>/g;
 const CELL_END = /<\/w:tc>/g;
+/** Catch-all for whatever structural markup the named passes above don't name. */
 const ANY_TAG = /<[^>]*>/g;
+
+/**
+ * Remove every `<...>` sequence, repeating until a pass makes no further
+ * change. A single pass of a paired-tag regex can remove a tag in one shape
+ * but leave a differently-shaped one behind it (the classic
+ * `<scr<script>ipt>` reformation) — CodeQL's own recommendation for
+ * `incomplete-multi-character-sanitization` is exactly this fixed-point loop,
+ * since it removes tags as whole units (unlike stripping bracket characters
+ * one at a time, which would also shred the surrounding `<w:p>` / `<w:t>`
+ * structural markup this function depends on into literal leftover text).
+ */
+function stripAllTags(text: string): string {
+  let previous: string;
+  let current = text;
+  do {
+    previous = current;
+    current = previous.replace(ANY_TAG, '');
+  } while (current !== previous);
+  return current;
+}
 
 const NAMED_ENTITIES: Readonly<Record<string, string>> = {
   '&amp;': '&',
@@ -53,8 +74,8 @@ function decodeEntities(text: string): string {
  * legitimately contain an entity-encoded angle bracket (someone's CV literally
  * mentioning `<script>`, which Word stores as `&lt;script&gt;`); decoding after
  * the strip would let that survive into the output as a live-looking tag. Since
- * `ANY_TAG` runs after decoding here, anything that decodes into tag-shaped text
- * is caught by the same pass instead of slipping through.
+ * `stripAllTags` runs after decoding here, anything that decodes into
+ * tag-shaped text is caught by the same pass instead of slipping through.
  */
 export function documentXmlToText(xml: string): string {
   const withBreaks = decodeEntities(xml)
@@ -64,10 +85,9 @@ export function documentXmlToText(xml: string): string {
     .replace(PARAGRAPH_END_IN_CELL, '')
     .replace(CELL_END, '\t')
     .replace(ROW_END, '\n')
-    .replace(PARAGRAPH_END, '\n')
-    .replace(ANY_TAG, '');
+    .replace(PARAGRAPH_END, '\n');
 
-  return normalizeLines(withBreaks);
+  return normalizeLines(stripAllTags(withBreaks));
 }
 
 /**

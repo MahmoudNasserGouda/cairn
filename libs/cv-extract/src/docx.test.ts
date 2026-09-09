@@ -25,6 +25,14 @@ describe('documentXmlToText', () => {
     expect(text).toBe('before alert(1) after');
   });
 
+  it('does not let a single strip pass reform a tag from its own leftovers', () => {
+    // A single pass of /<[^>]*>/g on this input removes "<scr<script>" (up to
+    // the first '>'), leaving "ipt>alert(1)</script>" — which itself still
+    // contains "</script>". A non-looping strip would let that survive.
+    const xml = paragraphs(['<scr<script>ipt>alert(1)</script>']);
+    expect(documentXmlToText(xml)).not.toMatch(/<\/?script>/);
+  });
+
   it('keeps a table row on one line', () => {
     const xml =
       '<w:body><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Acme</w:t></w:r></w:p></w:tc>' +
