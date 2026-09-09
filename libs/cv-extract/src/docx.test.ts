@@ -11,8 +11,18 @@ describe('documentXmlToText', () => {
   });
 
   it('decodes named and numeric entities', () => {
-    const xml = paragraphs(['R&amp;D &lt;lead&gt;', '&#65;&#x42;']);
-    expect(documentXmlToText(xml)).toBe('R&D <lead>\nAB');
+    const xml = paragraphs(['R&amp;D', '&#65;&#x42;']);
+    expect(documentXmlToText(xml)).toBe('R&D\nAB');
+  });
+
+  it('strips a tag that only exists via entity decoding, not just literal tags', () => {
+    // Word stores a CV that literally mentions "<script>" as an entity-encoded
+    // string, not a literal '<'. Decoding must happen before the tag strip, or
+    // the decoded text re-forms a tag-shaped string in the output.
+    const xml = paragraphs(['before &lt;script&gt;alert(1)&lt;/script&gt; after']);
+    const text = documentXmlToText(xml);
+    expect(text).not.toContain('<script>');
+    expect(text).toBe('before alert(1) after');
   });
 
   it('keeps a table row on one line', () => {

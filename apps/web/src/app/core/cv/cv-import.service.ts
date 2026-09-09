@@ -121,7 +121,7 @@ export class CvImportService {
 
       worker.addEventListener('message', (event: MessageEvent<unknown>) => {
         // pdf.js posts its own handshake over this same port; ignore it.
-        if (isCvExtractResponse(event.data)) finish(event.data);
+        if (isCvExtractResponse(event.data, event)) finish(event.data);
       });
       worker.addEventListener('error', () => {
         finish({ id, ok: false, error: 'the file reader failed to start' });

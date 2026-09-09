@@ -19,7 +19,7 @@ function message(error: unknown): string {
 }
 
 addEventListener('message', (event: MessageEvent<unknown>) => {
-  if (!isCvExtractRequest(event.data)) return;
+  if (!isCvExtractRequest(event.data, event)) return;
   const { id, fileName, bytes } = event.data;
 
   void extractCvText(fileName, new Uint8Array(bytes))

@@ -46,9 +46,18 @@ function decodeEntities(text: string): string {
   });
 }
 
-/** Turn `word/document.xml` markup into newline-separated plain text. */
+/**
+ * Turn `word/document.xml` markup into newline-separated plain text.
+ *
+ * Entities are decoded *before* tags are stripped, not after. CV text can
+ * legitimately contain an entity-encoded angle bracket (someone's CV literally
+ * mentioning `<script>`, which Word stores as `&lt;script&gt;`); decoding after
+ * the strip would let that survive into the output as a live-looking tag. Since
+ * `ANY_TAG` runs after decoding here, anything that decodes into tag-shaped text
+ * is caught by the same pass instead of slipping through.
+ */
 export function documentXmlToText(xml: string): string {
-  const withBreaks = xml
+  const withBreaks = decodeEntities(xml)
     .replace(DROP_ELEMENTS, '')
     .replace(TAB, '\t')
     .replace(BREAK, '\n')
@@ -58,7 +67,7 @@ export function documentXmlToText(xml: string): string {
     .replace(PARAGRAPH_END, '\n')
     .replace(ANY_TAG, '');
 
-  return normalizeLines(decodeEntities(withBreaks));
+  return normalizeLines(withBreaks);
 }
 
 /**

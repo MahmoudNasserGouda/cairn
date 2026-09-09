@@ -43,7 +43,7 @@ function toRole(entry: ExperienceEntry): RoleDraft {
 function toEntry(role: RoleDraft): ExperienceEntry {
   const start = Number.parseInt(role.startYear, 10);
   const end = role.endYear.trim().toLowerCase();
-  const endYear = /^present|current|now$/.test(end)
+  const endYear = /^(?:present|current|now)$/.test(end)
     ? ('present' as const)
     : Number.parseInt(end, 10);
 

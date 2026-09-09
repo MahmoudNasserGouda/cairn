@@ -42,9 +42,32 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+/**
+ * A dedicated Worker's message channel is private to the single script that
+ * constructed it — no other page, frame, or origin ever holds a reference to
+ * `postMessage` into it, so there is no cross-origin sender to distinguish from
+ * a legitimate one (unlike `Window.postMessage`, which any page can target).
+ * Verified empirically: a dedicated worker's `MessageEvent.origin` is always the
+ * empty string, for messages posted by its own creator, in every engine — it is
+ * not the creator's origin. A same-origin check against `self.location.origin`
+ * would therefore reject every legitimate message.
+ *
+ * Rather than skip the check, this asserts the one invariant that *does* hold —
+ * `origin === ''` is the entire population of messages a dedicated worker can
+ * receive — so a future engine change or a worker reused in a way that breaks
+ * that invariant fails loudly instead of silently.
+ */
+function isSameContextMessage(event: MessageEvent<unknown>): boolean {
+  return event.origin === '';
+}
+
 /** True only for a message this worker protocol sent, not pdf.js's own. */
-export function isCvExtractRequest(value: unknown): value is CvExtractRequest {
+export function isCvExtractRequest(
+  value: unknown,
+  event?: MessageEvent<unknown>,
+): value is CvExtractRequest {
   return (
+    (!event || isSameContextMessage(event)) &&
     isRecord(value) &&
     typeof value['id'] === 'number' &&
     typeof value['fileName'] === 'string' &&
@@ -53,8 +76,14 @@ export function isCvExtractRequest(value: unknown): value is CvExtractRequest {
 }
 
 /** True only for a reply from our worker, not pdf.js's `ready` handshake. */
-export function isCvExtractResponse(value: unknown): value is CvExtractResponse {
+export function isCvExtractResponse(
+  value: unknown,
+  event?: MessageEvent<unknown>,
+): value is CvExtractResponse {
   return (
-    isRecord(value) && typeof value['id'] === 'number' && typeof value['ok'] === 'boolean'
+    (!event || isSameContextMessage(event)) &&
+    isRecord(value) &&
+    typeof value['id'] === 'number' &&
+    typeof value['ok'] === 'boolean'
   );
 }
