@@ -23,7 +23,7 @@ sign-in working, real GitHub profile and CV import feeding the dashboard.**
 Done:
 
 - Architecture docs: [`ARCHITECTURE.md`](ARCHITECTURE.md), [`SECURITY.md`](SECURITY.md),
-  [`docs/ci-cd.md`](docs/ci-cd.md), ADRs 0001–0025.
+  [`docs/ci-cd.md`](docs/ci-cd.md), ADRs 0001–0026.
 - **Monorepo scaffold** — npm workspaces, TS strict, path aliases, ESLint flat config
   with the `libs → apps` import-boundary rule, Prettier, Vitest.
 - **Eleven `libs/*` implemented** with real logic and **128 passing unit tests**:
@@ -107,7 +107,7 @@ libs/auth/                 framework-free multi-provider OAuth (provider records
 libs/ai/                   IAIProvider (OpenAI/Gemini/OpenRouter), fenced prompts, disclosure, fallbacks
 scripts/                   check-csp, check-bundle-origins, check-licenses, setup-hooks
 brand/                     logo.svg / logo-dark.svg / logo.png / mark.svg + brand/README.md
-docs/adr/                  25 ADRs · docs/ci-cd.md · docs/branch-protection.md
+docs/adr/                  26 ADRs · docs/ci-cd.md · docs/branch-protection.md
 ```
 
 ## How we work (conventions)
@@ -179,14 +179,19 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
 
 ## Decisions & open questions
 
-- **Decisions:** [`docs/adr/`](docs/adr/README.md) — 25 ADRs. Accepted: 0001–0014,
-  0016–0025. Future: 0015 (desktop).
+- **Decisions:** [`docs/adr/`](docs/adr/README.md) — 26 ADRs. Accepted: 0001–0014,
+  0016–0026. Future: 0015 (desktop).
 - **Open questions:**
   - Per-resource cache TTLs — draft values in `libs/shared/src/config.ts`
     (`CACHE_TTL_MS`); still need calibration ([ADR-0006](docs/adr/0006-direct-github-api-usage.md)).
-  - Job-board ingestion: which public APIs (Adzuna / Remotive / …) and the extension
-    "save this listing" capture pattern — needs its own ADR
-    ([ADR-0025](docs/adr/0025-multi-provider-identity.md) §Job data).
+  - ~~Job-board ingestion: which public APIs (Adzuna / Remotive / …) and the extension
+    "save this listing" capture pattern?~~ → **two paths only** (public feeds +
+    `activeTab` capture), with an acceptance bar every feed must clear and a mini-ADR
+    per source; no source authorised yet
+    ([ADR-0026](docs/adr/0026-job-and-opportunity-ingestion.md), 2026-09-07).
+  - Which key-free feed goes first — Remotive and Arbeitnow are the candidates, but
+    neither's CORS headers or terms have been checked
+    ([ADR-0026](docs/adr/0026-job-and-opportunity-ingestion.md) §Acceptance criteria).
   - ~~LinkedIn/Google OAuth: own function or shared?~~ → **shared** `cairn-auth` with a
     per-provider route; identity only ([ADR-0025](docs/adr/0025-multi-provider-identity.md), 2026-09-03).
   - ~~GitHub OAuth: PKCE from a static origin?~~ → **no** — no provider does; resolved

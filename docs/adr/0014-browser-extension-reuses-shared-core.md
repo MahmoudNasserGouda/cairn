@@ -1,8 +1,14 @@
 # 0014. Browser extension reuses the shared core
 
-- Status: Accepted
+- Status: Accepted (refined 2026-09-07,
+  [ADR-0026](0026-job-and-opportunity-ingestion.md))
 - Date: 2026-08-30
 - Deciders: Project owner
+
+> **2026-09-07.** Capturing a job listing outside `github.com` runs on `activeTab` plus
+> an explicit user gesture — never a static host permission, and `<all_urls>` stays
+> forbidden. The least-privilege bullet below is refined, not reversed:
+> [ADR-0026](0026-job-and-opportunity-ingestion.md).
 
 ## Context
 
