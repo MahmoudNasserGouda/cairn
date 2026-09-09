@@ -17,6 +17,7 @@ import { SignInDialogService } from './core/auth/sign-in-dialog.service';
       <nav>
         <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
         <a routerLink="/repositories" routerLinkActive="active">Repositories</a>
+        <a routerLink="/profile" routerLinkActive="active">Profile</a>
       </nav>
 
       <div class="account">

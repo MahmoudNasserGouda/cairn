@@ -10,6 +10,7 @@ export default defineConfig({
       '@cairn/auth': r('./libs/auth/src/index.ts'),
       '@cairn/github': r('./libs/github/src/index.ts'),
       '@cairn/profile': r('./libs/profile/src/index.ts'),
+      '@cairn/cv-extract': r('./libs/cv-extract/src/index.ts'),
       '@cairn/matching': r('./libs/matching/src/index.ts'),
       '@cairn/scoring': r('./libs/scoring/src/index.ts'),
       '@cairn/repository-analysis': r('./libs/repository-analysis/src/index.ts'),

@@ -17,6 +17,7 @@
     "@angular/router": "^20.3.0",
     "@cairn/ai": "0.1.0",
     "@cairn/auth": "0.1.0",
+    "@cairn/cv-extract": "0.1.0",
     "@cairn/github": "0.1.0",
     "@cairn/issue-analysis": "0.1.0",
     "@cairn/matching": "0.1.0",
@@ -26,6 +27,7 @@
     "@cairn/scoring": "0.1.0",
     "@cairn/shared": "0.1.0",
     "dompurify": "^3.2.4",
+    "pdfjs-dist": "^6.3.289",
     "rxjs": "~7.8.0",
     "tslib": "^2.8.0"
   },

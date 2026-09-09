@@ -18,7 +18,7 @@ context: [`ARCHITECTURE.md`](ARCHITECTURE.md) §1; roadmap: [§15](ARCHITECTURE.
 ## Current status
 
 **Phase 1 — Foundation. Monorepo + CI/CD live, web app deployed, multi-provider
-sign-in working, real GitHub profile feeding the dashboard.**
+sign-in working, real GitHub profile and CV import feeding the dashboard.**
 
 Done:
 
@@ -26,7 +26,7 @@ Done:
   [`docs/ci-cd.md`](docs/ci-cd.md), ADRs 0001–0026.
 - **Monorepo scaffold** — npm workspaces, TS strict, path aliases, ESLint flat config
   with the `libs → apps` import-boundary rule, Prettier, Vitest.
-- **Ten `libs/*` implemented** with real logic and **92 passing unit tests**:
+- **Eleven `libs/*` implemented** with real logic and **128 passing unit tests**:
   deterministic matching + scoring, AI-free repository health, issue difficulty, the
   cached GitHub client (dedup + ETag + rate-limit floor), CV parser + skills taxonomy,
   BYOK AI provider abstraction + non-AI fallbacks + prompt-injection fencing,
@@ -34,7 +34,8 @@ Done:
   multi-provider OAuth (`libs/auth`).
 - **`apps/web`** — Angular 20 standalone + zoneless, hash routing, DOMPurify sanitiser
   service, IndexedDB store, dashboard + repositories pages, multi-provider sign-in
-  modal. Production build ≈ 70 kB transfer.
+  modal, profile page with CV import. Production build ≈ 71 kB transfer initial
+  (pdf.js sits in a 430 kB lazy worker chunk, loaded only on a CV upload).
 - **Real GitHub profile on the dashboard** — for a user signed in with GitHub,
   `libs/github` viewer fetchers + `libs/profile`'s `githubToProfile` build a
   `UnifiedProfile` (repo languages → weighted skills, topics → interests, account age
@@ -62,24 +63,32 @@ Done:
   (`core/auth/sign-in-dialog`), not nav-bar buttons
   ([ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md),
   [ADR-0025](docs/adr/0025-multi-provider-identity.md)).
+- **CV upload works end to end** — drop a PDF / .docx / .txt on **/profile** and the
+  bytes go to a sandboxed, terminate-on-timeout Web Worker; `libs/cv-extract` pulls out
+  plain text (pdf.js text layer, or our own ZIP reader for `word/document.xml`);
+  `parseCvText` structures it; a **mandatory review form** lets the user edit and
+  confirm before anything is committed; `cvToProfile` merges it onto the GitHub profile
+  and the reviewed fields persist in IndexedDB. No bytes leave the device and no raw CV
+  text is ever stored ([ADR-0011](docs/adr/0011-local-first-cv-processing.md)).
 
 Next:
 
-1. Wire the CV upload flow: sandboxed Web Worker text extraction → `parseCvText`
-   ([ADR-0011](docs/adr/0011-local-first-cv-processing.md)), merged onto the GitHub
-   profile via `mergeProfile`.
-2. Replace the dashboard's `DEMO_REPO` / `DEMO_ISSUE` targets with real repos/issues
+1. Replace the dashboard's `DEMO_REPO` / `DEMO_ISSUE` targets with real repos/issues
    (the developer side is now real; the comparison target is still fixed to `vercel/swr`).
-3. Readiness dashboard on the real profile.
+2. Readiness dashboard on the real profile.
+3. Job-board ingestion ADR (public feeds + the extension "save this listing" pattern).
+4. Optional BYOK AI refinement pass over the parsed CV — deliberately deferred out of
+   the CV slice; needs the ADR-0010 disclosure panel wired first.
 
 ## Repo map
 
 ```
-apps/web/                  Angular 20 SPA — primary MVP                 [built: shell + 2 pages + sign-in]
+apps/web/                  Angular 20 SPA — primary MVP                 [built: shell + 3 pages + sign-in]
   src/app/core/            SafeHtmlService (DOMPurify), IndexedDbStore
   src/app/core/auth/       AuthService (in-memory tokens, redirect flow) + sign-in-dialog modal
-  src/app/core/profile/    ProfileService — GitHub token → collectGithubActivity → githubToProfile
-  src/app/pages/           dashboard, repositories
+  src/app/core/profile/    ProfileService — GitHub + reviewed CV → one UnifiedProfile (persisted)
+  src/app/core/cv/         CvImportService + sandboxed extraction worker + Trusted Types worker URL
+  src/app/pages/           dashboard, repositories, profile (CV import + review form)
   public/_headers          security headers + CSP, applied by Cloudflare Workers
   wrangler.toml            Cloudflare Workers static-assets deploy config
 apps/extension/            Manifest V3 extension (esbuild)              [built: content + background]
@@ -92,6 +101,7 @@ libs/repository-analysis/  healthScore (AI-free), architecture model + readingOr
 libs/issue-analysis/       analyzeIssue — deterministic difficulty + required-knowledge
 libs/github/               GithubClient (cache + dedup + ETag + rate-limit); repo/health + viewer (user.ts) fetchers
 libs/profile/              UnifiedProfile + mergeProfile, githubToProfile, CV parser, skills taxonomy (v1)
+libs/cv-extract/           PDF/DOCX/text → plain text; own ZIP reader, pdf.js text layer (ADR-0011)
 libs/portfolio/            metrics, static HTML/MD generator, Ed25519 license verify
 libs/auth/                 framework-free multi-provider OAuth (provider records, state, exchange, identity)
 libs/ai/                   IAIProvider (OpenAI/Gemini/OpenRouter), fenced prompts, disclosure, fallbacks
@@ -125,9 +135,12 @@ Full list: [`SECURITY.md`](SECURITY.md) §8. Enforced by CI (`check-csp.mjs`,
 
 1. No `unsafe-inline` / `unsafe-eval` in **script** CSP directives. `style-src
    'unsafe-inline'` is a ratified exception for Angular component styles (2026-08-31)
-   and permitted nowhere else. No `bypassSecurityTrust*` without a reviewed, marked
-   (`cairn-security-reviewed`) exception — one ratified: `SafeHtmlService.trust()`,
-   post-DOMPurify + post-Angular-sanitizer only.
+   and permitted nowhere else. No `bypassSecurityTrust*` and no Trusted Types policy
+   without a reviewed, marked (`cairn-security-reviewed`) exception — two ratified:
+   `SafeHtmlService.trust()` (post-DOMPurify + post-Angular-sanitizer only), and the
+   `default` Trusted Types policy in `core/cv/worker-url.ts`, which admits a script URL
+   only when it is same-origin and arrives inside the one synchronous call that starts
+   the CV extraction worker.
 2. All external content (GitHub, AI, CV, user free-text) is sanitised before rendering.
 3. OAuth tokens and BYOK keys: never logged, never stored by Cairn, never in URLs.
    The GitHub token transits the stateless `cairn-auth` Worker once during the code
@@ -190,6 +203,12 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
     in `SECURITY.md` §2 was swept out 2026-09-05 — `read:user` only.)
   - "Stay signed in" (opt-in encrypted-at-rest token in IndexedDB) not built yet —
     token is in-memory only ([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)).
+  - The built `index.html` violates two of our own CSP directives in the browser:
+    Angular emits `<base href="/">` against `base-uri 'none'`, and a stylesheet
+    `onload="this.media='all'"` against `script-src 'self'`. Both are *blocked*, and
+    nothing breaks (hash routing; the stylesheet still applies) — but they show the CSP
+    had never been exercised against a built bundle in a browser. Needs a decision:
+    drop the base tag + preload trick, or relax the directives. Pre-dates the CV slice.
   - Health-engine thresholds need a calibration data set
     ([ADR-0008](docs/adr/0008-ai-free-repository-health-engine.md)).
   - ~~Jest vs Vitest~~ → **Vitest** (2026-08-31).
@@ -200,28 +219,74 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
 
 ## Changelog
 
-### 2026-09-07 — Job and opportunity ingestion decided (ADR-0026)
+### 2026-09-07 — CV upload flow: worker extraction → review → merged profile
 
-- Wrote [ADR-0026](docs/adr/0026-job-and-opportunity-ingestion.md), the record
-  [ADR-0025](docs/adr/0025-multi-provider-identity.md) §Job data promised. Two ingestion
-  paths only: public feeds, and `activeTab` capture of the one listing the user is
-  reading. No crawler, no bulk import, no server-side scrape.
-- **No source is authorised.** The ADR sets a five-point bar instead — documented and
-  permitted, no user credential, reachable without a shipped secret (or gated by
-  [ADR-0016](docs/adr/0016-optional-serverless-api.md)'s mini-ADR), origin declared in
-  both `libs/shared/src/config.ts` and `apps/web/public/_headers` so CI enforces it, and
-  its own mini-ADR. Adzuna / USAJobs fail it as a direct browser call (application key);
-  Remotive / Arbeitnow are unverified candidates.
-- Resolved a real conflict between two Accepted records: ADR-0025 promised extension
-  capture, ADR-0014 forbade the permissions to do it. ADR-0014 keeps its status and
-  gains a dated amendment — capture is `activeTab` + user gesture, never a static host
-  permission, `<all_urls>` still forbidden.
-- Guide sections updated: Status (ADR range, Next list), Repo map (ADR count),
-  Decisions & open questions (count, job-board question struck, new open question on
-  which key-free feed goes first), this entry.
-- Drift: none. No code, config, CSP, or dependency changed — the ADR is a boundary
-  written before the code, and its criteria restate `SECURITY.md` §8.4/§8.6/§8.7 rather
-  than relax them.
+Closes the last open item of the Phase 1 profile work
+([ADR-0011](docs/adr/0011-local-first-cv-processing.md)). The parser half already
+existed and was tested; this is the browser half.
+
+- **`libs/cv-extract`** (new, 11th lib) — `extractCvText(fileName, bytes)`: format
+  detected by **magic bytes**, not extension, then PDF via pdf.js's text layer, DOCX via
+  our own ~150-line ZIP reader over `DecompressionStream('deflate-raw')`, or plain text.
+  It reads exactly one DOCX part (`word/document.xml`), so `vbaProject.bin` and embedded
+  OLE objects are never decompressed. The zip-bomb limits are ours to enforce: an entry
+  cap, a declared-size check, and a running byte cap that aborts mid-inflate when the
+  header lies. **35 new tests** (128 total, 19 files) — the DOCX and PDF fixtures are
+  built byte-for-byte in-test, so no binaries enter the repo.
+- **`apps/web/src/app/core/cv/`** — `CvImportService` enforces `CV_MAX_BYTES` (declared
+  in config since day one and never used until now), spawns **one worker per import**,
+  and terminates it on success, on failure, and on `CV_PARSE_TIMEOUT_MS` — that
+  termination is T7's CPU budget. The worker itself is a ~30-line shim; all parsing logic
+  stays in the lib, where Vitest reaches it.
+- **`/profile` page** — dropzone plus the ADR-0011 **mandatory review form** (editable
+  name / email, per-skill checkboxes, editable role rows, add-a-role), a merged-profile
+  panel with `github` / `cv` provenance badges, and remove-imported-CV. Signals only, no
+  `FormsModule`; every value is interpolated, never `innerHTML` — extracted CV text is
+  untrusted.
+- **`ProfileService`** now composes both sources: `profile` became a `computed` over
+  `githubToProfile` + `cvToProfile`, the reviewed `ParsedCv` persists under
+  `profile:cv:v1` in IndexedDB, and signing out of GitHub no longer wipes the CV.
+  Rebuilding from the base each time keeps re-import **idempotent** — `mergeProfile`
+  concatenates experience without dedupe, so appending would have inflated `totalYears`.
+  Verified in-browser: importing the same CV twice stays at ~10 yrs.
+
+**Three things surfaced only by testing the built bundle under the real CSP** — worth
+recording, because none of them shows up under `ng serve` or in CI:
+
+1. `require-trusted-types-for 'script'` makes the **`Worker` constructor a
+   `TrustedScriptURL` sink**, and the bundler only emits the worker chunk for a literal
+   `new Worker(new URL(…, import.meta.url))` — so the URL cannot be hoisted and wrapped.
+   Resolved with a tightly-scoped `default` Trusted Types policy
+   (`core/cv/worker-url.ts`, marked `cairn-security-reviewed`). `SECURITY.md` §8.1 and
+   non-negotiable 1 above now list it as the second ratified exception.
+2. pdf.js **binds itself to the worker's `self` port** on import and posts its own
+   handshake, which the service was reading as the extraction result. Both ends now
+   type-guard their messages.
+3. Our own `index.html` breaks two of its own CSP directives. See the drift note below.
+
+- **Dependency review (non-negotiable 6):** `pdfjs-dist@^6.3.289`, Apache-2.0 — our
+  first heavy runtime dependency. Pinned to 6.x deliberately: every 5.x carries
+  GHSA-hq66-cqwq-w95j (arbitrary JS execution on opening a malicious PDF — threat T7
+  itself), and pdf.js 6 also dropped its last `eval` / `new Function`. `npm audit` clean,
+  license guard green. It lands in a **lazy worker chunk** (430 kB transfer, fetched only
+  on an upload); the initial bundle is unchanged at 71 kB. Rationale recorded in ADR-0011.
+- **`check-bundle-origins.mjs` `IGNORE` widened by three entries** — `https://a`,
+  `https://x`, `https://foo.bar`, all placeholder hosts inside the pdf.js chunk (core-js
+  probing `URL` / `URLSearchParams` support; pdf.js resolving in-PDF links against a
+  dummy base in order to reject them). Verified non-fetching; `ALLOWED_CONNECT_ORIGINS`
+  and the CSP were deliberately **not** touched.
+- The optional BYOK AI refinement pass over the parsed CV is **deliberately deferred** —
+  ADR-0011 requires the no-AI path to stand alone, and the AI pass needs the ADR-0010
+  disclosure panel first. Now item 4 under Next.
+- Guide sections updated: Status (done + next), Repo map (`libs/cv-extract`, `core/cv/`,
+  profile page), Security non-negotiables 1, Decisions & open questions, this changelog.
+- Drift: ⚠ one, **pre-existing and not introduced by this slice**. The built
+  `index.html` emits markup its own CSP blocks: Angular's `<base href="/">` against
+  `base-uri 'none'`, and a stylesheet `onload="this.media='all'"` against
+  `script-src 'self'`. Both are blocked and nothing breaks (hash routing; the stylesheet
+  still applies), but it means the CSP had never been exercised against a built bundle in
+  a browser. Needs an owner decision: drop the base tag and the preload trick, or relax
+  the directives.
 
 ### 2026-09-05 — Real GitHub profile feeds the dashboard
 
