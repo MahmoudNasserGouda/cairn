@@ -30,7 +30,7 @@ describe('documentXmlToText', () => {
     // the first '>'), leaving "ipt>alert(1)</script>" — which itself still
     // contains "</script>". A non-looping strip would let that survive.
     const xml = paragraphs(['<scr<script>ipt>alert(1)</script>']);
-    expect(documentXmlToText(xml)).not.toMatch(/<\/?script>/);
+    expect(documentXmlToText(xml)).not.toMatch(/<\/?script>/i);
   });
 
   it('keeps a table row on one line', () => {
