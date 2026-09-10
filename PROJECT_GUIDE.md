@@ -91,9 +91,12 @@ Done:
 
 Next:
 
-1. First job/opportunity feed — a key-free source behind ADR-0026's acceptance bar, its
+1. Replace the dashboard's `DEMO_REPO` / `DEMO_ISSUE` targets with real repos/issues
+   (both the developer side and readiness are real now; the comparison target is still
+   fixed to `vercel/swr`).
+2. First job/opportunity feed — a key-free source behind ADR-0026's acceptance bar, its
    own mini-ADR, and an `OpportunitySnapshot` in `libs/matching`.
-2. Optional BYOK AI refinement pass over the parsed CV — deliberately deferred out of
+3. Optional BYOK AI refinement pass over the parsed CV — deliberately deferred out of
    the CV slice; needs the ADR-0010 disclosure panel wired first.
 
 ## Repo map
