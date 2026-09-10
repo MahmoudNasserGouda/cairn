@@ -29,6 +29,7 @@
       "@cairn/repository-analysis": ["libs/repository-analysis/src/index.ts"],
       "@cairn/issue-analysis": ["libs/issue-analysis/src/index.ts"],
       "@cairn/portfolio": ["libs/portfolio/src/index.ts"],
+      "@cairn/targets": ["libs/targets/src/index.ts"],
       "@cairn/ai": ["libs/ai/src/index.ts"]
     }
   }

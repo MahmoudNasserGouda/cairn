@@ -80,6 +80,7 @@ export const OAUTH_PROVIDERS = {
 export const CACHE_TTL_MS = {
   repoMetadata: 24 * 60 * 60 * 1000,
   languages: 24 * 60 * 60 * 1000,
+  repoSearch: 10 * 60 * 1000,
   contributors: 12 * 60 * 60 * 1000,
   issues: 60 * 60 * 1000,
   pulls: 60 * 60 * 1000,

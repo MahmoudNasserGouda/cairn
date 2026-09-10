@@ -16,6 +16,7 @@ export default defineConfig({
       '@cairn/repository-analysis': r('./libs/repository-analysis/src/index.ts'),
       '@cairn/issue-analysis': r('./libs/issue-analysis/src/index.ts'),
       '@cairn/portfolio': r('./libs/portfolio/src/index.ts'),
+      '@cairn/targets': r('./libs/targets/src/index.ts'),
       '@cairn/ai': r('./libs/ai/src/index.ts'),
     },
   },

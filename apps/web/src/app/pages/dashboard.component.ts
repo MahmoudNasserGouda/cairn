@@ -1,4 +1,5 @@
 import { Component, computed, inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import {
   repositoryMatch,
   contributionConfidence,
@@ -10,6 +11,7 @@ import {
 import { explain } from '@cairn/scoring';
 import { contributionReadiness } from '@cairn/profile';
 import { ProfileService, profileToSnapshot } from '../core/profile/profile.service';
+import { TargetService } from '../core/targets/target.service';
 
 /** Fallback profile for visitors without a connected GitHub identity. */
 const DEMO_DEV: DeveloperSnapshot = {
@@ -25,6 +27,7 @@ const DEMO_DEV: DeveloperSnapshot = {
   ],
 };
 
+/** Fallback scoring target shown until the user picks a real repo + issue. */
 const DEMO_REPO: RepositorySnapshot = {
   fullName: 'vercel/swr',
   technologies: ['typescript', 'react', 'javascript'],
@@ -55,6 +58,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
 @Component({
   selector: 'cn-dashboard',
   standalone: true,
+  imports: [FormsModule],
   template: `
     <h1>Welcome back</h1>
     <p class="muted">
@@ -148,16 +152,94 @@ const PART_LABELS: Readonly<Record<string, string>> = {
       }
     </section>
 
+    <section class="panel target">
+      <h2>Scoring target</h2>
+      <form (ngSubmit)="runSearch()">
+        <input
+          name="repoSearch"
+          [(ngModel)]="searchText"
+          placeholder="Search repositories — e.g. state machine"
+          aria-label="Search repositories"
+          autocomplete="off"
+        />
+        <button type="submit" [disabled]="targetSvc.searching()">
+          {{ targetSvc.searching() ? 'Searching…' : 'Search' }}
+        </button>
+      </form>
+
+      @if (targetSvc.error(); as e) {
+        <p class="notice error">{{ e }}</p>
+      }
+
+      @if (targetSvc.results().length) {
+        <ul class="results">
+          @for (r of targetSvc.results(); track r.fullName) {
+            <li>
+              <button type="button" class="link" (click)="pickRepo(r.fullName)">
+                <strong>{{ r.fullName }}</strong>
+                <span class="muted small"
+                  >★ {{ r.stars }}
+                  @if (r.primaryLanguage) {
+                    · {{ r.primaryLanguage }}
+                  }
+                </span>
+                @if (r.description) {
+                  <span class="muted small block">{{ r.description }}</span>
+                }
+              </button>
+            </li>
+          }
+        </ul>
+      }
+
+      @if (targetSvc.repoName(); as name) {
+        <p class="sub">
+          Scoring against <strong>{{ name }}</strong>
+          <button type="button" class="link inline" (click)="targetSvc.clear()">
+            clear
+          </button>
+        </p>
+        @if (targetSvc.issues().length) {
+          <label class="issue-pick">
+            Issue
+            <select
+              [ngModel]="targetSvc.issueNumber()"
+              (ngModelChange)="pickIssue($event)"
+              name="issue"
+            >
+              <option [ngValue]="null" disabled>Choose an open issue…</option>
+              @for (i of targetSvc.issues(); track i.number) {
+                <option [ngValue]="i.number">#{{ i.number }} — {{ i.title }}</option>
+              }
+            </select>
+          </label>
+        } @else {
+          <p class="muted small">No open issues found for this repository.</p>
+        }
+      } @else {
+        <p class="muted small">
+          Showing demo target ({{ demoRepo.fullName }}, issue #{{ demoIssue.number }}).
+          Search for a repository to score against a real one.
+        </p>
+      }
+    </section>
+
     <section class="metrics">
       <div class="card">
         <span class="big">{{ match().percent }}%</span>
         Repository match
-        <small>{{ demoRepo.fullName }}</small>
+        <small>{{ targetSvc.repoName() ?? demoRepo.fullName + ' (demo)' }}</small>
       </div>
       <div class="card">
         <span class="big">{{ confidence().percent }}%</span>
         Contribution confidence
-        <small>issue #{{ demoIssue.number }}</small>
+        <small>
+          @if (targetSvc.issueSnapshot(); as i) {
+            issue #{{ i.number }}
+          } @else {
+            issue #{{ demoIssue.number }} (demo)
+          }
+        </small>
       </div>
       <div class="card">
         <span class="big">{{ gapCoverage() }}%</span>
@@ -313,6 +395,79 @@ const PART_LABELS: Readonly<Record<string, string>> = {
       .small {
         font-size: 0.8rem;
       }
+      .block {
+        display: block;
+      }
+      .target {
+        margin-top: 1.5rem;
+      }
+      .target h2 {
+        margin-top: 0;
+      }
+      .target form {
+        display: flex;
+        gap: 0.5rem;
+        margin: 0.5rem 0;
+      }
+      .target input {
+        flex: 1;
+        padding: 0.5rem 0.75rem;
+        background: var(--panel);
+        color: var(--fg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      .target button[type='submit'] {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--accent);
+        color: #06131f;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .results {
+        list-style: none;
+        margin: 0.5rem 0 0;
+        padding: 0;
+        display: grid;
+        gap: 0.25rem;
+      }
+      .link {
+        background: none;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--fg);
+        text-align: left;
+        padding: 0.5rem 0.7rem;
+        cursor: pointer;
+        width: 100%;
+        display: grid;
+        gap: 0.15rem;
+      }
+      .link.inline {
+        display: inline;
+        border: none;
+        padding: 0 0.3rem;
+        width: auto;
+        color: var(--accent);
+        text-decoration: underline;
+      }
+      .issue-pick {
+        display: block;
+        margin-top: 0.5rem;
+        color: var(--muted);
+      }
+      .issue-pick select {
+        display: block;
+        margin-top: 0.25rem;
+        max-width: 100%;
+        padding: 0.4rem 0.6rem;
+        background: var(--panel);
+        color: var(--fg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
       @media (max-width: 560px) {
         .parts li {
           grid-template-columns: 1fr;
@@ -325,6 +480,29 @@ export class DashboardComponent {
   protected readonly demoRepo = DEMO_REPO;
   protected readonly demoIssue = DEMO_ISSUE;
   protected readonly profileSvc = inject(ProfileService);
+  protected readonly targetSvc = inject(TargetService);
+  protected searchText = '';
+
+  protected runSearch(): void {
+    void this.targetSvc.search(this.searchText);
+  }
+
+  protected pickRepo(slug: string): void {
+    this.searchText = '';
+    void this.targetSvc.selectRepo(slug);
+  }
+
+  protected pickIssue(issueNumber: number | null): void {
+    if (issueNumber !== null) this.targetSvc.selectIssue(issueNumber);
+  }
+
+  /** Live target when chosen, else the demo fixtures. */
+  private readonly repo = computed<RepositorySnapshot>(
+    () => this.targetSvc.repoSnapshot() ?? DEMO_REPO,
+  );
+  private readonly issue = computed<IssueSnapshot>(
+    () => this.targetSvc.issueSnapshot() ?? DEMO_ISSUE,
+  );
 
   private readonly dev = computed<DeveloperSnapshot>(() => {
     const p = this.profileSvc.profile();
@@ -363,11 +541,11 @@ export class DashboardComponent {
     return Math.round(level * 100);
   }
 
-  protected readonly match = computed(() => repositoryMatch(this.dev(), DEMO_REPO));
+  protected readonly match = computed(() => repositoryMatch(this.dev(), this.repo()));
   protected readonly confidence = computed(() =>
-    contributionConfidence(this.dev(), DEMO_REPO, DEMO_ISSUE),
+    contributionConfidence(this.dev(), this.repo(), this.issue()),
   );
-  protected readonly gap = computed(() => skillGap(this.dev(), DEMO_REPO.technologies));
+  protected readonly gap = computed(() => skillGap(this.dev(), this.repo().technologies));
   protected readonly gapCoverage = computed(() => Math.round(this.gap().coverage * 100));
   protected readonly matchExplanation = computed(() =>
     explain(this.match(), 'Repository Match'),
