@@ -18,8 +18,9 @@ context: [`ARCHITECTURE.md`](ARCHITECTURE.md) §1; roadmap: [§15](ARCHITECTURE.
 ## Current status
 
 **Phase 1 — Foundation. Monorepo + CI/CD live, web app deployed, multi-provider
-sign-in working, real GitHub profile, CV import, and contribution readiness feeding the
-dashboard.**
+sign-in working, real GitHub profile, CV import, contribution readiness feeding the
+dashboard, and the dashboard's match / confidence / skill-gap cards now score against a
+real repo + issue the user searches for and picks.**
 
 Done:
 
@@ -27,12 +28,13 @@ Done:
   [`docs/ci-cd.md`](docs/ci-cd.md), ADRs 0001–0026.
 - **Monorepo scaffold** — npm workspaces, TS strict, path aliases, ESLint flat config
   with the `libs → apps` import-boundary rule, Prettier, Vitest.
-- **Eleven `libs/*` implemented** with real logic and **142 passing unit tests**:
+- **Twelve `libs/*` implemented** with real logic and **157 passing unit tests**:
   deterministic matching + scoring, AI-free repository health, issue difficulty, the
   cached GitHub client (dedup + ETag + rate-limit floor), CV parser + skills taxonomy,
   BYOK AI provider abstraction + non-AI fallbacks + prompt-injection fencing,
   client-side portfolio generator + offline Ed25519 license verification, framework-free
-  multi-provider OAuth (`libs/auth`).
+  multi-provider OAuth (`libs/auth`), and `libs/targets` (analysis outputs → matching
+  snapshots).
 - **`apps/web`** — Angular 20 standalone + zoneless, hash routing, DOMPurify sanitiser
   service, IndexedDB store, dashboard + repositories pages, multi-provider sign-in
   modal, profile page with CV import. Production build ≈ 71 kB transfer initial
@@ -78,15 +80,20 @@ Done:
   means something to a real user, and it needs no repository discovery and no new
   network call. The panel shows the banded percent, a bar and note per part, the
   connected/missing sources, and next steps ranked by the points each would recover.
+- **Real repo + issue as the scoring target** — the dashboard "Scoring target" panel
+  searches GitHub (`/search/repositories`), the user picks a repo, then picks an open
+  issue from a list. `libs/targets` maps `RepoOverview` + `healthScore` + `analyzeIssue`
+  onto the `RepositorySnapshot` / `IssueSnapshot` the matching engine already takes, so
+  the match / contribution-confidence / skill-gap cards and the "Why this match"
+  explanation recompute against live data. Choice persists in IndexedDB; falls back to
+  the `DEMO_REPO` / `DEMO_ISSUE` fixtures until one is chosen. Orchestrated by
+  `apps/web` `TargetService` (`core/targets/`), sharing one `GithubClientService`.
 
 Next:
 
-1. Replace the dashboard's `DEMO_REPO` / `DEMO_ISSUE` targets with real repos/issues
-   (both the developer side and readiness are real now; the comparison target is still
-   fixed to `vercel/swr`).
-2. First job/opportunity feed — a key-free source behind ADR-0026's acceptance bar, its
+1. First job/opportunity feed — a key-free source behind ADR-0026's acceptance bar, its
    own mini-ADR, and an `OpportunitySnapshot` in `libs/matching`.
-3. Optional BYOK AI refinement pass over the parsed CV — deliberately deferred out of
+2. Optional BYOK AI refinement pass over the parsed CV — deliberately deferred out of
    the CV slice; needs the ADR-0010 disclosure panel wired first.
 
 ## Repo map
@@ -96,6 +103,8 @@ apps/web/                  Angular 20 SPA — primary MVP                 [built
   src/app/core/            SafeHtmlService (DOMPurify), IndexedDbStore
   src/app/core/auth/       AuthService (in-memory tokens, redirect flow) + sign-in-dialog modal
   src/app/core/profile/    ProfileService — GitHub + reviewed CV → one UnifiedProfile (persisted)
+  src/app/core/targets/    TargetService — repo search → pick repo + issue → scoring snapshots (persisted)
+  src/app/core/github-client.ts  one shared GithubClient (token-bound when signed in)
   src/app/core/cv/         CvImportService + sandboxed extraction worker + Trusted Types worker URL
   src/app/pages/           dashboard, repositories, profile (CV import + review form)
   public/_headers          security headers + CSP, applied by Cloudflare Workers
@@ -108,10 +117,11 @@ libs/scoring/              weightedScore + explanation, versioned WEIGHTS (WEIGH
 libs/matching/             repositoryMatch / issueMatch / contributionConfidence / skillGap
 libs/repository-analysis/  healthScore (AI-free), architecture model + readingOrder
 libs/issue-analysis/       analyzeIssue — deterministic difficulty + required-knowledge
-libs/github/               GithubClient (cache + dedup + ETag + rate-limit); repo/health + viewer (user.ts) fetchers
+libs/github/               GithubClient (cache + dedup + ETag + rate-limit); repo/health + viewer + repo-search + issue-list fetchers
 libs/profile/              UnifiedProfile + mergeProfile, githubToProfile, CV parser, taxonomy (v1), contributionReadiness
 libs/cv-extract/           PDF/DOCX/text → plain text; own ZIP reader, pdf.js text layer (ADR-0011)
 libs/portfolio/            metrics, static HTML/MD generator, Ed25519 license verify
+libs/targets/              pure: RepoOverview + healthScore + analyzeIssue → Repository/IssueSnapshot
 libs/auth/                 framework-free multi-provider OAuth (provider records, state, exchange, identity)
 libs/ai/                   IAIProvider (OpenAI/Gemini/OpenRouter), fenced prompts, disclosure, fallbacks
 scripts/                   check-csp, check-bundle-origins, check-licenses, setup-hooks
@@ -227,6 +237,46 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
     (`helpers:pinGitHubActionDigests`) converts them on its first PR.
 
 ## Changelog
+
+### 2026-09-10 — Real repo + issue as the dashboard scoring target
+
+Closes Next item 1. The developer side of every dashboard score was already real
+(GitHub profile + CV); the comparison target was hard-coded to `vercel/swr` / issue
+`#100`. Now the user searches for a repo and picks an open issue.
+
+- **`libs/github`** gained two fetchers: `searchRepositories` (`/search/repositories`,
+  new `CACHE_TTL_MS.repoSearch` = 10 min) and `listOpenIssues` (`/repos/:o/:r/issues`,
+  drops entries with a `pull_request` key, reuses the `issues` TTL) + `toIssueInput`.
+  `libs/github` now also depends on `@cairn/issue-analysis` (types) — acyclic.
+- **`libs/targets`** (new, 12th lib, pure) — `repoToSnapshot` (health → `[0,1]`,
+  `newcomerFriendliness`, a conservative `inferRequiredExperience` ladder that never
+  returns `expert`) and `issueToSnapshot` (`analyzeIssue` output → `IssueSnapshot`).
+  Types-only deps on matching / repository-analysis / issue-analysis; the overview
+  input is a local structural type, so no `libs/github` edge. 11 tests.
+- **`apps/web`** — `GithubClientService` (`core/github-client.ts`): one shared
+  `GithubClient`, token-bound when signed in, else anonymous; `/repositories` now uses
+  it too instead of building its own. `TargetService` (`core/targets/`) owns the
+  search → pick-repo → pick-issue flow and persists `{repoSlug, issueNumber}` under
+  `dashboard:target:v1`. Dashboard has a "Scoring target" panel (`FormsModule`); the
+  `match` / `confidence` / `gap` / explanation computeds read the live snapshots with
+  the `DEMO_*` fixtures as the no-selection fallback. All repo/issue text is
+  interpolation-only (untrusted external content, non-negotiable 2).
+- **Suite is 157 tests across 24 files.** `verify` + `build` + `guard` green. Initial
+  web bundle still ~71 kB transfer.
+- **ESLint** `ignores` gained `.claude/**` — a stray local git worktree under
+  `.claude/worktrees/` was breaking `eslint .` with project-service parse errors.
+- Verified in-browser: repo search returns live results and the demo fallback + captions
+  render correctly. The repo→snapshot happy path could not be exercised here — the
+  shared-IP **unauthenticated** GitHub rate limit trips the client's 50-remaining floor
+  after ~10 calls; the `RateLimitError` path surfaces gracefully ("serving cache only",
+  cards stay on demo) and the mapping is unit-tested. A signed-in token (5000/h) avoids
+  the floor.
+- Guide sections updated: Status (phase line, done, Next, lib + test counts), Repo map
+  (`libs/targets`, `libs/github` line, `apps/web` core entries), this changelog.
+- Drift: none. No new outbound origin (`api.github.com` was already allow-listed) — CSP
+  and `_headers` untouched, both guards green. No new runtime dependency. Core still
+  works with no backend and no AI key; the dashboard falls back to demo fixtures when no
+  GitHub call is possible.
 
 ### 2026-09-10 — Phase 1 profile work landed on `main` (reconcile)
 

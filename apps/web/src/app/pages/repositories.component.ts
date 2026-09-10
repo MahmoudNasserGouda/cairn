@@ -1,13 +1,12 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import {
-  GithubClient,
   fetchRepoOverview,
   collectHealthSignals,
   type RepoOverview,
 } from '@cairn/github';
 import { healthScore, type HealthReport } from '@cairn/repository-analysis';
-import { IndexedDbStore } from '../core/indexeddb-store';
+import { GithubClientService } from '../core/github-client';
 
 interface RepoResult {
   readonly overview: RepoOverview;
@@ -122,8 +121,7 @@ interface RepoResult {
   ],
 })
 export class RepositoriesComponent {
-  private readonly store = inject(IndexedDbStore);
-  private readonly client = new GithubClient({ cache: this.store });
+  private readonly client = inject(GithubClientService).get();
 
   protected slug = 'angular/angular';
   protected readonly loading = signal(false);

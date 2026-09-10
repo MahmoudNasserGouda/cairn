@@ -11,6 +11,7 @@ export default tseslint.config(
       '**/dist/**',
       'coverage/**',
       'node_modules/**',
+      '.claude/**',
       'apps/web/.angular/**',
       'apps/extension/dist/**',
       '**/*.d.ts',

@@ -1,5 +1,5 @@
 {
-  "name": "@cairn/github",
+  "name": "@cairn/targets",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,9 @@
   },
   "sideEffects": false,
   "dependencies": {
-    "@cairn/shared": "0.1.0",
     "@cairn/issue-analysis": "0.1.0",
-    "@cairn/repository-analysis": "0.1.0"
+    "@cairn/matching": "0.1.0",
+    "@cairn/repository-analysis": "0.1.0",
+    "@cairn/shared": "0.1.0"
   }
 }
