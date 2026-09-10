@@ -243,12 +243,17 @@ the volatile sections against `main`.
   well-formed input.
 - **`libs/profile` now depends on `@cairn/scoring`** (workspace, not a runtime external)
   for `contributionReadiness` — acyclic, mirrors `libs/matching`.
-- **`vitest` 4.1.11** (#30) — dev-only, closes GHSA-82fw-gwwq-j7x9.
+- **`vitest` 3.2.4 → 4.1.11** (#30) — closes GHSA-82fw-gwwq-j7x9 (dev-server-only path
+  traversal in `@vitest/mocker`; no 3.x backport). `vitest.config.ts` unchanged; the 70%
+  gate still enforces. `check-licenses.mjs` also reworked to read `npm ls --json` off
+  the thrown error: `@angular/build` still pins `vitest@^3.1.1` for a builder path this
+  repo never runs, so `npm ls` now exits `ELSPROBLEMS` while still printing a valid tree.
 - **ADR-0026** closed the job-ingestion open question; `docs/adr/` is 26, all Accepted
   except 0015. The Next list drops the "job-board ingestion ADR" item (done) — the
   successor is "first job/opportunity feed" behind ADR-0026's bar.
 - Guide sections updated: Status (test count), Next list, this entry, and the "140" in
-  the readiness entry below corrected to 142.
+  the readiness entry below corrected to 142. `docs/ci-cd.md`'s unit-test row corrected
+  from "Jest/Vitest" (a label predating the runner decision) to Vitest.
 - Drift: none. No new outbound origin, no CSP change, core still works with no backend
   and no AI key.
 
