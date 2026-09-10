@@ -52,7 +52,7 @@ Trust boundaries:
 
 | Asset | Sensitivity | Where it lives | Blast radius if leaked |
 |-------|-------------|----------------|------------------------|
-| GitHub OAuth access token | High | In-memory (default) / encrypted IndexedDB (opt-in) | Read access to the user's GitHub per granted scopes |
+| GitHub OAuth access token | High | In-memory + `sessionStorage` mirror for refresh-resilience, tab-scoped, wiped on sign-out (ADR-0020 correction 2026-09-10) / encrypted IndexedDB (opt-in, unbuilt) | Read access to the user's GitHub per granted scopes |
 | BYOK AI API keys | High | IndexedDB isolated store / memory-only mode | Attacker bills the user's AI account |
 | Unified developer profile / PII | Medium | IndexedDB | Personal data disclosure |
 | CV file contents | Medium | Transient (parsed, not stored raw) | Personal data disclosure |

@@ -11,6 +11,18 @@
 > the identity slice requests only `read:user` (not `public_repo`, which grants
 > *write*); reading public repos needs no scope at all.
 
+> **Correction 2026-09-10.** "Access tokens kept in memory for the session by
+> default" left the web app logged out on every page refresh (the JS heap is
+> destroyed and `completeSignInFromRedirect()` only rehydrates on an OAuth
+> callback URL). The web app now mirrors the identities and the GitHub access
+> token into **`sessionStorage`** (`cairn.session.v1`): survives a refresh, dies
+> with the tab, not shared across tabs, never written to LocalStorage / IndexedDB,
+> and cleared on sign-out. The exposure delta over pure in-memory is an XSS
+> payload that fires on a *later* load within the same tab — accepted given
+> ADR-0019's interpolation-only rendering and the CSP. The "stay signed in →
+> encrypted IndexedDB" option below remains the path for cross-session
+> persistence if it is ever built.
+
 ## Context
 
 The app authenticates the user to GitHub (and optionally LinkedIn, Google) and holds
