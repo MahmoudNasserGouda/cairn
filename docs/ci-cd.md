@@ -70,7 +70,7 @@ flowchart TD
 | format check | Prettier `--check` | unformatted files |
 | lint | ESLint | lint errors; `apps/*` → `libs/*` boundary violations ([ADR-0005](adr/0005-angular-typescript-shared-core-monorepo.md)) |
 | typecheck | `tsc --noEmit` (strict) | any type error |
-| unit tests | project runner (Jest/Vitest) | test failure or coverage below threshold |
+| unit tests | Vitest (`npm test`) | test failure or coverage below the 70% threshold |
 | build | Angular build + extension bundler | build error; output exceeds size budget |
 | CodeQL | GitHub CodeQL | new high-severity alert |
 | dependency scan | OSV-Scanner, `npm audit` | high/critical advisory with no reviewed waiver |
