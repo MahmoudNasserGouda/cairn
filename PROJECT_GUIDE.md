@@ -27,7 +27,7 @@ Done:
   [`docs/ci-cd.md`](docs/ci-cd.md), ADRs 0001–0026.
 - **Monorepo scaffold** — npm workspaces, TS strict, path aliases, ESLint flat config
   with the `libs → apps` import-boundary rule, Prettier, Vitest.
-- **Eleven `libs/*` implemented** with real logic and **140 passing unit tests**:
+- **Eleven `libs/*` implemented** with real logic and **142 passing unit tests**:
   deterministic matching + scoring, AI-free repository health, issue difficulty, the
   cached GitHub client (dedup + ETag + rate-limit floor), CV parser + skills taxonomy,
   BYOK AI provider abstraction + non-AI fallbacks + prompt-injection fencing,
@@ -84,7 +84,8 @@ Next:
 1. Replace the dashboard's `DEMO_REPO` / `DEMO_ISSUE` targets with real repos/issues
    (both the developer side and readiness are real now; the comparison target is still
    fixed to `vercel/swr`).
-2. Job-board ingestion ADR (public feeds + the extension "save this listing" pattern).
+2. First job/opportunity feed — a key-free source behind ADR-0026's acceptance bar, its
+   own mini-ADR, and an `OpportunitySnapshot` in `libs/matching`.
 3. Optional BYOK AI refinement pass over the parsed CV — deliberately deferred out of
    the CV slice; needs the ADR-0010 disclosure panel wired first.
 
@@ -227,6 +228,30 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
 
 ## Changelog
 
+### 2026-09-10 — Phase 1 profile work landed on `main` (reconcile)
+
+PRs #27 (readiness), #28 (ADR-0026), #29 (CV upload) and #30 (vitest bump) all merged.
+The three feature entries below were each written on their own branch; this reconciles
+the volatile sections against `main`.
+
+- **Test suite is 142 across 20 files** (readiness added 12; the CV slice's own count
+  in its entry, 128/19, was mid-slice). `verify` + `build` green on `main`.
+- **CV extraction hardened after a CodeQL pass on #29** — `documentXmlToText` now loops
+  the tag strip until the string stops changing (CodeQL's own remediation for
+  incomplete multi-character sanitisation), and the `present|current|now` end-year
+  match in the profile review form is properly anchored. No behaviour change for
+  well-formed input.
+- **`libs/profile` now depends on `@cairn/scoring`** (workspace, not a runtime external)
+  for `contributionReadiness` — acyclic, mirrors `libs/matching`.
+- **`vitest` 4.1.11** (#30) — dev-only, closes GHSA-82fw-gwwq-j7x9.
+- **ADR-0026** closed the job-ingestion open question; `docs/adr/` is 26, all Accepted
+  except 0015. The Next list drops the "job-board ingestion ADR" item (done) — the
+  successor is "first job/opportunity feed" behind ADR-0026's bar.
+- Guide sections updated: Status (test count), Next list, this entry, and the "140" in
+  the readiness entry below corrected to 142.
+- Drift: none. No new outbound origin, no CSP change, core still works with no backend
+  and no AI key.
+
 ### 2026-09-07 — Contribution readiness on the merged profile
 
 - Added `contributionReadiness` (and `profileCompleteness`) to `libs/profile`, scoring
@@ -241,7 +266,7 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
   ranked by the points each would recover (`experience` deliberately excluded from
   next steps — it isn't something a user can go and do).
 - 12 new tests in `libs/profile/src/readiness.test.ts` (determinism, monotonicity,
-  completeness partition, next-step ranking, an inline snapshot lock); suite is 140
+  completeness partition, next-step ranking, an inline snapshot lock); suite is 142
   tests across 20 files, coverage gate still passes.
 - Guide sections updated: Status (phase line, done list, Next), Repo map
   (`libs/profile` entry).
