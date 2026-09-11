@@ -28,7 +28,7 @@ Done:
   [`docs/ci-cd.md`](docs/ci-cd.md), ADRs 0001–0026.
 - **Monorepo scaffold** — npm workspaces, TS strict, path aliases, ESLint flat config
   with the `libs → apps` import-boundary rule, Prettier, Vitest.
-- **Twelve `libs/*` implemented** with real logic and **157 passing unit tests**:
+- **Twelve `libs/*` implemented** with real logic and **159 passing unit tests**:
   deterministic matching + scoring, AI-free repository health, issue difficulty, the
   cached GitHub client (dedup + ETag + rate-limit floor), CV parser + skills taxonomy,
   BYOK AI provider abstraction + non-AI fallbacks + prompt-injection fencing,
@@ -85,18 +85,24 @@ Done:
   issue from a list. `libs/targets` maps `RepoOverview` + `healthScore` + `analyzeIssue`
   onto the `RepositorySnapshot` / `IssueSnapshot` the matching engine already takes, so
   the match / contribution-confidence / skill-gap cards and the "Why this match"
-  explanation recompute against live data. Choice persists in IndexedDB; falls back to
-  the `DEMO_REPO` / `DEMO_ISSUE` fixtures until one is chosen. Orchestrated by
-  `apps/web` `TargetService` (`core/targets/`), sharing one `GithubClientService`.
+  explanation recompute against live data. **The comparison target is now always a real
+  repo the user picks** — there is no `vercel/swr` demo fallback; until a repo is chosen
+  the score cards show an empty/prompt state, and the confidence card prompts for an
+  issue until one is picked. Choice persists in IndexedDB. Orchestrated by `apps/web`
+  `TargetService` (`core/targets/`), sharing one `GithubClientService`.
+- **GitHub client + session hardening** — the rate-limit floor is tracked **per
+  resource** (`core` vs `search`; `/search/*` has a tiny 10/30 bucket) as
+  `min(configured floor, 10% of that resource's quota)`, so a search burst no longer
+  blocks core calls (`libs/github` `resourceForPath` / `floorFor`). A signed-in session
+  now **survives a page refresh** — identities + the GitHub token are mirrored into
+  `sessionStorage` (`cairn.session.v1`, wiped on sign-out and never in LocalStorage /
+  IndexedDB), restored on load ([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)).
 
 Next:
 
-1. Replace the dashboard's `DEMO_REPO` / `DEMO_ISSUE` targets with real repos/issues
-   (both the developer side and readiness are real now; the comparison target is still
-   fixed to `vercel/swr`).
-2. First job/opportunity feed — a key-free source behind ADR-0026's acceptance bar, its
+1. First job/opportunity feed — a key-free source behind ADR-0026's acceptance bar, its
    own mini-ADR, and an `OpportunitySnapshot` in `libs/matching`.
-3. Optional BYOK AI refinement pass over the parsed CV — deliberately deferred out of
+2. Optional BYOK AI refinement pass over the parsed CV — deliberately deferred out of
    the CV slice; needs the ADR-0010 disclosure panel wired first.
 
 ## Repo map
@@ -223,14 +229,16 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
     got an explicit owner "ratified" note the way the CSP exceptions did — treat as
     accepted-by-merge unless the owner says otherwise. (The `public_repo` scope wording
     in `SECURITY.md` §2 was swept out 2026-09-05 — `read:user` only.)
-  - "Stay signed in" (opt-in encrypted-at-rest token in IndexedDB) not built yet —
-    token is in-memory only ([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)).
-  - The built `index.html` violates two of our own CSP directives in the browser:
-    Angular emits `<base href="/">` against `base-uri 'none'`, and a stylesheet
-    `onload="this.media='all'"` against `script-src 'self'`. Both are *blocked*, and
-    nothing breaks (hash routing; the stylesheet still applies) — but they show the CSP
-    had never been exercised against a built bundle in a browser. Needs a decision:
-    drop the base tag + preload trick, or relax the directives. Pre-dates the CV slice.
+  - The session now survives a **page refresh** (in-memory + `sessionStorage` mirror,
+    2026-09-11). "Stay signed in" across a **tab close** (opt-in encrypted-at-rest token
+    in IndexedDB) is still not built
+    ([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)).
+  - ~~The built `index.html` violated two of our own CSP directives (`<base href="/">`
+    vs `base-uri 'none'`; a stylesheet `onload=` vs `script-src 'self'`).~~ → **fixed
+    2026-09-11** — the base href moved to `APP_BASE_HREF` (no `<base>` element) and the
+    critical-CSS inliner is off (`optimization.styles.inlineCritical: false`), so the
+    built HTML obeys the CSP. `check-csp.mjs` now also scans `dist/browser/index.html`
+    for a `<base>` tag or inline `on*=` handler to stop it regressing.
   - Health-engine thresholds need a calibration data set
     ([ADR-0008](docs/adr/0008-ai-free-repository-health-engine.md)).
   - ~~Jest vs Vitest~~ → **Vitest** (2026-08-31).
@@ -240,6 +248,42 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
     (`helpers:pinGitHubActionDigests`) converts them on its first PR.
 
 ## Changelog
+
+### 2026-09-11 — Real-target-only dashboard, GitHub/session hardening, CSP fix
+
+Closes Next item 1. The dashboard no longer scores against the `vercel/swr` demo target,
+and two engineering fixes from this branch (`9a044e4`) plus the built-HTML CSP correction
+are recorded here.
+
+- **Dashboard requires a real target** (`apps/web` `dashboard.component.ts`) — deleted the
+  `DEMO_REPO` / `DEMO_ISSUE` fixtures. The match / confidence / skill-gap / "Why this
+  match" cards render only once a repo is picked (empty/prompt state otherwise); the
+  confidence card prompts for an issue until one is chosen. `DEMO_DEV` (anonymous
+  *developer* side) is unchanged. The repo-dependent computeds are now null-safe. Verified
+  in-browser: empty state → search `state machine` → pick `statelyai/xstate` (match 22%,
+  coverage 17%, live "Why this match") → pick issue #5480 (confidence 51%); console clean.
+- **Per-resource GitHub rate-limit floor** (`libs/github/src/client.ts`, `9a044e4`) —
+  tracks `core` vs `search` quota separately (`resourceForPath` / `floorFor`;
+  `min(configured floor, 10% of that resource's quota)`) so a `/search/*` burst no longer
+  starves core calls. +2 tests (suite now **159 across 24 files**).
+- **Refresh-surviving session** (`apps/web` `auth.service.ts`, `9a044e4`) — identities +
+  GitHub token mirrored into `sessionStorage` (`cairn.session.v1`), restored on load,
+  wiped on sign-out; never LocalStorage / IndexedDB (ADR-0020, SECURITY.md note dated
+  2026-09-10).
+- **Built `index.html` now obeys the CSP** — removed the `<base href="/">` element (base
+  href supplied via `APP_BASE_HREF` in `app.config.ts`) and disabled the critical-CSS
+  inliner (`angular.json` `optimization.styles.inlineCritical: false`) so no inline
+  `onload=` handler is emitted. `check-csp.mjs` extended to assert the built HTML has no
+  `<base>` / inline `on*=`. Resolves the long-standing CSP self-violation open question.
+- **`README.md` Status reconciled** — was stale at "nine libraries (68 tests) / Next up:
+  GitHub OAuth"; now matches the guide (twelve libs, 159 tests, sign-in + profile + CV +
+  readiness + real target shipped, 26 ADRs).
+- Guide sections updated: Status (test count, real-target + hardening done bullets, Next
+  list advanced), Open questions (CSP resolved, session-persistence refined), this
+  changelog.
+- Drift: none. No new outbound origin (`api.github.com` already allow-listed); CSP in
+  `_headers` unchanged (the fix makes the *built HTML* conform to it, not the other way);
+  no new runtime dependency; core still works with no backend and no AI key.
 
 ### 2026-09-10 — Real repo + issue as the dashboard scoring target
 

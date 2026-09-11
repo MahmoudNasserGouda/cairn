@@ -78,6 +78,28 @@ if (!existsSync(HEADERS)) {
   }
 }
 
+// --- 2b: built index.html must not self-violate the CSP ---
+// The strict CSP declares `base-uri 'none'` and `script-src 'self'`; a `<base>`
+// element or an inline event handler (e.g. the critical-CSS `onload=` preload
+// trick) in the built HTML would be blocked by the browser. Only asserted when a
+// production build is present, so `guard` still runs standalone (ADR-0019).
+const BUILT_HTML = 'apps/web/dist/browser/index.html';
+if (existsSync(BUILT_HTML)) {
+  const html = readFileSync(BUILT_HTML, 'utf8');
+  if (/<base\b/i.test(html)) {
+    problems.push(
+      `${BUILT_HTML} contains a <base> element — violates CSP base-uri 'none' ` +
+        '(supply the base href via APP_BASE_HREF instead).',
+    );
+  }
+  if (/\son\w+\s*=/i.test(html)) {
+    problems.push(
+      `${BUILT_HTML} contains an inline event handler (on*=) — violates CSP ` +
+        "script-src 'self' (disable optimization.styles.inlineCritical).",
+    );
+  }
+}
+
 // --- 3: source sink checks ---
 const SRC_ROOTS = ['libs', 'apps/web/src', 'apps/extension/src'];
 const CODE_EXT = new Set(['.ts', '.tsx', '.js', '.mjs', '.html']);
