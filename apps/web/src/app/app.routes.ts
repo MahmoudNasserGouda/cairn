@@ -13,6 +13,11 @@ export const routes: Routes = [
       import('./pages/profile.component').then((m) => m.ProfileComponent),
   },
   {
+    path: 'discover',
+    loadComponent: () =>
+      import('./pages/discover.component').then((m) => m.DiscoverComponent),
+  },
+  {
     path: 'repositories',
     loadComponent: () =>
       import('./pages/repositories.component').then((m) => m.RepositoriesComponent),

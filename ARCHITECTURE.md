@@ -270,6 +270,38 @@ Repository Match: 91%
 Weights live in `libs/scoring/weights.ts`, versioned, separate from UI, overridable per
 preset. Snapshot-tested. See [ADR-0007](docs/adr/0007-deterministic-explainable-matching-engine.md).
 
+### Discovery Engine — `libs/discovery`
+
+Turns a developer profile into at most four GitHub repository searches, merges the
+results, and ranks them — all without spending a single per-repository request
+([ADR-0027](docs/adr/0027-search-only-repository-discovery.md)). `planQueries` builds
+the lanes (strongest language · that language filtered by `good-first-issues:>=3` ·
+second language · one topic interest); `buildRepoSearchQuery` renders each as GitHub
+search syntax, which is what keeps this lib free of any dependency on the API client.
+
+```
+Discovery Score: 78%
+  Skill Fit          30%
+  Stack You Know     20%
+  Newcomer Support   20%
+  Activity           15%
+  Approachable Size  10%
+  Learning Value      5%
+  ─────────────────────
+  Total             100%
+```
+
+Two properties are worth naming. **Lane provenance is a signal**: a candidate returned
+by the good-first-issues lane was matched by GitHub's own qualifier, the strongest
+newcomer evidence available without a request per repository. And **size is scored as
+a band, not a ladder** — `starApproachability` peaks where a contributor at that level
+can expect both a live review process and a reachable maintainer, and the searched star
+window is *derived from that same peak* so the two cannot disagree.
+
+Discovery's score is deliberately coarser than Repository Match and is not comparable
+with it: the cheap score produces a shortlist, and a repository the user then picks
+goes through the full health + match path.
+
 ### Repository Health Engine — `libs/repository-analysis`
 
 Signal-based, same rules. Signals: recent commit activity, release cadence, issue
@@ -373,7 +405,7 @@ Add any of these only when a concrete product requirement justifies it, via a ne
 | Phase | Product goal | Enabling components | Key ADRs | Hackathon scope? |
 |-------|--------------|---------------------|----------|------------------|
 | **1 — Foundation & Profile Intelligence** | Unified developer profile, readiness dashboard | `libs/profile`, `libs/github`, `libs/matching`, `libs/scoring`, `libs/shared` | 0001, 0003, 0006, 0007, 0011, 0012, 0020 | ✅ (GitHub OAuth, LinkedIn OAuth, CV upload, unified profile, confidence score) |
-| **2 — Discovery Engine** | Repository & issue discovery, filters, health | `libs/github`, `libs/repository-analysis`, `libs/issue-analysis`, `libs/matching` | 0006, 0007, 0008 | ✅ (repo discovery, match engine, health analysis, issue discovery) |
+| **2 — Discovery Engine** | Repository & issue discovery, filters, health | `libs/discovery`, `libs/github`, `libs/repository-analysis`, `libs/issue-analysis`, `libs/matching` | 0006, 0007, 0008, 0027 | ✅ (repo discovery, match engine, health analysis; issue-level discovery still manual) |
 | **3 — Open Source Copilot** | Architecture Explorer, Issue Explainer, Contribution Navigator, PR Explainer, Reading Order | `libs/ai`, `libs/repository-analysis`, `libs/issue-analysis` | 0009, 0010, 0019 | ✅ WOW features: Architecture Explorer, Issue Explainer, Contribution Navigator |
 | **4 — Growth Engine** | Skill gap analysis, learning recs, roadmaps | `libs/matching` (skill gap), `libs/ai` (optional), curated content data | 0007, 0009 | ➖ |
 | **5 — Contributor Identity** | Portfolio, OSS resume, timeline, analytics | `libs/portfolio`, `libs/scoring` | 0013, 0018 | ✅ (contributor portfolio) |
@@ -385,5 +417,5 @@ Add any of these only when a concrete product requirement justifies it, via a ne
 
 See [`docs/adr/README.md`](docs/adr/README.md) for the full table. Summary:
 
-- **Accepted:** 0001–0014, 0017 (principle), 0018–0023.
+- **Accepted:** 0001–0014, 0017 (principle), 0018–0027.
 - **Proposed / future:** 0015 (desktop agent), 0016 (serverless API).

@@ -22,6 +22,12 @@ const RESPONSE = {
       topics: ['Web', 'compiler'],
       language: 'JavaScript',
       stargazers_count: 79000,
+      forks_count: 4200,
+      open_issues_count: 700,
+      pushed_at: '2026-09-01T00:00:00Z',
+      archived: false,
+      fork: false,
+      html_url: 'https://github.com/sveltejs/svelte',
     },
     {
       full_name: 'acme/thing',
@@ -64,6 +70,13 @@ describe('searchRepositories', () => {
       // taxonomy, so they are filtered out — see the `toKnownSkills` note in
       // `fetchRepoOverview`.
       topics: [],
+      allTopics: ['web', 'compiler'],
+      forks: 4200,
+      openIssues: 700,
+      pushedAt: '2026-09-01T00:00:00Z',
+      archived: false,
+      isFork: false,
+      htmlUrl: 'https://github.com/sveltejs/svelte',
     });
     expect(out[1]).toMatchObject({ description: '', primaryLanguage: null, topics: [] });
   });
@@ -85,6 +98,33 @@ describe('searchRepositories', () => {
     const out = await searchRepositories(client(fetchImpl), 'x');
     expect(out[0]?.topics).toEqual(['node', 'react']);
     expect(out[0]?.primaryLanguage).toBe('typescript');
+  });
+
+  it('defaults the fields GitHub omitted, without inventing signal', async () => {
+    const fetchImpl = vi.fn(async () => json(RESPONSE));
+    const out = await searchRepositories(client(fetchImpl), 'x');
+    // Second fixture item carries none of the optional fields.
+    expect(out[1]).toMatchObject({
+      forks: 0,
+      openIssues: 0,
+      pushedAt: null,
+      archived: false,
+      isFork: false,
+      allTopics: [],
+      htmlUrl: 'https://github.com/acme/thing',
+    });
+  });
+
+  it('omits the sort parameter entirely for best-match', async () => {
+    // GitHub reads "relevance" as the absence of `sort`, not as `sort=best-match`.
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const href = url instanceof Request ? url.url : String(url);
+      expect(href).not.toContain('sort=');
+      expect(href).not.toContain('order=');
+      return json(RESPONSE);
+    });
+    await searchRepositories(client(fetchImpl), 'x', { sort: 'best-match' });
+    expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
   it('clamps perPage into [1, 100]', async () => {

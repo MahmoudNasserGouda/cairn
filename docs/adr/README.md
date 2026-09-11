@@ -64,3 +64,4 @@ supersedes it and update the old record's Status line to point at the new one.
 | 0024 | OAuth token-exchange function                                   | Accepted            |
 | 0025 | Multi-provider identity; GitHub is the only data connection      | Accepted            |
 | 0026 | Job and opportunity ingestion: feeds and user capture           | Accepted            |
+| 0027 | Repository discovery ranks from search results alone            | Accepted            |

@@ -48,6 +48,9 @@ bill — you bring your own API key if you want AI features at all.
   parsed on-device in a sandboxed worker, with a mandatory review step)
 - **Contribution readiness** — a target-free score of how prepared you are, with
   ranked next steps
+- **Repository discovery** — your profile becomes a handful of GitHub searches, and the
+  results are ranked by named, weighted signals with a plain-language "why" on every
+  card. Three presets (balanced · quick win · stretch) re-rank without re-querying
 - Pick a **real repository and open issue** as a scoring target, then see
   deterministic **repository match**, **contribution confidence** and **skill gap**
   against it, each with its "why"
@@ -66,8 +69,8 @@ them yet — treat them as planned, not shipped:
 
 **Not started**
 
-- Repository/issue **discovery** — today you search for or name a repository; nothing
-  recommends one to you yet
+- **Issue-level discovery** — discovery recommends repositories; picking the issue
+  inside one is still a manual choice from that repository's open list
 - **Manual** profile entry — you can edit and deselect what the CV parser found, but
   you cannot yet add a skill by hand
 - Growth roadmaps, contributor identity & analytics, community reviews/stories, a
@@ -77,7 +80,7 @@ them yet — treat them as planned, not shipped:
 ## How it works
 
 ```
-You → your skills → readiness → a repo + issue you pick → match & confidence → contribution
+You → your skills → readiness → repos we recommend → a repo + issue you pick → match & confidence → contribution
 ```
 
 (The `recommendations → portfolio → career` half of that pipeline is designed and
