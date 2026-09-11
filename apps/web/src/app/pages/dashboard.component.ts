@@ -27,25 +27,6 @@ const DEMO_DEV: DeveloperSnapshot = {
   ],
 };
 
-/** Fallback scoring target shown until the user picks a real repo + issue. */
-const DEMO_REPO: RepositorySnapshot = {
-  fullName: 'vercel/swr',
-  technologies: ['typescript', 'react', 'javascript'],
-  topics: ['data-fetching', 'hooks', 'web'],
-  activity: 0.8,
-  health: 0.85,
-  newcomerFriendliness: 0.65,
-  requiredExperience: 'intermediate',
-};
-
-const DEMO_ISSUE: IssueSnapshot = {
-  number: 100,
-  difficulty: 'easy',
-  requiredSkills: ['typescript', 'react'],
-  scopeClarity: 0.7,
-  mentorshipOffered: true,
-};
-
 /** Display copy for the readiness score-part keys. */
 const PART_LABELS: Readonly<Record<string, string>> = {
   skillDepth: 'Skill depth',
@@ -218,52 +199,62 @@ const PART_LABELS: Readonly<Record<string, string>> = {
         }
       } @else {
         <p class="muted small">
-          Showing demo target ({{ demoRepo.fullName }}, issue #{{ demoIssue.number }}).
-          Search for a repository to score against a real one.
+          No scoring target yet — search for a repository above, then pick an open issue
+          to score your fit against it.
         </p>
       }
     </section>
 
-    <section class="metrics">
-      <div class="card">
-        <span class="big">{{ match().percent }}%</span>
-        Repository match
-        <small>{{ targetSvc.repoName() ?? demoRepo.fullName + ' (demo)' }}</small>
-      </div>
-      <div class="card">
-        <span class="big">{{ confidence().percent }}%</span>
-        Contribution confidence
-        <small>
-          @if (targetSvc.issueSnapshot(); as i) {
-            issue #{{ i.number }}
+    @if (match(); as m) {
+      <section class="metrics">
+        <div class="card">
+          <span class="big">{{ m.percent }}%</span>
+          Repository match
+          <small>{{ targetSvc.repoName() }}</small>
+        </div>
+        <div class="card">
+          @if (confidence(); as c) {
+            <span class="big">{{ c.percent }}%</span>
+            Contribution confidence
+            <small>issue #{{ targetSvc.issueNumber() }}</small>
           } @else {
-            issue #{{ demoIssue.number }} (demo)
+            <span class="big muted">—</span>
+            Contribution confidence
+            <small>pick an open issue</small>
           }
-        </small>
-      </div>
-      <div class="card">
-        <span class="big">{{ gapCoverage() }}%</span>
-        Skill coverage
-        <small>{{ gap().missing.length }} to learn</small>
-      </div>
-    </section>
+        </div>
+        <div class="card">
+          <span class="big">{{ gapCoverage() }}%</span>
+          Skill coverage
+          <small>{{ gap()?.missing?.length ?? 0 }} to learn</small>
+        </div>
+      </section>
 
-    <section class="grid">
-      <div class="panel">
-        <h2>Why this match</h2>
-        <pre>{{ matchExplanation() }}</pre>
-      </div>
-      <div class="panel">
-        <h2>Skill gap</h2>
-        <ul>
-          @for (skill of gap().recommendedOrder; track skill) {
-            <li>{{ skill }}</li>
-          } @empty {
-            <li class="muted">No gaps for this target.</li>
-          }
-        </ul>
-      </div>
-    </section>
+      <section class="grid">
+        <div class="panel">
+          <h2>Why this match</h2>
+          <pre>{{ matchExplanation() }}</pre>
+        </div>
+        <div class="panel">
+          <h2>Skill gap</h2>
+          <ul>
+            @for (skill of gap()?.recommendedOrder ?? []; track skill) {
+              <li>{{ skill }}</li>
+            } @empty {
+              <li class="muted">No gaps for this target.</li>
+            }
+          </ul>
+        </div>
+      </section>
+    } @else {
+      <section class="panel target-empty">
+        <p class="muted">
+          Pick a repository — and an open issue — in the scoring target above to see your
+          repository match, contribution confidence, and skill gap scored against real
+          data.
+        </p>
+      </section>
+    }
   `,
   styles: [
     `
@@ -278,6 +269,9 @@ const PART_LABELS: Readonly<Record<string, string>> = {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
         gap: 1rem;
+        margin: 1.5rem 0;
+      }
+      .target-empty {
         margin: 1.5rem 0;
       }
       .card {
@@ -477,8 +471,6 @@ const PART_LABELS: Readonly<Record<string, string>> = {
   ],
 })
 export class DashboardComponent {
-  protected readonly demoRepo = DEMO_REPO;
-  protected readonly demoIssue = DEMO_ISSUE;
   protected readonly profileSvc = inject(ProfileService);
   protected readonly targetSvc = inject(TargetService);
   protected searchText = '';
@@ -496,12 +488,12 @@ export class DashboardComponent {
     if (issueNumber !== null) this.targetSvc.selectIssue(issueNumber);
   }
 
-  /** Live target when chosen, else the demo fixtures. */
-  private readonly repo = computed<RepositorySnapshot>(
-    () => this.targetSvc.repoSnapshot() ?? DEMO_REPO,
+  /** The live scoring target the user picked, or null until they pick one. */
+  private readonly repo = computed<RepositorySnapshot | null>(() =>
+    this.targetSvc.repoSnapshot(),
   );
-  private readonly issue = computed<IssueSnapshot>(
-    () => this.targetSvc.issueSnapshot() ?? DEMO_ISSUE,
+  private readonly issue = computed<IssueSnapshot | null>(() =>
+    this.targetSvc.issueSnapshot(),
   );
 
   private readonly dev = computed<DeveloperSnapshot>(() => {
@@ -541,13 +533,26 @@ export class DashboardComponent {
     return Math.round(level * 100);
   }
 
-  protected readonly match = computed(() => repositoryMatch(this.dev(), this.repo()));
-  protected readonly confidence = computed(() =>
-    contributionConfidence(this.dev(), this.repo(), this.issue()),
-  );
-  protected readonly gap = computed(() => skillGap(this.dev(), this.repo().technologies));
-  protected readonly gapCoverage = computed(() => Math.round(this.gap().coverage * 100));
-  protected readonly matchExplanation = computed(() =>
-    explain(this.match(), 'Repository Match'),
-  );
+  /** Repo-dependent scores are null until a real target is picked. */
+  protected readonly match = computed(() => {
+    const repo = this.repo();
+    return repo ? repositoryMatch(this.dev(), repo) : null;
+  });
+  protected readonly confidence = computed(() => {
+    const repo = this.repo();
+    const issue = this.issue();
+    return repo && issue ? contributionConfidence(this.dev(), repo, issue) : null;
+  });
+  protected readonly gap = computed(() => {
+    const repo = this.repo();
+    return repo ? skillGap(this.dev(), repo.technologies) : null;
+  });
+  protected readonly gapCoverage = computed(() => {
+    const gap = this.gap();
+    return gap ? Math.round(gap.coverage * 100) : 0;
+  });
+  protected readonly matchExplanation = computed(() => {
+    const match = this.match();
+    return match ? explain(match, 'Repository Match') : '';
+  });
 }
