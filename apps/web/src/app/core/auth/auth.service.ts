@@ -15,6 +15,7 @@ import { OAUTH_PROVIDERS } from '@cairn/shared';
 import { IndexedDbStore } from '../indexeddb-store';
 
 const PENDING_KEY = 'cairn.oauth.pending';
+const SESSION_KEY = 'cairn.session.v1';
 const GH_CACHE_PREFIX = 'gh:';
 const PROVIDER_ORDER: readonly ProviderId[] = ['github', 'linkedin', 'google'];
 
@@ -27,12 +28,21 @@ interface PendingRedirect {
   readonly state: string;
 }
 
+interface PersistedSession {
+  readonly identities: readonly Identity[];
+  readonly githubToken: string | null;
+}
+
 /**
  * Multi-provider sign-in for the web app (ADR-0020, ADR-0025). Access tokens live in
  * memory for the session only — never LocalStorage, never IndexedDB, never logged.
  * Only the GitHub token is retained (it reads repositories); LinkedIn / Google are
  * identity only, so their tokens are dropped right after the profile fetch.
  * Every `code -> token` exchange goes through the `cairn-auth` Worker (ADR-0024).
+ *
+ * To survive a page refresh (but not a tab close), the identities and the GitHub
+ * token are mirrored into `sessionStorage` — never LocalStorage / IndexedDB, and
+ * wiped on sign-out (ADR-0020 correction 2026-09-10).
  */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -114,6 +124,7 @@ export class AuthService {
     }
     this._status.set(this._identities().length > 0 ? 'ready' : 'anonymous');
     this._error.set(null);
+    this.persistSession();
     if (providerId === undefined || providerId === 'github') {
       void this.wipeGithubCache();
     }
@@ -125,7 +136,10 @@ export class AuthService {
    */
   async completeSignInFromRedirect(): Promise<void> {
     const params = parseCallbackParams(globalThis.location.search);
-    if (params.kind === 'none') return;
+    if (params.kind === 'none') {
+      this.restoreSession();
+      return;
+    }
 
     const pending = readAndClearPending();
     cleanUrl();
@@ -154,8 +168,61 @@ export class AuthService {
         identity,
       ]);
       this._status.set('ready');
+      this.persistSession();
     } catch (e) {
       this.fail(e instanceof AuthError ? e.message : 'sign-in failed');
+    }
+  }
+
+  /** Mirror identities + GitHub token to sessionStorage (best-effort). */
+  private persistSession(): void {
+    try {
+      const identities = this._identities();
+      if (identities.length === 0) {
+        sessionStorage.removeItem(SESSION_KEY);
+        return;
+      }
+      const payload: PersistedSession = {
+        identities,
+        githubToken: this.tokens.get('github') ?? null,
+      };
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(payload));
+    } catch {
+      /* a session that cannot be remembered is not worth an error banner */
+    }
+  }
+
+  /** Rehydrate from sessionStorage on a normal page load. */
+  private restoreSession(): void {
+    let raw: string | null;
+    try {
+      raw = sessionStorage.getItem(SESSION_KEY);
+    } catch {
+      return;
+    }
+    if (raw === null) return;
+    try {
+      const parsed = JSON.parse(raw) as PersistedSession;
+      const identities = Array.isArray(parsed.identities)
+        ? parsed.identities.filter(
+            (i): i is Identity => !!i && typeof (i as Identity).provider === 'string',
+          )
+        : [];
+      const token = typeof parsed.githubToken === 'string' ? parsed.githubToken : null;
+      if (identities.length === 0) {
+        sessionStorage.removeItem(SESSION_KEY);
+        return;
+      }
+      this.tokens.clear();
+      if (token) this.tokens.set('github', token);
+      this._identities.set(identities);
+      this._status.set('ready');
+    } catch {
+      try {
+        sessionStorage.removeItem(SESSION_KEY);
+      } catch {
+        /* ignore */
+      }
     }
   }
 

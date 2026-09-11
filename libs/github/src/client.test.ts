@@ -90,6 +90,56 @@ describe('GithubClient', () => {
     await expect(c.get('/nope')).rejects.toBeInstanceOf(RateLimitError);
   });
 
+  it('does not let an exhausted search quota block a core-API call', async () => {
+    const reset = Math.floor(Date.now() / 1000) + 3600;
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response(
+          { items: [] },
+          {
+            headers: {
+              'x-ratelimit-resource': 'search',
+              'x-ratelimit-limit': '10',
+              'x-ratelimit-remaining': '3',
+              'x-ratelimit-reset': String(reset),
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(response({ v: 1 }));
+    const c = new GithubClient({ fetchImpl, cache: new MemoryStore() });
+    await c.get('/search/repositories?q=x', { ttlMs: 1 });
+    const core = await c.get('/repos/a/b', { ttlMs: 1 });
+    expect(core).toEqual({ v: 1 });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('applies a quota-relative floor so a second search is throttled', async () => {
+    const reset = Math.floor(Date.now() / 1000) + 3600;
+    const fetchImpl = vi.fn().mockResolvedValueOnce(
+      response(
+        { items: [{ id: 1 }] },
+        {
+          headers: {
+            'x-ratelimit-resource': 'search',
+            'x-ratelimit-limit': '10',
+            'x-ratelimit-remaining': '0',
+            'x-ratelimit-reset': String(reset),
+          },
+        },
+      ),
+    );
+    let now = Date.now();
+    const c = new GithubClient({ fetchImpl, now: () => now, cache: new MemoryStore() });
+    await c.get('/search/repositories?q=a', { ttlMs: 1 });
+    now += 10;
+    await expect(c.get('/search/repositories?q=b')).rejects.toBeInstanceOf(
+      RateLimitError,
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it('never puts the token anywhere but the Authorization header', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(response({ ok: 1 }));
     const c = new GithubClient({ fetchImpl, token: 'ghp_secrettoken' });

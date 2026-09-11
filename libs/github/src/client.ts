@@ -19,7 +19,11 @@ export interface GithubClientOptions {
   readonly cache?: KeyValueStore;
   readonly fetchImpl?: typeof fetch;
   readonly now?: () => number;
-  /** Stop making live calls when remaining quota drops below this. */
+  /**
+   * Upper bound on the "stop making live calls" quota floor. The effective floor
+   * is `min(this, 10% of that resource's quota)`, so it adapts to the Search API's
+   * tiny quota (10/30) without starving the 5000/hr core API.
+   */
   readonly rateLimitFloor?: number;
 }
 
@@ -45,6 +49,11 @@ export class RateLimitError extends Error {
 
 const DEFAULT_TTL = 60 * 60 * 1000;
 
+/** GitHub reports quota per resource; `/search/*` has its own (tiny) bucket. */
+function resourceForPath(path: string): string {
+  return path.startsWith('/search/') ? 'search' : 'core';
+}
+
 export class GithubClient {
   private readonly baseUrl: string;
   private readonly cache: KeyValueStore;
@@ -52,7 +61,8 @@ export class GithubClient {
   private readonly now: () => number;
   private readonly floor: number;
   private readonly inFlight = new Map<string, Promise<unknown>>();
-  private lastRateLimit: RateLimit | null = null;
+  /** Most recent rate-limit snapshot per GitHub resource (`core`, `search`, …). */
+  private readonly rateLimits = new Map<string, RateLimit>();
 
   constructor(private readonly opts: GithubClientOptions = {}) {
     this.baseUrl = opts.baseUrl ?? 'https://api.github.com';
@@ -63,7 +73,14 @@ export class GithubClient {
   }
 
   get rateLimit(): RateLimit | null {
-    return this.lastRateLimit;
+    return this.rateLimits.get('core') ?? null;
+  }
+
+  /** Effective floor for a resource: capped at 10% of its known quota. */
+  private floorFor(rl: RateLimit): number {
+    return rl.limit > 0
+      ? Math.min(this.floor, Math.max(1, Math.ceil(rl.limit * 0.1)))
+      : this.floor;
   }
 
   /** GET a JSON resource, using the cache and deduplicating concurrent calls. */
@@ -89,16 +106,13 @@ export class GithubClient {
     const fresh = cached && age < cached.ttlMs && !options.forceRevalidate;
     if (fresh) return cached.data;
 
-    if (
-      this.lastRateLimit &&
-      this.lastRateLimit.remaining < this.floor &&
-      this.now() < this.lastRateLimit.resetEpochMs
-    ) {
+    const rl = this.rateLimits.get(resourceForPath(path)) ?? null;
+    if (rl && rl.remaining < this.floorFor(rl) && this.now() < rl.resetEpochMs) {
       if (cached) {
         logger.warn('github: rate-limit floor hit, serving stale cache', { path });
         return cached.data;
       }
-      throw new RateLimitError(this.lastRateLimit);
+      throw new RateLimitError(rl);
     }
 
     const headers: Record<string, string> = {
@@ -109,7 +123,7 @@ export class GithubClient {
     if (cached?.etag) headers['If-None-Match'] = cached.etag;
 
     const res = await this.fetchImpl(`${this.baseUrl}${path}`, { headers });
-    this.captureRateLimit(res);
+    const captured = this.captureRateLimit(res, resourceForPath(path));
 
     if (res.status === 304 && cached) {
       const refreshed: CacheEntry<T> = { ...cached, fetchedAtMs: this.now() };
@@ -117,9 +131,9 @@ export class GithubClient {
       return cached.data;
     }
 
-    if (res.status === 403 && this.lastRateLimit?.remaining === 0) {
+    if (res.status === 403 && captured?.remaining === 0) {
       if (cached) return cached.data;
-      throw new RateLimitError(this.lastRateLimit);
+      throw new RateLimitError(captured);
     }
 
     if (!res.ok) {
@@ -137,16 +151,18 @@ export class GithubClient {
     return data;
   }
 
-  private captureRateLimit(res: Response): void {
+  private captureRateLimit(res: Response, fallbackResource: string): RateLimit | null {
     const limit = Number(res.headers.get('x-ratelimit-limit'));
     const remaining = Number(res.headers.get('x-ratelimit-remaining'));
     const reset = Number(res.headers.get('x-ratelimit-reset'));
-    if (!Number.isNaN(remaining) && !Number.isNaN(reset)) {
-      this.lastRateLimit = {
-        limit: Number.isNaN(limit) ? 0 : limit,
-        remaining,
-        resetEpochMs: reset * 1000,
-      };
-    }
+    if (Number.isNaN(remaining) || Number.isNaN(reset)) return null;
+    const resource = res.headers.get('x-ratelimit-resource') ?? fallbackResource;
+    const rl: RateLimit = {
+      limit: Number.isNaN(limit) ? 0 : limit,
+      remaining,
+      resetEpochMs: reset * 1000,
+    };
+    this.rateLimits.set(resource, rl);
+    return rl;
   }
 }
