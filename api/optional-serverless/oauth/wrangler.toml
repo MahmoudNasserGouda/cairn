@@ -15,6 +15,9 @@ compatibility_date = "2026-09-01"
 workers_dev = true
 
 [vars]
+# Comma-separated origin allowlist. Every request must carry an `Origin` on this
+# list, and `redirect_uri` is checked against it too. Production only by design —
+# see "Signing in from localhost" in README.md before adding a dev origin here.
 ALLOWED_ORIGIN = "https://cairn.mahmoudnasser98.workers.dev"
 GITHUB_CLIENT_ID = "set-at-deploy-time"
 LINKEDIN_CLIENT_ID = "set-at-deploy-time"

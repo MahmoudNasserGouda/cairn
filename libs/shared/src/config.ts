@@ -32,8 +32,28 @@ export const ALLOWED_CONNECT_ORIGINS: readonly string[] = [
  * `cairn-auth` instead (`identityExchangeUrl`), which needs only the access token,
  * not the client secret (ADR-0024).
  */
-const OAUTH_REDIRECT_URI = 'https://cairn.mahmoudnasser98.workers.dev/';
+export const PRODUCTION_ORIGIN = 'https://cairn.mahmoudnasser98.workers.dev';
 const OAUTH_EXCHANGE_BASE = 'https://cairn-auth.mahmoudnasser98.workers.dev';
+
+/**
+ * The callback URL handed to every provider. Derived from the origin the app is
+ * actually served from, so `npm run -w @cairn/web start` on `localhost:4200` signs
+ * in against localhost instead of bouncing the developer to production. Falls back
+ * to the production origin outside a browser (unit tests, SSR-less tooling).
+ *
+ * This is not a trust boundary: each provider only accepts a `redirect_uri` that is
+ * registered on its OAuth app, so an unregistered origin fails at the provider. To
+ * enable a new origin you must register it there *and* add it to the Worker's
+ * `ALLOWED_ORIGIN` list (`api/optional-serverless/oauth`).
+ */
+function resolveRedirectUri(): string {
+  const origin = (globalThis as { location?: { origin?: string } }).location?.origin;
+  return origin !== undefined && origin.length > 0 && origin !== 'null'
+    ? `${origin}/`
+    : `${PRODUCTION_ORIGIN}/`;
+}
+
+const OAUTH_REDIRECT_URI = resolveRedirectUri();
 
 export const OAUTH_PROVIDERS = {
   github: {

@@ -1,4 +1,9 @@
-import { toSkillTag, CACHE_TTL_MS, type SkillTag } from '@cairn/shared';
+import {
+  canonicalizeSkill,
+  toKnownSkills,
+  CACHE_TTL_MS,
+  type SkillTag,
+} from '@cairn/shared';
 import type { GithubClient } from './client';
 
 interface SearchRepoApiShape {
@@ -29,7 +34,7 @@ export interface SearchRepositoriesOptions {
 }
 
 /**
- * Full-text repository search (`GET /search/repositories`), newest-star-first.
+ * Full-text repository search (`GET /search/repositories`), most-starred first.
  *
  * Note: the Search API has a much stricter rate limit than the core API
  * (10 req/min unauthenticated, 30 authenticated). The client cache and a
@@ -59,8 +64,9 @@ export async function searchRepositories(
       repo,
       description: item.description ?? '',
       stars: item.stargazers_count,
-      primaryLanguage: item.language ? toSkillTag(item.language) : null,
-      topics: (item.topics ?? []).map(toSkillTag),
+      primaryLanguage: item.language ? canonicalizeSkill(item.language) : null,
+      // Same taxonomy filter as `fetchRepoOverview` — free-text topics only.
+      topics: toKnownSkills(item.topics ?? []),
     };
   });
 }

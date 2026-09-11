@@ -13,6 +13,11 @@ export function jaccard(a: readonly string[], b: readonly string[]): number {
 /**
  * Proficiency-weighted coverage of `required` by the developer's skills, in [0, 1].
  * A required skill the user knows well counts more than one they barely know.
+ *
+ * An empty `required` returns 1 — deliberately *neutral*, so a repository whose
+ * stack we could not detect does not punish the developer. It is not a measurement:
+ * anything rendering this to a user must check the list was non-empty first (see
+ * `SkillGap.analysed`).
  */
 export function skillCoverage(
   dev: DeveloperSnapshot,

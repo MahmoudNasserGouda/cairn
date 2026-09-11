@@ -38,14 +38,22 @@ function installGuard(): void {
   const trustedTypes = (globalThis as { trustedTypes?: TrustedTypesApi }).trustedTypes;
   if (!trustedTypes) return;
 
-  trustedTypes.createPolicy('default', {
-    createScriptURL: (value: string): string => {
-      if (armed && new URL(value, location.href).origin === location.origin) {
-        return value;
-      }
-      throw new Error(`blocked script URL: ${value}`);
-    },
-  });
+  try {
+    trustedTypes.createPolicy('default', {
+      createScriptURL: (value: string): string => {
+        if (armed && new URL(value, location.href).origin === location.origin) {
+          return value;
+        }
+        throw new Error(`blocked script URL: ${value}`);
+      },
+    });
+  } catch {
+    // Only one `default` policy may exist per document. If something else — a future
+    // Angular version, a dependency — installed one first, `createPolicy` throws.
+    // Swallowing it lets `new Worker` proceed and be judged by *that* policy, which
+    // either permits the same-origin chunk or blocks it. Letting the throw escape
+    // would fail every CV import with "could not read that file" and hide the cause.
+  }
 }
 
 /** A fresh, single-use extraction worker. The caller must terminate it. */

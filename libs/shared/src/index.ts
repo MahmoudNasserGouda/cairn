@@ -5,3 +5,4 @@ export * from './storage';
 export * from './sanitizer';
 export * from './types';
 export * from './config';
+export * from './taxonomy';

@@ -5,7 +5,7 @@
   "description": "Repository match, health, and beginner-friendliness — inline on GitHub.",
   "minimum_chrome_version": "116",
   "permissions": ["storage"],
-  "host_permissions": ["https://github.com/*"],
+  "host_permissions": ["https://github.com/*", "https://api.github.com/*"],
   "optional_host_permissions": [
     "https://api.openai.com/*",
     "https://generativelanguage.googleapis.com/*",

@@ -26,7 +26,11 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ['vitest.config.ts', 'eslint.config.js'],
+          allowDefaultProject: [
+            'vitest.config.ts',
+            'eslint.config.js',
+            'scripts/test-setup.ts',
+          ],
         },
         tsconfigRootDir: import.meta.dirname,
       },
@@ -103,7 +107,7 @@ export default tseslint.config(
 
   // Tests may use dev-only patterns.
   {
-    files: ['libs/**/*.test.ts'],
+    files: ['libs/**/*.test.ts', 'apps/**/*.test.ts', 'api/**/*.test.ts'],
     rules: {
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',

@@ -30,6 +30,13 @@ export interface GithubActivity {
   readonly repos: readonly GithubRepoWithLanguages[];
   /** Merged pull requests the user authored, across all of GitHub. */
   readonly mergedPrCount: number;
+  /**
+   * False when the merged-PR search did not answer — almost always the Search API's
+   * 10/30-per-minute bucket. `mergedPrCount` is then 0 by convention, which is a
+   * *guess*, not a measurement: callers must say so rather than let a throttle read
+   * as "this developer has never contributed".
+   */
+  readonly mergedPrCountKnown: boolean;
 }
 
 interface UserApiShape {
@@ -93,18 +100,24 @@ export async function fetchRepoLanguages(
   });
 }
 
-/** Count of merged PRs the user authored. Best-effort — the search API is rate-limited. */
+/**
+ * Count of merged PRs the user authored. Best-effort — the Search API is heavily
+ * rate-limited — so failure is reported as `known: false` rather than as a zero the
+ * caller cannot tell apart from a genuinely empty track record.
+ */
 export async function fetchMergedPrCount(
   client: GithubClient,
   login: string,
-): Promise<number> {
-  return client
-    .get<{ total_count: number }>(
-      `/search/issues?q=type:pr+author:${login}+is:merged&per_page=1`,
+): Promise<{ count: number; known: boolean }> {
+  try {
+    const res = await client.get<{ total_count: number }>(
+      `/search/issues?q=type:pr+author:${encodeURIComponent(login)}+is:merged&per_page=1`,
       { ttlMs: CACHE_TTL_MS.mergedPrCount },
-    )
-    .then((r) => r.total_count)
-    .catch(() => 0);
+    );
+    return { count: res.total_count, known: true };
+  } catch {
+    return { count: 0, known: false };
+  }
 }
 
 /**
@@ -115,7 +128,7 @@ export async function collectGithubActivity(
   client: GithubClient,
 ): Promise<GithubActivity> {
   const user = await fetchViewer(client);
-  const [repos, mergedPrCount] = await Promise.all([
+  const [repos, mergedPrs] = await Promise.all([
     fetchViewerRepos(client),
     fetchMergedPrCount(client, user.login),
   ]);
@@ -129,5 +142,10 @@ export async function collectGithubActivity(
     languages: languages[i] ?? {},
   }));
 
-  return { user, repos: withLanguages, mergedPrCount };
+  return {
+    user,
+    repos: withLanguages,
+    mergedPrCount: mergedPrs.count,
+    mergedPrCountKnown: mergedPrs.known,
+  };
 }

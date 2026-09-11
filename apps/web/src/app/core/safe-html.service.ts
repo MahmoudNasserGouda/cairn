@@ -7,6 +7,14 @@ import { ALLOWED_TAGS, ALLOWED_ATTR, type HtmlSanitizer } from '@cairn/shared';
  * The single sanitisation pipeline for rendered untrusted content (ADR-0019).
  * DOMPurify with a strict allowlist, then Angular's own sanitizer as defence in
  * depth. Links are forced to open safely.
+ *
+ * **Nothing injects this yet.** Every surface that shows external text today —
+ * repository descriptions, issue titles — renders through Angular interpolation,
+ * which escapes rather than parses, so there is no HTML sink to guard. The service
+ * exists ahead of the first feature that renders rich content (issue bodies,
+ * READMEs); until then Angular tree-shakes it out of the bundle, so it costs
+ * nothing at runtime. It is covered by tests so the guarantee is real on the day
+ * something does depend on it — see `safe-html.service.test.ts`.
  */
 @Injectable({ providedIn: 'root' })
 export class SafeHtmlService implements HtmlSanitizer {

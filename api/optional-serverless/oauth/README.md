@@ -16,7 +16,14 @@ the smallest thing that holds the secrets and does that one step.
 
 ## Interface
 
-Two routes, both CORS-locked to `ALLOWED_ORIGIN` (any other `Origin` gets `403`).
+Two routes. Both require an `Origin` header that is on the `ALLOWED_ORIGIN` list —
+a missing or unlisted `Origin` gets `403 origin_not_allowed`. `ALLOWED_ORIGIN` is a
+comma-separated list, so a dev origin can be added alongside production.
+
+This is an **origin allowlist, not CORS**: CORS only constrains browsers, and the
+check used to skip any request that simply omitted the header, which left the
+token exchange reachable from curl. `redirect_uri` is validated against the same
+list (`400 redirect_uri_not_allowed`).
 
 | | |
 |---|---|
@@ -43,5 +50,25 @@ wrangler deploy \
   --var ALLOWED_ORIGIN:https://cairn.mahmoudnasser98.workers.dev
 ```
 
-Each OAuth app's callback URL must equal the `redirectUri` in
-`libs/shared/src/config.ts` (`https://cairn.mahmoudnasser98.workers.dev/`).
+`libs/shared/src/config.ts` derives `redirectUri` from the origin the app is served
+from, so each OAuth app's callback URL must be `<origin>/` for every origin you
+intend to support.
+
+### Signing in from `localhost`
+
+`npm run -w @cairn/web start` serves the app on `http://localhost:4200`, so its
+redirect URI is `http://localhost:4200/`. To sign in there you must, for each
+provider you want:
+
+1. Register `http://localhost:4200/` as an additional callback URL on the OAuth app.
+   (GitHub OAuth Apps allow only one callback URL — use a second, dev-only OAuth app
+   and point `clientId` at it locally rather than changing the production one.)
+2. Add the origin to this Worker, **or** run a dev Worker:
+
+   ```bash
+   wrangler dev --var ALLOWED_ORIGIN:http://localhost:4200
+   ```
+
+Prefer the dev Worker. Adding `http://localhost:4200` to the deployed
+`ALLOWED_ORIGIN` lets anyone running the app locally complete an exchange with the
+production client secret.

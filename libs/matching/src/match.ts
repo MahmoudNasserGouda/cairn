@@ -1,7 +1,6 @@
 import {
   weightedScore,
   type ScoreBreakdown,
-  REPOSITORY_MATCH_WEIGHTS,
   ISSUE_MATCH_WEIGHTS,
   CONTRIBUTION_CONFIDENCE_WEIGHTS,
   repositoryWeightsFor,
@@ -46,7 +45,7 @@ export function repositoryMatch(
       activity: repo.activity,
       learning: learningValue(dev, repo.technologies),
     },
-    weights ?? REPOSITORY_MATCH_WEIGHTS,
+    weights,
   );
 }
 
@@ -104,6 +103,12 @@ export interface SkillGap {
   readonly missing: readonly SkillTag[];
   /** Fraction of the target's required skills the developer already has. */
   readonly coverage: number;
+  /**
+   * False when the target declared no technologies at all. `coverage` is then 0 and
+   * means "unknown", not "you know nothing" — and certainly not the 100% / "0 to
+   * learn" this used to report. Render a dash, not a number.
+   */
+  readonly analysed: boolean;
   /** Suggested order to learn the missing skills (most foundational first). */
   readonly recommendedOrder: readonly SkillTag[];
 }
@@ -132,7 +137,8 @@ export function skillGap(
   return {
     have,
     missing,
-    coverage: required.length === 0 ? 1 : have.length / required.length,
+    coverage: required.length === 0 ? 0 : have.length / required.length,
+    analysed: required.length > 0,
     recommendedOrder,
   };
 }

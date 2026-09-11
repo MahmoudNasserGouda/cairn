@@ -119,4 +119,22 @@ function render(
   host.append(h, p);
 }
 
+/**
+ * GitHub navigates with Turbo, so `document_idle` fires once and the panel would go
+ * stale (or vanish) as the user moves between repositories. Re-run on Turbo's own
+ * event, and fall back to polling `location.pathname` for pages it does not cover.
+ */
+let lastPath = location.pathname;
+
+function rerunIfNavigated(): void {
+  if (location.pathname === lastPath) return;
+  lastPath = location.pathname;
+  document.getElementById('cn-panel')?.remove();
+  void run();
+}
+
+document.addEventListener('turbo:load', rerunIfNavigated);
+globalThis.addEventListener('popstate', rerunIfNavigated);
+setInterval(rerunIfNavigated, 1000);
+
 void run();

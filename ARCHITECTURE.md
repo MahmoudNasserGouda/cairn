@@ -35,7 +35,7 @@ The product is organised around five questions:
 | **Maximum browser/device computation** | Matching, health, CV parsing, portfolio generation all client-side | [0007](docs/adr/0007-deterministic-explainable-matching-engine.md), [0008](docs/adr/0008-ai-free-repository-health-engine.md), [0011](docs/adr/0011-local-first-cv-processing.md), [0013](docs/adr/0013-client-side-portfolio-generation.md) |
 | **Direct third-party APIs** | Call GitHub directly with the user's token; no proxy | [0006](docs/adr/0006-direct-github-api-usage.md) |
 | **BYOK AI, optional** | Users bring their own key; a useful non-AI mode always exists | [0009](docs/adr/0009-byok-ai-optional-enhancement.md) |
-| **Security first** | Strict CSP, sanitisation, PKCE, minimal deps, CI gates — the #1 requirement | [0019](docs/adr/0019-security-first-rendering.md), [0020](docs/adr/0020-oauth-token-and-byok-key-handling.md), [0021](docs/adr/0021-supply-chain-and-dependency-security.md) |
+| **Security first** | Strict CSP, sanitisation, origin-allowlisted OAuth exchange, minimal deps, CI gates — the #1 requirement | [0019](docs/adr/0019-security-first-rendering.md), [0020](docs/adr/0020-oauth-token-and-byok-key-handling.md), [0021](docs/adr/0021-supply-chain-and-dependency-security.md) |
 | **CI/CD from day one** | Pipeline is the only path to prod; security gates block merge | [0022](docs/adr/0022-ci-cd-is-mandatory-infrastructure.md) |
 | **Evolve, don't rewrite** | Shared core libraries; each new client/service is an addition | [0005](docs/adr/0005-angular-typescript-shared-core-monorepo.md) |
 
@@ -147,16 +147,19 @@ sequenceDiagram
     participant U as User
     participant App as Web app
     participant SS as sessionStorage
+    participant W as cairn-auth Worker
     participant GH as GitHub
     participant Cache as IndexedDB cache
 
     U->>App: Sign in with GitHub
-    App->>SS: store state + PKCE verifier (single-use)
-    App->>GH: authorize (code + PKCE, exact redirect)
+    App->>SS: store state + provider id (single-use)
+    App->>GH: authorize (code, exact redirect)
     GH-->>App: redirect with code
-    App->>SS: verify state, read verifier, then clear
-    App->>GH: exchange code (PKCE, public client)
-    GH-->>App: access token (kept in memory by default)
+    App->>SS: verify state, then clear
+    App->>W: POST code to cairn-auth Worker
+    W->>GH: exchange code (client secret, confidential client)
+    GH-->>W: access token
+    W-->>App: access token (kept in memory + sessionStorage)
     U->>App: Open repo discovery
     App->>Cache: lookup (URL + query)
     alt fresh in cache
@@ -289,7 +292,9 @@ Everything from GitHub, LinkedIn, AI providers, CV files, and repository content
 **untrusted input** rendered in a browser context that holds the user's GitHub token
 and BYOK AI keys. The response is: strict CSP with no `unsafe-inline`/`eval`, Trusted
 Types, an allowlist HTML sanitiser on all Markdown and AI output, OAuth Authorization
-Code + PKCE with an exact redirect-URI allowlist, in-memory-by-default token storage,
+Code with an exact redirect-URI allowlist and an origin-allowlisted token-exchange
+Worker (no provider we use offers public-client PKCE — see ADR-0024), in-memory
+token storage mirrored only into `sessionStorage`,
 minimal pinned dependencies with CI scanning, and least-privilege everywhere.
 
 Full trust model, asset inventory, STRIDE-lite threat table, and the non-negotiables
