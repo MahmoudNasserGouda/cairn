@@ -17,37 +17,39 @@ context: [`ARCHITECTURE.md`](ARCHITECTURE.md) §1; roadmap: [§15](ARCHITECTURE.
 
 ## Current status
 
-**Phase 1 — Foundation. Monorepo + CI/CD live, web app deployed, multi-provider
-sign-in working, real GitHub profile, CV import, contribution readiness feeding the
-dashboard, and the dashboard's match / confidence / skill-gap cards scoring against a
-real repo + issue the user searches for and picks. An audit-and-fix pass on
-2026-09-11 closed twelve wiring-layer bugs and brought `apps/` and `api/` under test
-for the first time.**
+**Phase 2 — Discovery Engine. Phase 1 is complete (monorepo + CI/CD, web app
+deployed, multi-provider sign-in, real GitHub profile, CV import, contribution
+readiness, and match / confidence / skill-gap scoring against a real repo + issue).
+The product now also *recommends* repositories: `/discover` turns the user's profile
+into at most four GitHub searches and ranks the results deterministically
+([ADR-0027](docs/adr/0027-search-only-repository-discovery.md)), closing the last
+"not started" item in the README's original MVP scope.**
 
 Done:
 
 - Architecture docs: [`ARCHITECTURE.md`](ARCHITECTURE.md), [`SECURITY.md`](SECURITY.md),
-  [`docs/ci-cd.md`](docs/ci-cd.md), ADRs 0001–0026.
+  [`docs/ci-cd.md`](docs/ci-cd.md), ADRs 0001–0027.
 - **Monorepo scaffold** — npm workspaces, TS strict, path aliases, ESLint flat config
   with the `libs → apps` import-boundary rule, Prettier, Vitest.
-- **Twelve `libs/*` implemented** with real logic; **255 passing tests** across
+- **Thirteen `libs/*` implemented** with real logic; **311 passing tests** across
   `libs/`, `apps/web` and the `cairn-auth` Worker:
   deterministic matching + scoring, AI-free repository health, issue difficulty, the
   cached GitHub client (dedup + ETag + rate-limit floor), CV parser + skills taxonomy,
   BYOK AI provider abstraction + non-AI fallbacks + prompt-injection fencing,
   client-side portfolio generator + offline Ed25519 license verification, framework-free
-  multi-provider OAuth (`libs/auth`), and `libs/targets` (analysis outputs → matching
-  snapshots).
+  multi-provider OAuth (`libs/auth`), `libs/targets` (analysis outputs → matching
+  snapshots), and `libs/discovery` (profile → search plan → ranked recommendations).
 - **`apps/web`** — Angular 20 standalone + zoneless, hash routing, DOMPurify sanitiser
-  service, IndexedDB store, dashboard + repositories pages, multi-provider sign-in
-  modal, profile page with CV import. Production build ≈ 71 kB transfer initial
+  service, IndexedDB store, dashboard + discover + repositories pages, multi-provider
+  sign-in modal, profile page with CV import. Production build ≈ 71 kB transfer initial
   (pdf.js sits in a 430 kB lazy worker chunk, loaded only on a CV upload).
 - **Real GitHub profile on the dashboard** — for a user signed in with GitHub,
   `libs/github` viewer fetchers + `libs/profile`'s `githubToProfile` build a
   `UnifiedProfile` (repo languages → weighted skills, topics → interests, account age
   → experience level, merged-PR count) which drives the match / contribution-confidence
-  / skill-gap scores and a "Your profile" panel. Anonymous / identity-only users keep
-  the `DEMO_*` fixtures. Orchestrated by `apps/web` `ProfileService` (`core/profile/`).
+  / skill-gap scores and a "Your profile" panel. Users with neither GitHub nor a CV
+  get an empty state, not a demo profile. Orchestrated by `apps/web` `ProfileService`
+  (`core/profile/`).
 - **`apps/extension`** — Manifest V3, esbuild build, GitHub content-script panel using
   the shared engines via a background service worker.
 - **CI/CD** — `.github/workflows/ci.yml` (verify · build · dependency-scan ·
@@ -114,6 +116,21 @@ Done:
   extension's `host_permissions` now include `api.github.com`, without which **every**
   API call it made failed. Full list in the changelog.
 
+- **Repository discovery** — `/discover` asks `libs/discovery` to turn the profile into
+  a search plan (strongest language · that language filtered by `good-first-issues:>=3`
+  · second language · one topic interest), runs the lanes **sequentially** through the
+  shared `GithubClient`, merges the results, and ranks them by six named signals
+  (`skillFit`, `technologyFit`, `newcomerSignal`, `activity`, `approachability`,
+  `learning`). Every card carries a plain-language "why" and an expandable per-signal
+  breakdown; three presets re-rank **without re-querying**; "Score my fit" promotes a
+  recommendation to the dashboard's scoring target. A whole run costs **four search
+  requests, not four per candidate** — no per-repository call happens until the user
+  picks one ([ADR-0027](docs/adr/0027-search-only-repository-discovery.md)). Two
+  deliberate refusals: a profile with no programming language gets a clear explanation
+  rather than a guessed search, and a repository whose stack GitHub does not report is
+  **excluded rather than scored** (`skillCoverage` returns a neutral 1 for an empty
+  requirement list, which would otherwise float it to the top as a perfect match).
+
 Next:
 
 1. First job/opportunity feed — a key-free source behind ADR-0026's acceptance bar, its
@@ -129,9 +146,10 @@ apps/web/                  Angular 20 SPA — primary MVP                 [built
   src/app/core/auth/       AuthService (in-memory tokens, redirect flow) + sign-in-dialog modal
   src/app/core/profile/    ProfileService — GitHub + reviewed CV → one UnifiedProfile (persisted)
   src/app/core/targets/    TargetService — repo search → pick repo + issue → scoring snapshots (persisted)
+  src/app/core/discovery/  DiscoveryService — profile → search plan → ranked recommendations (preset persisted)
   src/app/core/github-client.ts  one shared GithubClient (token-bound when signed in)
   src/app/core/cv/         CvImportService + sandboxed extraction worker + Trusted Types worker URL
-  src/app/pages/           dashboard, repositories, profile (CV import + review form)
+  src/app/pages/           dashboard, discover, repositories, profile (CV import + review form)
   public/_headers          security headers + CSP, applied by Cloudflare Workers
   wrangler.toml            Cloudflare Workers static-assets deploy config
 apps/extension/            Manifest V3 extension (esbuild)              [built: content + background]
@@ -139,12 +157,15 @@ apps/desktop/              Tauri local agent                           [future �
 api/optional-serverless/oauth/  cairn-auth Worker: stateless code→token + LinkedIn identity relay
 libs/shared/               Result, math, redacting logger, KeyValueStore, sanitizer contract, config,
                            skills taxonomy (moved here from libs/profile so the repo side canonicalises too)
-libs/scoring/              weightedScore + explanation, versioned WEIGHTS (WEIGHTS_VERSION=1)
+libs/scoring/              weightedScore + explanation, versioned WEIGHTS (WEIGHTS_VERSION=1),
+                           incl. DISCOVERY_WEIGHTS + the three presets
 libs/matching/             repositoryMatch / issueMatch / contributionConfidence / skillGap
+libs/discovery/            pure: profile → planQueries (GitHub search syntax) → rankRepositories (ADR-0027)
 libs/repository-analysis/  healthScore (AI-free), architecture model + readingOrder
 libs/issue-analysis/       analyzeIssue — deterministic difficulty + required-knowledge
 libs/github/               GithubClient (cache + dedup + ETag + per-resource rate-limit + 429 backoff
-                           + stale-on-error + LRU eviction); repo/health + viewer + repo-search + issue-list fetchers
+                           + stale-on-error + LRU eviction + uncached 202 statistics placeholders);
+                           repo/health + viewer + repo-search + issue-list fetchers
 libs/profile/              UnifiedProfile + mergeProfile, githubToProfile, CV parser, contributionReadiness
                            (taxonomy re-exported from libs/shared)
 libs/cv-extract/           PDF/DOCX/text → plain text; own ZIP reader, pdf.js text layer (ADR-0011)
@@ -154,7 +175,7 @@ libs/auth/                 framework-free multi-provider OAuth (provider records
 libs/ai/                   IAIProvider (OpenAI/Gemini/OpenRouter), fenced prompts, disclosure, fallbacks
 scripts/                   check-csp, check-bundle-origins, check-licenses, setup-hooks, test-setup (jsdom/TestBed)
 brand/                     logo.svg / logo-dark.svg / logo.png / mark.svg + brand/README.md
-docs/adr/                  26 ADRs · docs/ci-cd.md · docs/branch-protection.md
+docs/adr/                  27 ADRs · docs/ci-cd.md · docs/branch-protection.md
 ```
 
 ## How we work (conventions)
@@ -271,15 +292,26 @@ one — see `api/optional-serverless/oauth/README.md`.
     built HTML obeys the CSP. `check-csp.mjs` now also scans `dist/browser/index.html`
     for a `<base>` tag or inline `on*=` handler to stop it regressing.
   - Health-engine thresholds need a calibration data set
-    ([ADR-0008](docs/adr/0008-ai-free-repository-health-engine.md)).
+    ([ADR-0008](docs/adr/0008-ai-free-repository-health-engine.md)). **Discovery's star
+    bands and push-recency curve want the same data set** — `STAR_PEAK_LOG` in
+    `libs/discovery/src/bands.ts` is a considered guess, and every other discovery
+    number is derived from it.
+  - **Two scores for one repository.** Discovery reports a search-only score and the
+    dashboard reports a fuller `repositoryMatch` for the same repo; they legitimately
+    disagree (the deep read sees languages a search response never returns). The copy
+    frames one as a shortlist and one as a decision, but whether that is enough for a
+    real user is untested ([ADR-0027](docs/adr/0027-search-only-repository-discovery.md)
+    consequences).
   - **`libs/ai` and `libs/portfolio` have no consumer.** Both are implemented and
     tested; nothing in `apps/` imports either, so the three "WOW" AI features and the
     portfolio generator are *not* shipped. `libs/ai` also needs the ADR-0010 disclosure
     panel and a BYOK key-entry UI before it can be wired at all. README now says so
     plainly; the guide's Status list should not imply otherwise.
-  - **No discovery, no manual profile entry.** The user must search for or name a
-    repository — nothing recommends one — and can only *deselect* CV-parsed skills, not
-    add one by hand. Both are gaps in the README's original MVP scope, now reworded.
+  - ~~**No discovery.**~~ → **built 2026-09-11** — `/discover` ranks repositories from
+    the profile ([ADR-0027](docs/adr/0027-search-only-repository-discovery.md)).
+    **No manual profile entry** remains: a user can only *deselect* CV-parsed skills,
+    not add one by hand. **Issue-level discovery** also remains manual — discovery
+    recommends a repository, and the issue is still picked from that repo's open list.
   - The GitHub-derived experience span is a proxy: account creation year → most recent
     visible push. It no longer runs to `present` (a dormant 2015 account used to read as
     a decade and scored `advanced`), but it still cannot know when someone started
@@ -297,6 +329,65 @@ one — see `api/optional-serverless/oauth/README.md`.
     (`helpers:pinGitHubActionDigests`) converts them on its first PR.
 
 ## Changelog
+
+### 2026-09-11 — Phase 2 slice: repository discovery
+
+The product now recommends repositories instead of only scoring ones you name — the
+last "not started" item from the README's original MVP scope.
+
+- **New `libs/discovery` (13th lib, pure).** `planQueries` turns a `DeveloperSnapshot`
+  into at most four search lanes; `buildRepoSearchQuery` renders each as GitHub search
+  syntax; `rankRepositories` scores candidates over six named signals and returns a
+  plain-language "why" per result. No dependency on `libs/github` — discovery emits
+  query *strings*, the client merely executes them.
+- **[ADR-0027](docs/adr/0027-search-only-repository-discovery.md) — search-only
+  ranking.** Deep-analysing candidates would cost ~6 requests each (~240 a run) against
+  a 60/hour unauthenticated core quota, with the candidate search drawing on the
+  Search API's separate 10/min bucket. Discovery therefore ranks from search-response
+  fields alone, and only a repository the user *picks* gets the full health + match
+  path. The trade — coarser scores — is recorded in the ADR, not hidden.
+- **`/discover` page + `DiscoveryService`** in `apps/web`: three presets that re-rank
+  without re-querying, an expandable per-signal breakdown, a "what was searched" panel
+  showing the actual queries, and "Score my fit" to promote a recommendation to the
+  dashboard target. Lanes run sequentially and a run **keeps partial results** when the
+  search quota runs out mid-way.
+- **Supporting changes.** `LANGUAGE_SKILLS` + `isLanguageSkill` in `libs/shared`
+  (TAXONOMY_VERSION 2 → 3) — GitHub's `language:` qualifier silently returns nothing
+  for a framework, so languages and topics must be told apart. `DISCOVERY_WEIGHTS` +
+  `discoveryWeightsFor` in `libs/scoring` (`WEIGHTS_VERSION` unchanged — a new map, not
+  a changed weight). `RepoSearchResult` now carries the fields the same response
+  already returned (`allTopics`, `forks`, `openIssues`, `pushedAt`, `archived`,
+  `isFork`, `htmlUrl`) plus a `sort` option.
+- **Two bugs found by running it, not by reading it.**
+  1. **GitHub's 202 statistics placeholder.** `/stats/commit_activity` answers `202`
+     with `{}` while GitHub computes the series, so the request *succeeds* and
+     `collectHealthSignals`' per-call `.catch()` never fired — `{}.slice(-4)` threw and
+     the repository simply would not open. Discovery made this the common path
+     (recommended repos are ones nobody has looked at). Fixed in two places: the client
+     **no longer caches** a 202 body (caching `{}` under a 6-hour TTL would pin the repo
+     at "no activity" long after GitHub finished), and `collectHealthSignals` coerces
+     non-array bodies. `libs/github/src/repository.test.ts` is new — that collector had
+     no test at all.
+  2. **Star window vs. approachability curve disagreed.** The searched band topped out
+     at 20k stars for an intermediate while `starApproachability` peaked at ~1.6k. Since
+     each lane asks for the *most-starred* repos in the window, every result arrived
+     pinned to the ceiling — the ranker only ever saw repositories its own scoring
+     thought too big. `STAR_WINDOW` is now **derived from** `STAR_PEAK_LOG`
+     (`libs/discovery/src/bands.ts`) so the two cannot drift, with a test asserting the
+     window brackets the peak. Live top results moved from 15–17k-star megaprojects to
+     4–5k ones, and top scores rose 74% → 78%.
+- **Verified end to end in the browser** against the live GitHub API, signed out:
+  4 searches → ranked list → "Why this?" → "Score my fit" → dashboard with the target
+  loaded and its issue list populated.
+- 255 → **311 tests** (38 files). `npm run verify`, `npm run build`, and both guards
+  green; `npm install` re-run so the new workspace is in `package-lock.json` (CI uses
+  `npm ci`, which would otherwise fail to resolve `@cairn/discovery`). `npm audit`
+  clean.
+- Sections updated: Status, Repo map, Open questions, this changelog.
+- Drift: none. `libs/discovery` adds no runtime dependency (non-negotiable 6), is
+  framework-free (ADR-0005), spends no new origins (the GitHub origin is already on the
+  `connect-src` allowlist), and renders all repository text through Angular
+  interpolation only (ADR-0019 / SECURITY.md §8).
 
 ### 2026-09-11 — Audit-and-fix pass: wiring-layer bugs, and `apps/` + `api/` under test
 

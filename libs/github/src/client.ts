@@ -241,6 +241,15 @@ export class GithubClient {
 
     this.backoffUntil.delete(resource);
 
+    if (res.status === 202) {
+      // GitHub answers 202 from `/stats/*` (and `/contributors` on large repos)
+      // while it computes the series, with a placeholder body — `{}`, not the
+      // eventual array. Callers normalise the shape; what matters here is that the
+      // placeholder must NOT be cached, or a repository whose statistics happened to
+      // be cold once would read as having no activity for the resource's whole TTL.
+      return (await res.json().catch(() => null)) as T;
+    }
+
     const data = (await res.json()) as T;
     const entry: CacheEntry<T> = {
       data,

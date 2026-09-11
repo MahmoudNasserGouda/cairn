@@ -68,6 +68,18 @@ export async function fetchRepoOverview(
 }
 
 /**
+ * GitHub answers 202 with a `{}` placeholder while it computes a statistics series,
+ * so a *successful* request can still hand back something that is not the array the
+ * endpoint documents. The per-call `.catch()` below only covers a rejected request —
+ * this covers a fulfilled one of the wrong shape, which is what actually happens the
+ * first time anyone asks about a repository (and is therefore the common case for
+ * anything recommended by discovery rather than typed in by hand).
+ */
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+/**
  * Assemble the windowed signals that @cairn/repository-analysis needs. Kept here so
  * the analysis module stays pure and free of API concerns (ADR-0008).
  */
@@ -77,7 +89,7 @@ export async function collectHealthSignals(
   now: number = Date.now(),
 ): Promise<HealthSignals> {
   const { owner, repo } = id;
-  const [commitActivity, contributors, community, goodFirst] = await Promise.all([
+  const [rawCommitActivity, rawContributors, community, goodFirst] = await Promise.all([
     client
       .get<{ total: number; week: number }[]>(
         `/repos/${owner}/${repo}/stats/commit_activity`,
@@ -107,6 +119,9 @@ export async function collectHealthSignals(
       )
       .catch(() => ({ total_count: 0 })),
   ]);
+
+  const commitActivity = asArray<{ total: number; week: number }>(rawCommitActivity);
+  const contributors = asArray<{ login: string; contributions: number }>(rawContributors);
 
   const recentWeeks = commitActivity.slice(-4);
   const commitsLast30d = recentWeeks.reduce((s, w) => s + (w.total ?? 0), 0);

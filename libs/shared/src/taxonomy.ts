@@ -10,7 +10,7 @@ import { toSkillTag, type SkillTag } from './types';
  * through *this* table. When only one side did, a repo topic `nodejs` could never
  * match a developer's `node` skill and every score was quietly wrong.
  */
-export const TAXONOMY_VERSION = 2;
+export const TAXONOMY_VERSION = 3;
 
 /**
  * canonical tag -> aliases that should map to it.
@@ -104,6 +104,34 @@ export const KNOWN_SKILLS: readonly SkillTag[] = [
   'wasm',
 ];
 
+/**
+ * The subset of `KNOWN_SKILLS` that names a *programming language* rather than a
+ * framework, tool or topic.
+ *
+ * Discovery needs the distinction because GitHub's search API treats the two
+ * differently: `language:` only accepts a linguist language, while `angular` or
+ * `docker` are reachable only as `topic:`. Sending a framework as `language:`
+ * returns nothing at all, silently.
+ */
+export const LANGUAGE_SKILLS: readonly SkillTag[] = [
+  'javascript',
+  'typescript',
+  'python',
+  'java',
+  'c#',
+  'c++',
+  'go',
+  'rust',
+  'ruby',
+  'php',
+  'kotlin',
+  'swift',
+  'scala',
+  'html',
+  'css',
+  'bash',
+];
+
 const ALIAS_LOOKUP: Map<string, SkillTag> = (() => {
   const m = new Map<string, SkillTag>();
   for (const [canon, aliases] of Object.entries(SKILL_ALIASES)) {
@@ -114,6 +142,7 @@ const ALIAS_LOOKUP: Map<string, SkillTag> = (() => {
 })();
 
 const KNOWN_SKILL_SET: ReadonlySet<SkillTag> = new Set(KNOWN_SKILLS);
+const LANGUAGE_SKILL_SET: ReadonlySet<SkillTag> = new Set(LANGUAGE_SKILLS);
 
 export function canonicalizeSkill(raw: string): SkillTag {
   const tag = toSkillTag(raw);
@@ -146,6 +175,11 @@ export function toKnownSkills(raw: readonly string[]): SkillTag[] {
     out.push(tag);
   }
   return out;
+}
+
+/** True when a tag names a programming language (see `LANGUAGE_SKILLS`). */
+export function isLanguageSkill(tag: string): boolean {
+  return LANGUAGE_SKILL_SET.has(canonicalizeSkill(tag));
 }
 
 /** Extract known skills from a block of text (case-insensitive, word-ish boundaries). */

@@ -18,6 +18,7 @@
     "@cairn/ai": "0.1.0",
     "@cairn/auth": "0.1.0",
     "@cairn/cv-extract": "0.1.0",
+    "@cairn/discovery": "0.1.0",
     "@cairn/github": "0.1.0",
     "@cairn/issue-analysis": "0.1.0",
     "@cairn/matching": "0.1.0",

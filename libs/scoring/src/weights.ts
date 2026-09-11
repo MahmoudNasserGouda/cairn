@@ -52,6 +52,23 @@ export const HEALTH_WEIGHTS: WeightMap = {
   documentation: 0.1,
 };
 
+/**
+ * Repository *discovery* (ADR-0007, ADR-0027). Distinct from `REPOSITORY_MATCH_WEIGHTS`
+ * because the two answer different questions off different data: match scores a repo
+ * the user already chose, using the full per-repo analysis; discovery ranks dozens of
+ * candidates from search-result fields alone, so it leans on what a search response
+ * actually carries — declared stack, push recency, star band, good-first-issue
+ * provenance — and never on the health engine.
+ */
+export const DISCOVERY_WEIGHTS: WeightMap = {
+  skillFit: 0.3,
+  technologyFit: 0.2,
+  newcomerSignal: 0.2,
+  activity: 0.15,
+  approachability: 0.1,
+  learning: 0.05,
+};
+
 /** Presets let a user bias discovery without touching code (ADR-0007). */
 export type WeightPreset = 'balanced' | 'learning' | 'quick-win';
 
@@ -76,6 +93,37 @@ export function repositoryWeightsFor(preset: WeightPreset): WeightMap {
     case 'balanced':
     default:
       return REPOSITORY_MATCH_WEIGHTS;
+  }
+}
+
+/**
+ * The same three presets, applied to discovery. `learning` tolerates an unfamiliar
+ * stack and stops rewarding what the user already knows; `quick-win` does the
+ * opposite and leans hard on newcomer signals.
+ */
+export function discoveryWeightsFor(preset: WeightPreset): WeightMap {
+  switch (preset) {
+    case 'learning':
+      return {
+        skillFit: 0.15,
+        technologyFit: 0.1,
+        newcomerSignal: 0.2,
+        activity: 0.15,
+        approachability: 0.1,
+        learning: 0.3,
+      };
+    case 'quick-win':
+      return {
+        skillFit: 0.35,
+        technologyFit: 0.2,
+        newcomerSignal: 0.25,
+        activity: 0.15,
+        approachability: 0.05,
+        learning: 0,
+      };
+    case 'balanced':
+    default:
+      return DISCOVERY_WEIGHTS;
   }
 }
 
