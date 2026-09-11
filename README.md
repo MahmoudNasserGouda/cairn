@@ -34,36 +34,54 @@ bill — you bring your own API key if you want AI features at all.
 | | |
 |---|---|
 | 🧭 **Deterministic, explainable scoring** | Repository match, health, and contribution confidence are computed from named, weighted signals — never a black-box model. Every score shows *why*. |
-| 🔒 **Security-first** | Strict CSP, allowlist sanitisation of everything external, PKCE OAuth, minimal pinned dependencies, and CI gates (CodeQL · OSV · gitleaks · custom CSP/bundle guards). See [`SECURITY.md`](SECURITY.md). |
+| 🔒 **Security-first** | Strict CSP, Trusted Types, allowlist sanitisation of everything external, OAuth Authorization Code through an origin-allowlisted token-exchange Worker, minimal pinned dependencies, and CI gates (CodeQL · OSV · gitleaks · custom CSP/bundle guards). See [`SECURITY.md`](SECURITY.md). |
 | 💸 **$0 to run** | Static hosting on a free tier, direct third-party APIs, local storage. Target infra cost for the MVP: **$0/month**. |
 | 🔑 **Bring your own key** | AI (architecture explorer, issue explainer, contribution navigator) is an *optional* enhancement via OpenAI / Gemini / OpenRouter. Keys stay on your device. Every AI feature has a non-AI fallback. |
 | 📦 **One shared core, many clients** | Framework-free TypeScript libraries power the web app today and a browser extension / desktop agent later. |
 
 ## Features
 
-**Hackathon / MVP scope**
+**Working today**
 
-- GitHub OAuth · unified developer profile (GitHub analysis + CV upload + manual entry)
-- Repository & issue discovery with a deterministic **match engine**
+- Multi-provider sign-in (GitHub · LinkedIn · Google); GitHub is the data connection
+- Unified developer profile from **GitHub analysis** + **CV upload** (PDF / .docx / txt,
+  parsed on-device in a sandboxed worker, with a mandatory review step)
+- **Contribution readiness** — a target-free score of how prepared you are, with
+  ranked next steps
+- Pick a **real repository and open issue** as a scoring target, then see
+  deterministic **repository match**, **contribution confidence** and **skill gap**
+  against it, each with its "why"
 - **Repository health** analysis (activity, maintenance, docs, newcomer-friendliness)
-- **Contribution confidence** score
-- Contributor **portfolio** generator (static HTML / Markdown, deploy anywhere)
+- Browser extension: health + newcomer-friendliness inline on a GitHub repo page
 
-**WOW features** (BYOK AI)
+**Built as libraries, not yet wired to any UI**
 
-- **Architecture Explorer** — layers, components, folder map, reading order
-- **Issue Explainer** — plain-language summary, required knowledge, difficulty
-- **Contribution Navigator** — relevant files, related PRs, a suggested path
+These have real implementations and tests in `libs/*`, but nothing in the app calls
+them yet — treat them as planned, not shipped:
 
-**Later** — growth roadmaps & skill-gap analysis, contributor identity & analytics,
-community reviews/stories, a prompt-template marketplace. Full plan:
-[`ARCHITECTURE.md` §15](ARCHITECTURE.md#15-roadmap--architecture-mapping).
+- Contributor **portfolio** generator (`libs/portfolio`)
+- **Architecture Explorer**, **Issue Explainer**, **Contribution Navigator** — the BYOK
+  AI features, including the provider abstraction, prompt fencing and non-AI fallbacks
+  (`libs/ai`). There is no key-entry UI or disclosure panel yet, so AI is currently off.
+
+**Not started**
+
+- Repository/issue **discovery** — today you search for or name a repository; nothing
+  recommends one to you yet
+- **Manual** profile entry — you can edit and deselect what the CV parser found, but
+  you cannot yet add a skill by hand
+- Growth roadmaps, contributor identity & analytics, community reviews/stories, a
+  prompt-template marketplace. Full plan:
+  [`ARCHITECTURE.md` §15](ARCHITECTURE.md#15-roadmap--architecture-mapping).
 
 ## How it works
 
 ```
-You → your skills → readiness → recommendations → contribution → portfolio → career
+You → your skills → readiness → a repo + issue you pick → match & confidence → contribution
 ```
+
+(The `recommendations → portfolio → career` half of that pipeline is designed and
+partly implemented in `libs/*`, but not yet reachable from the app.)
 
 Everything user-specific lives in IndexedDB. Public repository data is fetched straight
 from the GitHub API (with caching, dedup, ETag revalidation and rate-limit awareness)

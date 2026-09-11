@@ -17,6 +17,11 @@
  */
 
 export interface Env {
+  /**
+   * Comma-separated list of origins allowed to call this Worker, e.g.
+   * `https://cairn.mahmoudnasser98.workers.dev,http://localhost:4200`. Every entry
+   * doubles as the allowed `redirect_uri` prefix for the token exchange.
+   */
   readonly ALLOWED_ORIGIN: string;
   readonly GITHUB_CLIENT_ID?: string;
   readonly GITHUB_CLIENT_SECRET?: string;
@@ -82,9 +87,37 @@ interface Route {
   readonly action: 'token' | 'identity';
 }
 
-function corsHeaders(env: Env): Record<string, string> {
+/** The configured origins, trimmed and empty-filtered. */
+function allowedOrigins(env: Env): string[] {
+  return env.ALLOWED_ORIGIN.split(',')
+    .map((o) => o.trim().replace(/\/$/, ''))
+    .filter((o) => o.length > 0);
+}
+
+function isAllowedOrigin(env: Env, origin: string | null): origin is string {
+  return origin !== null && allowedOrigins(env).includes(origin);
+}
+
+/** A `redirect_uri` must sit on one of the configured origins. */
+function isAllowedRedirect(env: Env, redirectUri: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(redirectUri);
+  } catch {
+    return false;
+  }
+  return allowedOrigins(env).includes(parsed.origin);
+}
+
+/**
+ * Reflect the caller's origin when it is on the list, else the first configured one.
+ * `Vary: Origin` keeps a multi-origin deployment from being cached across origins.
+ */
+function corsHeaders(env: Env, origin: string | null = null): Record<string, string> {
+  const list = allowedOrigins(env);
+  const allow = origin !== null && list.includes(origin) ? origin : (list[0] ?? '');
   return {
-    'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN,
+    'Access-Control-Allow-Origin': allow,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'content-type',
     'Access-Control-Max-Age': '600',
@@ -92,13 +125,18 @@ function corsHeaders(env: Env): Record<string, string> {
   };
 }
 
-function jsonResponse(body: unknown, status: number, env: Env): Response {
+function jsonResponse(
+  body: unknown,
+  status: number,
+  env: Env,
+  origin: string | null = null,
+): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       'content-type': 'application/json',
       'cache-control': 'no-store',
-      ...corsHeaders(env),
+      ...corsHeaders(env, origin),
     },
   });
 }
@@ -120,6 +158,7 @@ async function handleToken(
   request: Request,
   env: Env,
   providerId: ProviderId,
+  origin: string,
 ): Promise<Response> {
   const provider = PROVIDERS[providerId];
   const clientId = env[provider.clientIdKey];
@@ -130,20 +169,27 @@ async function handleToken(
     typeof clientSecret !== 'string' ||
     clientSecret.length === 0
   ) {
-    return jsonResponse({ error: 'provider_not_configured' }, 501, env);
+    return jsonResponse({ error: 'provider_not_configured' }, 501, env, origin);
   }
 
   let payload: ExchangeRequest;
   try {
     payload = (await request.json()) as ExchangeRequest;
   } catch {
-    return jsonResponse({ error: 'invalid_json' }, 400, env);
+    return jsonResponse({ error: 'invalid_json' }, 400, env, origin);
   }
   if (typeof payload.code !== 'string' || payload.code.length === 0) {
-    return jsonResponse({ error: 'missing_code' }, 400, env);
+    return jsonResponse({ error: 'missing_code' }, 400, env, origin);
   }
+  // SECURITY.md T4 promises an exact redirect-URI allowlist. Enforce it here rather
+  // than forwarding whatever the caller sent: the providers validate against their
+  // own registered callback too, but this Worker holds the client secret and must not
+  // be usable to complete an exchange for an origin we do not run.
   const redirectUri =
     typeof payload.redirect_uri === 'string' ? payload.redirect_uri : '';
+  if (redirectUri.length > 0 && !isAllowedRedirect(env, redirectUri)) {
+    return jsonResponse({ error: 'redirect_uri_not_allowed' }, 400, env, origin);
+  }
 
   const fields: Record<string, string> = {
     grant_type: 'authorization_code',
@@ -173,14 +219,14 @@ async function handleToken(
   try {
     upstream = await fetch(provider.tokenUrl, init);
   } catch {
-    return jsonResponse({ error: 'provider_unreachable' }, 502, env);
+    return jsonResponse({ error: 'provider_unreachable' }, 502, env, origin);
   }
 
   let token: TokenResponse;
   try {
     token = (await upstream.json()) as TokenResponse;
   } catch {
-    return jsonResponse({ error: 'provider_bad_response' }, 502, env);
+    return jsonResponse({ error: 'provider_bad_response' }, 502, env, origin);
   }
 
   if (token.error !== undefined || token.access_token === undefined) {
@@ -191,6 +237,7 @@ async function handleToken(
       },
       400,
       env,
+      origin,
     );
   }
 
@@ -202,6 +249,7 @@ async function handleToken(
     },
     200,
     env,
+    origin,
   );
 }
 
@@ -209,20 +257,21 @@ async function handleIdentity(
   request: Request,
   env: Env,
   providerId: ProviderId,
+  origin: string,
 ): Promise<Response> {
   const provider = PROVIDERS[providerId];
   if (provider.userInfoUrl === undefined) {
-    return jsonResponse({ error: 'not_relayed' }, 404, env);
+    return jsonResponse({ error: 'not_relayed' }, 404, env, origin);
   }
 
   let payload: IdentityRequest;
   try {
     payload = (await request.json()) as IdentityRequest;
   } catch {
-    return jsonResponse({ error: 'invalid_json' }, 400, env);
+    return jsonResponse({ error: 'invalid_json' }, 400, env, origin);
   }
   if (typeof payload.token !== 'string' || payload.token.length === 0) {
-    return jsonResponse({ error: 'missing_token' }, 400, env);
+    return jsonResponse({ error: 'missing_token' }, 400, env, origin);
   }
 
   let upstream: Response;
@@ -231,20 +280,20 @@ async function handleIdentity(
       headers: { authorization: `Bearer ${payload.token}`, accept: 'application/json' },
     });
   } catch {
-    return jsonResponse({ error: 'provider_unreachable' }, 502, env);
+    return jsonResponse({ error: 'provider_unreachable' }, 502, env, origin);
   }
 
   let body: unknown;
   try {
     body = await upstream.json();
   } catch {
-    return jsonResponse({ error: 'provider_bad_response' }, 502, env);
+    return jsonResponse({ error: 'provider_bad_response' }, 502, env, origin);
   }
   if (!upstream.ok) {
-    return jsonResponse({ error: 'identity_fetch_failed' }, upstream.status, env);
+    return jsonResponse({ error: 'identity_fetch_failed' }, upstream.status, env, origin);
   }
   // Passed through verbatim; the client (libs/auth) maps the OIDC userinfo shape.
-  return jsonResponse(body, 200, env);
+  return jsonResponse(body, 200, env, origin);
 }
 
 export default {
@@ -252,22 +301,27 @@ export default {
     const origin = request.headers.get('Origin');
 
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: corsHeaders(env) });
+      return new Response(null, { status: 204, headers: corsHeaders(env, origin) });
     }
     if (request.method !== 'POST') {
-      return jsonResponse({ error: 'method_not_allowed' }, 405, env);
+      return jsonResponse({ error: 'method_not_allowed' }, 405, env, origin);
     }
-    if (origin !== null && origin !== env.ALLOWED_ORIGIN) {
-      return jsonResponse({ error: 'origin_not_allowed' }, 403, env);
+    // A *required* allowlisted Origin, not "reject only if present and wrong". The
+    // old check waved through every request that simply omitted the header — curl,
+    // scripts, anything non-browser — leaving an unauthenticated endpoint that signs
+    // exchanges with our client secret and relays arbitrary bearer tokens. CORS never
+    // constrained those callers; only this does.
+    if (!isAllowedOrigin(env, origin)) {
+      return jsonResponse({ error: 'origin_not_allowed' }, 403, env, origin);
     }
 
     const route = parseRoute(new URL(request.url).pathname);
     if (route === null) {
-      return jsonResponse({ error: 'unknown_route' }, 404, env);
+      return jsonResponse({ error: 'unknown_route' }, 404, env, origin);
     }
 
     return route.action === 'token'
-      ? handleToken(request, env, route.provider)
-      : handleIdentity(request, env, route.provider);
+      ? handleToken(request, env, route.provider, origin)
+      : handleIdentity(request, env, route.provider, origin);
   },
 };

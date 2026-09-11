@@ -22,12 +22,48 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    environment: 'node',
-    include: ['libs/**/*.test.ts'],
+    /**
+     * Two projects, because the wiring layer needs a DOM and the engines do not.
+     *
+     * Only `libs/**` used to be collected, so every Angular service, the OAuth
+     * Worker, and the whole browser layer sat outside the runner — a green `npm test`
+     * said nothing about the code users actually touch, and a session-clobbering auth
+     * bug shipped under it.
+     */
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'libs',
+          environment: 'node',
+          include: ['libs/**/*.test.ts'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'app',
+          environment: 'jsdom',
+          include: ['apps/**/*.test.ts', 'api/**/*.test.ts'],
+          setupFiles: ['./scripts/test-setup.ts'],
+        },
+      },
+    ],
     coverage: {
       provider: 'v8',
-      include: ['libs/*/src/**/*.ts'],
-      exclude: ['libs/*/src/**/*.test.ts', 'libs/*/src/index.ts'],
+      include: ['libs/*/src/**/*.ts', 'apps/web/src/app/**/*.ts', 'api/**/src/**/*.ts'],
+      exclude: [
+        'libs/*/src/**/*.test.ts',
+        'libs/*/src/index.ts',
+        'apps/**/*.test.ts',
+        'api/**/*.test.ts',
+        // Cannot run under jsdom: the extraction worker needs a real Worker global,
+        // and `worker-url` exists to satisfy Trusted Types + the bundler's
+        // `new Worker(new URL(...))` literal, neither of which jsdom implements.
+        // Both are exercised by hand and by the CV import tests' worker stub.
+        'apps/web/src/app/core/cv/cv-extract.worker.ts',
+        'apps/web/src/app/core/cv/worker-url.ts',
+      ],
       thresholds: {
         statements: 70,
         branches: 70,

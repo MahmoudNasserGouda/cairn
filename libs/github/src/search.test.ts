@@ -60,9 +60,31 @@ describe('searchRepositories', () => {
       description: 'web language',
       stars: 79000,
       primaryLanguage: 'javascript',
-      topics: ['web', 'compiler'],
+      // `web` and `compiler` are real GitHub topics but not technologies in the
+      // taxonomy, so they are filtered out — see the `toKnownSkills` note in
+      // `fetchRepoOverview`.
+      topics: [],
     });
     expect(out[1]).toMatchObject({ description: '', primaryLanguage: null, topics: [] });
+  });
+
+  it('keeps topics that are real technologies and canonicalises them', async () => {
+    const fetchImpl = vi.fn(async () =>
+      json({
+        items: [
+          {
+            full_name: 'a/b',
+            description: null,
+            language: 'TypeScript',
+            stargazers_count: 1,
+            topics: ['nodejs', 'hacktoberfest', 'React'],
+          },
+        ],
+      }),
+    );
+    const out = await searchRepositories(client(fetchImpl), 'x');
+    expect(out[0]?.topics).toEqual(['node', 'react']);
+    expect(out[0]?.primaryLanguage).toBe('typescript');
   });
 
   it('clamps perPage into [1, 100]', async () => {

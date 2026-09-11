@@ -151,3 +151,106 @@ describe('GithubClient', () => {
     );
   });
 });
+
+describe('GithubClient resilience', () => {
+  const stale = { full_name: 'a/b', note: 'cached' };
+
+  /** Prime the cache, then let the TTL lapse so the next call must go out. */
+  async function primed(next: () => Promise<Response>): Promise<GithubClient> {
+    const store = new MemoryStore();
+    const first = vi.fn().mockResolvedValue(response(stale));
+    const warm = new GithubClient({ fetchImpl: first, cache: store });
+    await warm.get('/repos/a/b', { ttlMs: 1 });
+
+    await new Promise((r) => setTimeout(r, 5));
+    return new GithubClient({ fetchImpl: vi.fn(next), cache: store });
+  }
+
+  it('serves the cache when the network throws', async () => {
+    const c = await primed(() => Promise.reject(new Error('offline')));
+    await expect(c.get('/repos/a/b', { ttlMs: 1 })).resolves.toEqual(stale);
+  });
+
+  it('serves the cache on a 500 rather than throwing it away', async () => {
+    const c = await primed(async () => response({ message: 'boom' }, { status: 500 }));
+    await expect(c.get('/repos/a/b', { ttlMs: 1 })).resolves.toEqual(stale);
+  });
+
+  it('still throws a 500 when there is nothing cached', async () => {
+    const c = new GithubClient({
+      fetchImpl: vi.fn(async () => response({}, { status: 500 })),
+      cache: new MemoryStore(),
+    });
+    await expect(c.get('/repos/x/y')).rejects.toThrow(/GitHub 500/);
+  });
+
+  it('backs off on a 429 and does not call out again', async () => {
+    const fetchImpl = vi.fn(async () =>
+      response({}, { status: 429, headers: { 'retry-after': '60' } }),
+    );
+    const c = new GithubClient({ fetchImpl, cache: new MemoryStore() });
+
+    await expect(c.get('/repos/a/b')).rejects.toThrow(/slow down/);
+    await expect(c.get('/repos/c/d')).rejects.toThrow(/slow down/);
+    // Second call short-circuits on the stored backoff instead of hitting GitHub.
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a 403 that still has quota as a secondary limit, not a bare error', async () => {
+    const fetchImpl = vi.fn(async () =>
+      response(
+        {},
+        {
+          status: 403,
+          headers: { 'x-ratelimit-remaining': '4000', 'retry-after': '30' },
+        },
+      ),
+    );
+    const c = new GithubClient({ fetchImpl, cache: new MemoryStore() });
+    await expect(c.get('/repos/a/b')).rejects.toThrow(/slow down/);
+  });
+
+  it('keeps a forced revalidation separate from an in-flight plain read', async () => {
+    let calls = 0;
+    const fetchImpl = vi.fn(
+      () =>
+        new Promise<Response>((r) => {
+          calls++;
+          setTimeout(() => r(response({ call: calls })), 5);
+        }),
+    );
+    const c = new GithubClient({ fetchImpl, cache: new MemoryStore() });
+    await Promise.all([c.get('/x'), c.get('/x', { forceRevalidate: true })]);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('evicts the oldest entries once the cache budget is exceeded', async () => {
+    const store = new MemoryStore();
+    const c = new GithubClient({
+      fetchImpl: vi.fn(async () => response({ ok: 1 })),
+      cache: store,
+      maxCacheEntries: 10,
+    });
+    for (let i = 0; i < 200; i++) await c.get(`/repos/a/r${i}`);
+
+    // Sweeps are periodic, so the guarantee is "bounded", not "never exceeds max":
+    // at most one sweep interval of entries can accumulate past the budget.
+    const cached = (await store.keys('gh:/repos/')).length;
+    expect(cached).toBeGreaterThan(0);
+    expect(cached).toBeLessThanOrEqual(10 + 50);
+  });
+
+  it('keeps the newest entries and drops the oldest', async () => {
+    const store = new MemoryStore();
+    const c = new GithubClient({
+      fetchImpl: vi.fn(async () => response({ ok: 1 })),
+      cache: store,
+      maxCacheEntries: 5,
+    });
+    for (let i = 0; i < 100; i++) await c.get(`/repos/a/r${i}`);
+
+    const keys = await store.keys('gh:/repos/');
+    expect(keys).toContain('gh:/repos/a/r99');
+    expect(keys).not.toContain('gh:/repos/a/r0');
+  });
+});

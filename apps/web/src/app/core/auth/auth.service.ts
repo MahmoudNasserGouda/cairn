@@ -131,15 +131,19 @@ export class AuthService {
   }
 
   /**
-   * Run once at startup. If the current URL is an OAuth callback, finish the flow
-   * and strip the query string. A no-op on a normal load.
+   * Run once at startup. Rehydrates any stored session, then — if the current URL
+   * is an OAuth callback — finishes that flow and strips the query string.
    */
   async completeSignInFromRedirect(): Promise<void> {
+    // Always rehydrate first. A callback load is still a *fresh* page: without this
+    // the identities and GitHub token saved before the redirect are absent, and the
+    // `persistSession()` at the end of this method would overwrite them with the one
+    // provider that just came back — silently disconnecting GitHub whenever a user
+    // adds a second identity.
+    this.restoreSession();
+
     const params = parseCallbackParams(globalThis.location.search);
-    if (params.kind === 'none') {
-      this.restoreSession();
-      return;
-    }
+    if (params.kind === 'none') return;
 
     const pending = readAndClearPending();
     cleanUrl();

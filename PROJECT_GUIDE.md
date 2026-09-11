@@ -19,8 +19,10 @@ context: [`ARCHITECTURE.md`](ARCHITECTURE.md) §1; roadmap: [§15](ARCHITECTURE.
 
 **Phase 1 — Foundation. Monorepo + CI/CD live, web app deployed, multi-provider
 sign-in working, real GitHub profile, CV import, contribution readiness feeding the
-dashboard, and the dashboard's match / confidence / skill-gap cards now score against a
-real repo + issue the user searches for and picks.**
+dashboard, and the dashboard's match / confidence / skill-gap cards scoring against a
+real repo + issue the user searches for and picks. An audit-and-fix pass on
+2026-09-11 closed twelve wiring-layer bugs and brought `apps/` and `api/` under test
+for the first time.**
 
 Done:
 
@@ -28,7 +30,8 @@ Done:
   [`docs/ci-cd.md`](docs/ci-cd.md), ADRs 0001–0026.
 - **Monorepo scaffold** — npm workspaces, TS strict, path aliases, ESLint flat config
   with the `libs → apps` import-boundary rule, Prettier, Vitest.
-- **Twelve `libs/*` implemented** with real logic and **159 passing unit tests**:
+- **Twelve `libs/*` implemented** with real logic; **255 passing tests** across
+  `libs/`, `apps/web` and the `cairn-auth` Worker:
   deterministic matching + scoring, AI-free repository health, issue difficulty, the
   cached GitHub client (dedup + ETag + rate-limit floor), CV parser + skills taxonomy,
   BYOK AI provider abstraction + non-AI fallbacks + prompt-injection fencing,
@@ -97,6 +100,19 @@ Done:
   now **survives a page refresh** — identities + the GitHub token are mirrored into
   `sessionStorage` (`cairn.session.v1`, wiped on sign-out and never in LocalStorage /
   IndexedDB), restored on load ([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)).
+- **Wiring layer under test at last** — `vitest.config.ts` now has two projects: `libs`
+  (node) and `app` (jsdom, `apps/**` + `api/**`, Angular `TestBed`). Previously only
+  `libs/**` was collected, so every Angular service, both page components and the OAuth
+  Worker sat outside the runner — a green `npm test` said nothing about the code users
+  actually touch. 159 → **255 tests**; the 70% coverage gate now measures
+  `apps/web/src/app` and `api/**` as well. Adds `tsconfig.test.json` (test files were
+  not typechecked either) and `scripts/test-setup.ts`.
+- **Twelve wiring-layer bugs fixed** (2026-09-11). The headline three: adding a second
+  identity no longer **disconnects GitHub** (`completeSignInFromRedirect` skipped
+  `restoreSession` on a callback load, then persisted over it); `redirectUri` is derived
+  from the origin the app is served from, so **sign-in works on `localhost`**; and the
+  extension's `host_permissions` now include `api.github.com`, without which **every**
+  API call it made failed. Full list in the changelog.
 
 Next:
 
@@ -121,19 +137,22 @@ apps/web/                  Angular 20 SPA — primary MVP                 [built
 apps/extension/            Manifest V3 extension (esbuild)              [built: content + background]
 apps/desktop/              Tauri local agent                           [future — ADR-0015]
 api/optional-serverless/oauth/  cairn-auth Worker: stateless code→token + LinkedIn identity relay
-libs/shared/               Result, math, redacting logger, KeyValueStore, sanitizer contract, config
+libs/shared/               Result, math, redacting logger, KeyValueStore, sanitizer contract, config,
+                           skills taxonomy (moved here from libs/profile so the repo side canonicalises too)
 libs/scoring/              weightedScore + explanation, versioned WEIGHTS (WEIGHTS_VERSION=1)
 libs/matching/             repositoryMatch / issueMatch / contributionConfidence / skillGap
 libs/repository-analysis/  healthScore (AI-free), architecture model + readingOrder
 libs/issue-analysis/       analyzeIssue — deterministic difficulty + required-knowledge
-libs/github/               GithubClient (cache + dedup + ETag + rate-limit); repo/health + viewer + repo-search + issue-list fetchers
-libs/profile/              UnifiedProfile + mergeProfile, githubToProfile, CV parser, taxonomy (v1), contributionReadiness
+libs/github/               GithubClient (cache + dedup + ETag + per-resource rate-limit + 429 backoff
+                           + stale-on-error + LRU eviction); repo/health + viewer + repo-search + issue-list fetchers
+libs/profile/              UnifiedProfile + mergeProfile, githubToProfile, CV parser, contributionReadiness
+                           (taxonomy re-exported from libs/shared)
 libs/cv-extract/           PDF/DOCX/text → plain text; own ZIP reader, pdf.js text layer (ADR-0011)
 libs/portfolio/            metrics, static HTML/MD generator, Ed25519 license verify
 libs/targets/              pure: RepoOverview + healthScore + analyzeIssue → Repository/IssueSnapshot
 libs/auth/                 framework-free multi-provider OAuth (provider records, state, exchange, identity)
 libs/ai/                   IAIProvider (OpenAI/Gemini/OpenRouter), fenced prompts, disclosure, fallbacks
-scripts/                   check-csp, check-bundle-origins, check-licenses, setup-hooks
+scripts/                   check-csp, check-bundle-origins, check-licenses, setup-hooks, test-setup (jsdom/TestBed)
 brand/                     logo.svg / logo-dark.svg / logo.png / mark.svg + brand/README.md
 docs/adr/                  26 ADRs · docs/ci-cd.md · docs/branch-protection.md
 ```
@@ -144,8 +163,13 @@ docs/adr/                  26 ADRs · docs/ci-cd.md · docs/branch-protection.md
 - **Language:** TypeScript `~5.8` strict everywhere. `libs/*` are framework-free
   (except `libs/shared`, browser-only); `apps/*` → `libs/*` only, never the reverse —
   ESLint `no-restricted-imports` enforces it, plus no `@angular/*` / `rxjs` in `libs/*`.
-- **Test runner: Vitest** (resolved open question). Engine libs are pure and
-  snapshot-tested; coverage gate 70% in `vitest.config.ts`.
+- **Test runner: Vitest**, two projects (resolved open question). `libs` runs in node;
+  `app` runs `apps/**` + `api/**` in jsdom against Angular's `TestBed`
+  (`scripts/test-setup.ts`). Engine libs are pure and snapshot-tested; services and
+  components are tested through their public signals. Coverage gate 70% over `libs/*`,
+  `apps/web/src/app` and `api/**`. Test files are typechecked via `tsconfig.test.json`.
+  **A bug fixed in the wiring layer needs a test that fails without the fix** — verify
+  that by reverting the fix, not by assuming.
 - **Determinism:** no `Date.now()` / `Math.random()` / IO inside `libs/scoring`,
   `libs/matching`, `libs/repository-analysis`, `libs/issue-analysis`. Time-derived
   inputs are computed by the caller and passed in.
@@ -176,8 +200,11 @@ Full list: [`SECURITY.md`](SECURITY.md) §8. Enforced by CI (`check-csp.mjs`,
 4. No secret is committed to the repo. OAuth client secrets live only in the
    `cairn-auth` Worker env.
 5. OAuth is Authorization Code + single-use `state` + exact redirect-URI allowlist.
-   PKCE where the provider supports it; where it does not (all three today), the
-   `code → token` step runs in the CORS-locked `cairn-auth` Worker.
+   **No provider we use offers workable public-client PKCE**, so every `code → token`
+   step runs in the `cairn-auth` Worker. The Worker **requires** an `Origin` on its
+   (comma-separated) `ALLOWED_ORIGIN` list and validates `redirect_uri` against the
+   same list — a *missing* `Origin` is a 403, not a pass. CORS constrains only
+   browsers; this is an origin allowlist, and the distinction is load-bearing.
 6. New runtime dependencies and new outbound origins need explicit review; origins go in
    `libs/shared/src/config.ts` **and** `apps/web/public/_headers`.
 7. The core product stays functional and safe with no backend and no AI key.
@@ -202,8 +229,12 @@ token-exchange Worker + extension artifact (manual store gate). Details:
 Per enabled provider, set once out-of-band: `wrangler secret put
 <PROVIDER>_CLIENT_SECRET` on the `cairn-auth` Worker, and the GitHub Actions repo
 **variable** `OAUTH_<PROVIDER>_CLIENT_ID` (the `GITHUB_` prefix is reserved by
-Actions, hence `OAUTH_GITHUB_…`). Each OAuth app's callback URL must equal the
-provider's `redirectUri` in `libs/shared/src/config.ts`.
+Actions, hence `OAUTH_GITHUB_…`). `redirectUri` is now derived from the origin the app
+is served from, so each OAuth app's callback URL must be `<origin>/` for every origin
+you support, and that origin must also be on the Worker's `ALLOWED_ORIGIN` list. To sign
+in from `localhost:4200`, prefer a dev Worker
+(`wrangler dev --var ALLOWED_ORIGIN:http://localhost:4200`) over widening the deployed
+one — see `api/optional-serverless/oauth/README.md`.
 
 ## Decisions & open questions
 
@@ -241,6 +272,24 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
     for a `<base>` tag or inline `on*=` handler to stop it regressing.
   - Health-engine thresholds need a calibration data set
     ([ADR-0008](docs/adr/0008-ai-free-repository-health-engine.md)).
+  - **`libs/ai` and `libs/portfolio` have no consumer.** Both are implemented and
+    tested; nothing in `apps/` imports either, so the three "WOW" AI features and the
+    portfolio generator are *not* shipped. `libs/ai` also needs the ADR-0010 disclosure
+    panel and a BYOK key-entry UI before it can be wired at all. README now says so
+    plainly; the guide's Status list should not imply otherwise.
+  - **No discovery, no manual profile entry.** The user must search for or name a
+    repository — nothing recommends one — and can only *deselect* CV-parsed skills, not
+    add one by hand. Both are gaps in the README's original MVP scope, now reworded.
+  - The GitHub-derived experience span is a proxy: account creation year → most recent
+    visible push. It no longer runs to `present` (a dormant 2015 account used to read as
+    a decade and scored `advanced`), but it still cannot know when someone started
+    programming. Worth revisiting if a better signal appears.
+  - `libs/matching`'s `issueMatch()` is exported and tested but never called by any app;
+    the dashboard uses `contributionConfidence` instead. Decide whether it earns its
+    place or goes.
+  - Whether the `default` Trusted Types policy's new `try/catch` needs the same explicit
+    ratification the policy itself got — see the drift note in the 2026-09-11 changelog
+    entry below.
   - ~~Jest vs Vitest~~ → **Vitest** (2026-08-31).
   - ~~`style-src 'unsafe-inline'` CSP exception~~ → **ratified 2026-08-31**; wording
     updated in [ADR-0019](docs/adr/0019-security-first-rendering.md) and `SECURITY.md` §8.
@@ -248,6 +297,105 @@ provider's `redirectUri` in `libs/shared/src/config.ts`.
     (`helpers:pinGitHubActionDigests`) converts them on its first PR.
 
 ## Changelog
+
+### 2026-09-11 — Audit-and-fix pass: wiring-layer bugs, and `apps/` + `api/` under test
+
+Audit of every "finished" feature against the code. The engines were sound; almost
+everything broken lived in the layer between them and the user — the layer no test
+touched.
+
+- **Root cause fixed first.** `vitest.config.ts` only collected `libs/**`, so no
+  Angular service, component or the OAuth Worker was ever run by CI. Split into two
+  projects (`libs`/node, `app`/jsdom + Angular `TestBed`), added `tsconfig.test.json`
+  (test files were not typechecked either) and `scripts/test-setup.ts`. **159 → 255
+  tests**; coverage gate held at 70% and extended to `apps/web/src/app` + `api/**`.
+- **Auth — a second identity disconnected GitHub.** `completeSignInFromRedirect` called
+  `restoreSession()` only on a *non*-callback load, so a callback started from an empty
+  identity list and `persistSession()` overwrote the stored session with just the
+  provider that had returned. GitHub is the only data provider, so this silently killed
+  the profile and the token. Restore now runs first, unconditionally.
+- **Sign-in was impossible on `localhost`.** `OAUTH_REDIRECT_URI` was hardcoded to the
+  deployed Workers URL, so the documented `npm run -w @cairn/web start` flow bounced the
+  developer to production. Now derived from `location.origin`, with the production
+  origin as the non-browser fallback.
+- **`cairn-auth` Worker — the origin check had a hole.** `origin !== null && origin !==
+  ALLOWED_ORIGIN` waved through every request that simply *omitted* the header (curl,
+  any non-browser client), leaving an unauthenticated endpoint that signs exchanges with
+  our client secret and relays arbitrary bearer tokens. An allowlisted `Origin` is now
+  required; `ALLOWED_ORIGIN` is a comma-separated list; and `redirect_uri` is validated
+  against it, which SECURITY.md T4 had promised but the code never did. 13 new tests.
+- **Extension made zero successful API calls.** `host_permissions` covered
+  `github.com` but not `api.github.com`, which the background worker actually fetches.
+  Added. Also re-renders on Turbo navigation instead of going stale on the first repo.
+- **Match scores were computed across two different vocabularies.** The developer side
+  canonicalised through the taxonomy; the repository side used raw `toSkillTag`. So a
+  repo topic `nodejs` could never match a developer's `node`, and free-text topics
+  (`hacktoberfest`, `awesome`, `oss`) counted as required technologies — deflating every
+  coverage score and listing "hacktoberfest" as a skill to go and learn. Taxonomy moved
+  to `libs/shared` (re-exported from `libs/profile`); repo languages + topics now
+  canonicalise and filter through `toKnownSkills`.
+- **Taxonomy integrity.** `javascript` and `node` both claimed the alias `nodejs` and the
+  Map silently gave it to whichever was declared last; `dotnet` sat in `KNOWN_SKILLS`
+  while also being an alias of `c#`, so nothing could ever carry it; the bare `actions`
+  alias matched the English word in any CV. All three fixed, all three now guarded by
+  tests. `TAXONOMY_VERSION` 1 → 2.
+- **"Skill coverage 100% · 0 to learn"** for any repo with no detected technologies —
+  `skillGap` returned `coverage: 1` for an empty requirement list. Now carries
+  `analysed: false` and the dashboard renders a dash.
+- **`listOpenIssues` reported "no open issues"** for repositories that had them: the
+  endpoint counts PRs as issues with no way to exclude them, and one filtered page of 30
+  could come back nearly empty. Now pages (up to 3 × 100) until it has enough real
+  issues.
+- **`GithubClient` threw away good cache on transient faults** — any non-OK response or
+  network error rejected even with a valid cached copy, contradicting the local-first
+  story. Now serves stale on network error and on upstream errors; handles 429 and
+  quota-bearing 403 as a secondary rate limit with `Retry-After` backoff; adds a request
+  timeout; and finally *implements* `CACHE_MAX_ENTRIES`, which was declared with an
+  "LRU eviction" comment and referenced nowhere while IndexedDB grew unbounded.
+- **A throttled search silently became "0 merged PRs"** — indistinguishable from a
+  genuinely empty track record, and it fed the readiness score. `fetchMergedPrCount` now
+  reports `known: false` and the dashboard says the number is unavailable.
+- **`ProfileService` built its own second `GithubClient`**, so the Search quota it burned
+  was invisible to the dashboard's repo search and vice versa. Uses the shared
+  `GithubClientService`.
+- **`TargetService.restore()` could discard a saved issue** that was merely further down
+  a long list. It now keeps the choice and explains, rather than overwriting with null.
+- **`DEMO_DEV` removed.** The 2026-09-10 slice dropped the demo *repo* but left the demo
+  *developer*, so an anonymous visitor saw real repo data scored against a fictional
+  beginner, labelled with their own percentages. Anonymous users now get an empty state.
+- **GitHub experience stopped being invented.** The span ran from account creation to
+  `present`, so a 2015 account untouched since 2016 read as ~11 years and scored
+  `advanced`. It now ends at the most recent visible push, and an account with no repos
+  claims no experience at all.
+- **Trusted Types**: the `default` policy install is wrapped in `try/catch` — only one
+  may exist per document, and an uncaught throw would have failed every CV import with a
+  generic "could not read that file".
+- **Docs reconciled with the code.** `README.md`, `ARCHITECTURE.md` (§overview, the
+  sign-in sequence diagram, §security) claimed **PKCE**, which exists nowhere in
+  `libs/auth`; only `SECURITY.md` and ADR-0024 were honest. Corrected everywhere. The
+  README's feature list now separates *working today* from *built as libraries, not
+  wired to any UI* (`libs/ai`, `libs/portfolio`) from *not started* (discovery, manual
+  profile entry).
+- Guide sections updated: Status, Repo map, Conventions, Security non-negotiables (§5),
+  How to run / deploy, Open questions.
+
+**⚠ Drift — two items need the owner's call:**
+
+1. **New dev dependency `jsdom` added without prior review.** Non-negotiable 6 covers
+   *runtime* dependencies and `jsdom` is `devDependencies`-only (it does not enter any
+   bundle — verified by the bundle-origin guard), but it is a large transitive tree and
+   the rule's spirit points at flagging it. It was required to test `apps/` at all.
+   Ratify or replace with `happy-dom`.
+2. **The `default` Trusted Types policy now has a `try/catch`.** SECURITY.md §8.1 and
+   ADR-0011 enumerate this policy as one of two ratified exceptions, described as
+   rejecting every script URL that is not same-origin *and* armed. That property is
+   unchanged when our policy installs. The new fallback path is: if some other code
+   installed a `default` policy first, `createPolicy` throws, we swallow it, and the
+   `new Worker` call is judged by *that* policy instead of ours. Nothing we control is
+   weakened — a foreign `default` policy governs the document regardless — but the
+   exception's wording no longer covers every path, so it should be re-ratified or the
+   wording widened.
+
 
 ### 2026-09-11 — Real-target-only dashboard, GitHub/session hardening, CSP fix
 

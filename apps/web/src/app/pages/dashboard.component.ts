@@ -1,5 +1,6 @@
 import { Component, computed, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import {
   repositoryMatch,
   contributionConfidence,
@@ -13,20 +14,6 @@ import { contributionReadiness } from '@cairn/profile';
 import { ProfileService, profileToSnapshot } from '../core/profile/profile.service';
 import { TargetService } from '../core/targets/target.service';
 
-/** Fallback profile for visitors without a connected GitHub identity. */
-const DEMO_DEV: DeveloperSnapshot = {
-  experience: 'beginner',
-  interests: ['web', 'developer-tools'],
-  priorContributions: 1,
-  skills: [
-    { tag: 'typescript', level: 0.5, source: 'github' },
-    { tag: 'javascript', level: 0.7, source: 'github' },
-    { tag: 'html', level: 0.6, source: 'cv' },
-    { tag: 'css', level: 0.5, source: 'cv' },
-    { tag: 'git', level: 0.6, source: 'manual' },
-  ],
-};
-
 /** Display copy for the readiness score-part keys. */
 const PART_LABELS: Readonly<Record<string, string>> = {
   skillDepth: 'Skill depth',
@@ -39,7 +26,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
 @Component({
   selector: 'cn-dashboard',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   template: `
     <h1>Welcome back</h1>
     <p class="muted">
@@ -55,9 +42,10 @@ const PART_LABELS: Readonly<Record<string, string>> = {
       <p class="notice error">Couldn't load your GitHub profile: {{ err }}</p>
     } @else if (profileSvc.loading()) {
       <p class="notice muted">Loading your GitHub profile…</p>
-    } @else if (!profileSvc.profile()) {
+    } @else if (!hasProfile()) {
       <p class="notice muted">
-        Showing demo data — connect GitHub or import a CV for your real profile.
+        No profile yet — connect GitHub from the sign-in menu, or
+        <a routerLink="/profile">import a CV</a>, and your scores appear here.
       </p>
     }
 
@@ -107,6 +95,13 @@ const PART_LABELS: Readonly<Record<string, string>> = {
             </li>
           }
         </ul>
+        @if (!profileSvc.priorContributionsKnown()) {
+          <p class="muted small">
+            GitHub's search quota was exhausted, so your merged-PR count could not be read
+            — "Track record" is scored as 0 here and will correct itself on a later
+            refresh.
+          </p>
+        }
         <p class="sub">Profile sources</p>
         <div class="tags">
           @for (source of r.completeness.have; track source) {
@@ -224,9 +219,15 @@ const PART_LABELS: Readonly<Record<string, string>> = {
           }
         </div>
         <div class="card">
-          <span class="big">{{ gapCoverage() }}%</span>
-          Skill coverage
-          <small>{{ gap()?.missing?.length ?? 0 }} to learn</small>
+          @if (gapAnalysed()) {
+            <span class="big">{{ gapCoverage() }}%</span>
+            Skill coverage
+            <small>{{ gap()?.missing?.length ?? 0 }} to learn</small>
+          } @else {
+            <span class="big muted">—</span>
+            Skill coverage
+            <small>no technologies detected</small>
+          }
         </div>
       </section>
 
@@ -237,22 +238,36 @@ const PART_LABELS: Readonly<Record<string, string>> = {
         </div>
         <div class="panel">
           <h2>Skill gap</h2>
-          <ul>
-            @for (skill of gap()?.recommendedOrder ?? []; track skill) {
-              <li>{{ skill }}</li>
-            } @empty {
-              <li class="muted">No gaps for this target.</li>
-            }
-          </ul>
+          @if (gap()?.analysed) {
+            <ul>
+              @for (skill of gap()?.recommendedOrder ?? []; track skill) {
+                <li>{{ skill }}</li>
+              } @empty {
+                <li class="muted">No gaps for this target.</li>
+              }
+            </ul>
+          } @else {
+            <p class="muted">
+              No technologies detected for this repository, so there is nothing to compare
+              against.
+            </p>
+          }
         </div>
       </section>
     } @else {
       <section class="panel target-empty">
-        <p class="muted">
-          Pick a repository — and an open issue — in the scoring target above to see your
-          repository match, contribution confidence, and skill gap scored against real
-          data.
-        </p>
+        @if (!hasProfile()) {
+          <p class="muted">
+            Connect GitHub or import a CV first — match, confidence and skill gap all
+            score <em>you</em> against a repository, so they need a real profile.
+          </p>
+        } @else {
+          <p class="muted">
+            Pick a repository — and an open issue — in the scoring target above to see
+            your repository match, contribution confidence, and skill gap scored against
+            real data.
+          </p>
+        }
       </section>
     }
   `,
@@ -496,9 +511,14 @@ export class DashboardComponent {
     this.targetSvc.issueSnapshot(),
   );
 
-  private readonly dev = computed<DeveloperSnapshot>(() => {
+  /**
+   * The developer being scored, or null when there is no profile yet. There is no
+   * demo fallback: scoring a stranger against a fictional beginner and labelling the
+   * result with their own percentages is worse than showing nothing.
+   */
+  private readonly dev = computed<DeveloperSnapshot | null>(() => {
     const p = this.profileSvc.profile();
-    return p ? profileToSnapshot(p, this.profileSvc.priorContributions()) : DEMO_DEV;
+    return p ? profileToSnapshot(p, this.profileSvc.priorContributions()) : null;
   });
 
   /** The loaded GitHub profile, flattened for the template. */
@@ -533,24 +553,31 @@ export class DashboardComponent {
     return Math.round(level * 100);
   }
 
-  /** Repo-dependent scores are null until a real target is picked. */
+  /** Scores need both halves: a real profile and a real target. */
   protected readonly match = computed(() => {
+    const dev = this.dev();
     const repo = this.repo();
-    return repo ? repositoryMatch(this.dev(), repo) : null;
+    return dev && repo ? repositoryMatch(dev, repo) : null;
   });
   protected readonly confidence = computed(() => {
+    const dev = this.dev();
     const repo = this.repo();
     const issue = this.issue();
-    return repo && issue ? contributionConfidence(this.dev(), repo, issue) : null;
+    return dev && repo && issue ? contributionConfidence(dev, repo, issue) : null;
   });
   protected readonly gap = computed(() => {
+    const dev = this.dev();
     const repo = this.repo();
-    return repo ? skillGap(this.dev(), repo.technologies) : null;
+    return dev && repo ? skillGap(dev, repo.technologies) : null;
   });
+  /** Null when the target declared no technologies — unknown, not 100%. */
   protected readonly gapCoverage = computed(() => {
     const gap = this.gap();
-    return gap ? Math.round(gap.coverage * 100) : 0;
+    return gap?.analysed === true ? Math.round(gap.coverage * 100) : null;
   });
+  /** Separate from `gapCoverage()`: 0% is a real answer and must not read as "—". */
+  protected readonly gapAnalysed = computed(() => this.gap()?.analysed === true);
+  protected readonly hasProfile = computed(() => this.dev() !== null);
   protected readonly matchExplanation = computed(() => {
     const match = this.match();
     return match ? explain(match, 'Repository Match') : '';

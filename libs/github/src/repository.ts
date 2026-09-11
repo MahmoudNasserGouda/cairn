@@ -1,4 +1,9 @@
-import { toSkillTag, CACHE_TTL_MS, type SkillTag } from '@cairn/shared';
+import {
+  canonicalizeSkill,
+  toKnownSkills,
+  CACHE_TTL_MS,
+  type SkillTag,
+} from '@cairn/shared';
 import type { HealthSignals } from '@cairn/repository-analysis';
 import type { GithubClient } from './client';
 
@@ -19,8 +24,17 @@ interface RepoApiShape {
 export interface RepoOverview {
   readonly fullName: string;
   readonly description: string;
+  /**
+   * Repository topics that name a technology in the shared taxonomy. GitHub topics
+   * are free text, so `hacktoberfest`, `awesome`, `library` and friends are dropped
+   * here — counting them as part of the stack deflated every match score and listed
+   * them as skills the user should go and learn.
+   */
   readonly topics: readonly SkillTag[];
+  /** Every topic, canonicalised but unfiltered — interests, not required skills. */
+  readonly allTopics: readonly SkillTag[];
   readonly primaryLanguage: SkillTag | null;
+  /** Languages + recognised topics: what a contributor actually needs to know. */
   readonly technologies: readonly SkillTag[];
 }
 
@@ -37,13 +51,18 @@ export async function fetchRepoOverview(
     }),
   ]);
 
-  const langs = Object.keys(languages).map(toSkillTag);
-  const topics = (repo.topics ?? []).map(toSkillTag);
+  const rawTopics = repo.topics ?? [];
+  // Languages come from GitHub's own linguist output, so they are always real
+  // technologies; only the free-text topics need filtering.
+  const langs = Object.keys(languages).map(canonicalizeSkill);
+  const topics = toKnownSkills(rawTopics);
+  const allTopics = [...new Set(rawTopics.map(canonicalizeSkill))];
   return {
     fullName: repo.full_name,
     description: repo.description ?? '',
     topics,
-    primaryLanguage: repo.language ? toSkillTag(repo.language) : null,
+    allTopics,
+    primaryLanguage: repo.language ? canonicalizeSkill(repo.language) : null,
     technologies: [...new Set([...langs, ...topics])],
   };
 }

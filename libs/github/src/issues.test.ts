@@ -102,3 +102,103 @@ describe('toIssueInput', () => {
     });
   });
 });
+
+describe('listOpenIssues pagination past pull requests', () => {
+  /** A page of `count` entries, the first `prs` of which are pull requests. */
+  function page(start: number, count: number, prs: number): unknown[] {
+    return Array.from({ length: count }, (_, i) => ({
+      number: start + i,
+      title: `item ${start + i}`,
+      body: null,
+      labels: [],
+      comments: 0,
+      html_url: 'u',
+      ...(i < prs ? { pull_request: { url: 'p' } } : {}),
+    }));
+  }
+
+  function clientReturning(pages: unknown[][]): {
+    client: GithubClient;
+    paths: string[];
+  } {
+    const paths: string[] = [];
+    let call = 0;
+    const client = {
+      async get(path: string) {
+        paths.push(path);
+        return pages[call++] ?? [];
+      },
+    } as unknown as GithubClient;
+    return { client, paths };
+  }
+
+  it('keeps paging when a page is almost entirely pull requests', async () => {
+    // Regression: one page of 30 filtered down to a handful — or none — and the UI
+    // reported "no open issues" for repositories that plainly had some.
+    const { client, paths } = clientReturning([
+      page(1, 100, 98), // 2 real issues
+      page(101, 100, 95), // 5 real issues
+      page(201, 100, 90), // 10 real issues
+    ]);
+    const issues = await listOpenIssues(
+      client,
+      { owner: 'a', repo: 'b' },
+      {
+        perPage: 10,
+      },
+    );
+
+    expect(issues).toHaveLength(10);
+    expect(paths).toHaveLength(3);
+    expect(paths[0]).toContain('page=1');
+    expect(paths[2]).toContain('page=3');
+  });
+
+  it('stops at a short page instead of burning quota on another', async () => {
+    const { client, paths } = clientReturning([page(1, 12, 11)]);
+    const issues = await listOpenIssues(
+      client,
+      { owner: 'a', repo: 'b' },
+      {
+        perPage: 30,
+      },
+    );
+
+    expect(issues).toHaveLength(1);
+    expect(paths).toHaveLength(1);
+  });
+
+  it('stops as soon as it has enough issues', async () => {
+    const { client, paths } = clientReturning([page(1, 100, 0)]);
+    const issues = await listOpenIssues(
+      client,
+      { owner: 'a', repo: 'b' },
+      {
+        perPage: 5,
+      },
+    );
+
+    expect(issues).toHaveLength(5);
+    expect(paths).toHaveLength(1);
+  });
+
+  it('honours maxPages so a PR-only repo cannot loop', async () => {
+    const { client, paths } = clientReturning([
+      page(1, 100, 100),
+      page(101, 100, 100),
+      page(201, 100, 100),
+      page(301, 100, 100),
+    ]);
+    const issues = await listOpenIssues(
+      client,
+      { owner: 'a', repo: 'b' },
+      {
+        perPage: 30,
+        maxPages: 2,
+      },
+    );
+
+    expect(issues).toEqual([]);
+    expect(paths).toHaveLength(2);
+  });
+});

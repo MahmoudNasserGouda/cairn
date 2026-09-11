@@ -137,13 +137,13 @@ export class TargetService {
     void this.store.delete(TARGET_KEY);
   }
 
-  private async persist(): Promise<void> {
+  private async persist(issueNumber = this._issueNumber()): Promise<void> {
     const repo = this._repo();
     if (!repo) return;
     try {
       await this.store.set<TargetSelection>(TARGET_KEY, {
         repoSlug: repo.overview.fullName,
-        issueNumber: this._issueNumber(),
+        issueNumber,
       });
     } catch {
       // A target that cannot be remembered is not worth an error banner.
@@ -159,8 +159,24 @@ export class TargetService {
     }
     if (!saved?.repoSlug) return;
     await this.selectRepo(saved.repoSlug);
-    if (saved.issueNumber !== null && this._repo()) {
-      this.selectIssue(saved.issueNumber);
+    if (this._repo() === null) return;
+
+    if (saved.issueNumber === null) {
+      await this.persist(null);
+      return;
     }
+
+    this.selectIssue(saved.issueNumber);
+    if (this._issueNumber() !== null) return; // selectIssue already persisted it
+
+    // The issue is not in the page we fetched. That does not mean it is closed — it
+    // may simply be further down a long list — so the choice is *kept* rather than
+    // overwritten with null. Picking another issue replaces it; until then a stale
+    // number costs nothing and a still-open issue is not silently forgotten.
+    this._error.set(
+      `Couldn't find issue #${saved.issueNumber} in this repository's open issues — ` +
+        `it may be closed, or further down the list. Pick another to re-score.`,
+    );
+    await this.persist(saved.issueNumber);
   }
 }

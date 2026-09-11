@@ -60,3 +60,55 @@ describe('githubToProfile', () => {
     expect(githubToProfile(activity())).toEqual(githubToProfile(activity()));
   });
 });
+
+describe('experience from GitHub activity', () => {
+  it('ends the span at the last visible push, not today', () => {
+    // An account opened in 2015 and last pushed in 2018 is 3 years of visible work,
+    // not the ~11 that counting to `present` used to produce.
+    const p = githubToProfile(
+      activity({
+        user: { login: 'o', name: null, createdAt: '2015-01-01T00:00:00Z' },
+        repos: [
+          { topics: [], languages: { Go: 100 }, pushedAt: '2017-06-01T00:00:00Z' },
+          { topics: [], languages: { Go: 100 }, pushedAt: '2018-06-01T00:00:00Z' },
+        ],
+      }),
+    );
+    expect(p.experience[0]?.startYear).toBe(2015);
+    expect(p.experience[0]?.endYear).toBe(2018);
+    expect(p.totalYears).toBe(3);
+  });
+
+  it('claims no experience at all for an account with no repos', () => {
+    const p = githubToProfile(
+      activity({
+        user: { login: 'o', name: null, createdAt: '2010-01-01T00:00:00Z' },
+        repos: [],
+      }),
+    );
+    expect(p.experience).toEqual([]);
+    expect(p.totalYears).toBe(0);
+    expect(p.experienceLevel).toBe('beginner');
+  });
+
+  it('does not let a dormant old account read as advanced', () => {
+    const p = githubToProfile(
+      activity({
+        user: { login: 'o', name: null, createdAt: '2012-01-01T00:00:00Z' },
+        repos: [{ topics: [], languages: { Go: 10 }, pushedAt: '2012-03-01T00:00:00Z' }],
+      }),
+    );
+    expect(p.totalYears).toBe(0);
+    expect(p.experienceLevel).toBe('beginner');
+  });
+
+  it('never produces a negative span when a push predates the account year', () => {
+    const p = githubToProfile(
+      activity({
+        user: { login: 'o', name: null, createdAt: '2020-01-01T00:00:00Z' },
+        repos: [{ topics: [], languages: { Go: 10 }, pushedAt: '2019-01-01T00:00:00Z' }],
+      }),
+    );
+    expect(p.totalYears).toBeGreaterThanOrEqual(0);
+  });
+});
