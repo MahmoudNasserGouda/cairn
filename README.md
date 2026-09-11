@@ -71,7 +71,7 @@ and cached locally. Scores are derived on-device. AI calls, if enabled, go direc
 your browser to your chosen provider — never through Rujoom.
 
 Read the full picture in [`ARCHITECTURE.md`](ARCHITECTURE.md): C4 diagrams, data flows,
-the scoring engines, the cost model, and the 23 [Architecture Decision Records](docs/adr/README.md).
+the scoring engines, the cost model, and the 26 [Architecture Decision Records](docs/adr/README.md).
 
 ## Quick start
 
@@ -147,9 +147,13 @@ review. New contributors: [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) is the fastest 
 
 ## Status
 
-Phase 1 (Foundation). The monorepo, all nine libraries (68 passing tests), the web app,
-the extension, and the full CI/CD pipeline are in place. Next up: GitHub OAuth and the
-first real unified-profile flow.
+Phase 1 (Foundation). The web app is live on Cloudflare Workers, backed by twelve
+shared libraries (157 passing tests), the browser extension, and the full CI/CD
+pipeline. Multi-provider sign-in (GitHub for data; LinkedIn/Google for identity), a real
+GitHub-derived unified profile, local-first CV import, contribution-readiness scoring,
+and a dashboard that scores against a real repo + issue the user picks are all shipped.
+Next up: make the comparison target always a real repo/issue (drop the demo fallback),
+then the first key-free job/opportunity feed.
 
 ## License
 
