@@ -62,6 +62,18 @@ export class TargetService {
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
 
+  /**
+   * The picked issue as GitHub returned it. `IssueSnapshot` deliberately carries only
+   * what the matching engine scores — no title, no body — so anything that needs to
+   * *read* the issue (the explainer, a link out) comes through here instead.
+   */
+  readonly selectedIssue = computed<IssueListItem | null>(() => {
+    const number = this._issueNumber();
+    return number === null
+      ? null
+      : (this._issues().find((i) => i.number === number) ?? null);
+  });
+
   readonly repoName = computed(() => this._repo()?.overview.fullName ?? null);
   readonly repoSnapshot = computed(() => this._repo()?.snapshot ?? null);
   readonly hasTarget = computed(() => this._repo() !== null);

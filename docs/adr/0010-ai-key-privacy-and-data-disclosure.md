@@ -44,3 +44,28 @@ control what is included where practical.
   be added later without an ADR reversal.
 - **Store the key server-side "securely".** Prohibited by the spec and by
   [ADR-0001](0001-local-first-zero-cost-architecture.md).
+
+## Implementation notes
+
+Added 2026-09-12, when the key handling and disclosure panel were built.
+
+- **"Isolated store" is literal.** `apps/web` opens one IndexedDB database with two
+  object stores: `kv` for app state and `secrets` for the BYOK key and nothing else
+  (`SCHEMA_VERSION` 1 → 2, both created in one `onupgradeneeded`). That is what makes
+  "clear all AI data" surgical — it empties `secrets` and deletes the settings row, and
+  cannot touch the profile; equally, clearing the profile cannot leave a key behind.
+- **Session-only mode writes nothing at all**, rather than writing and deleting later.
+  Switching *to* it deletes the persisted copy immediately.
+- **Consent is per action and is never remembered.** There is no "don't ask again",
+  because the payload differs every time. The panel shows the provider, the model, the
+  verbatim system and user prompts, and each document with its size; the user can drop a
+  document or strip email addresses, and what they approve is exactly what is sent.
+  Dismissing the panel — Cancel, Escape, or the backdrop — resolves as a decline and
+  fires no request.
+- **The key is bound one way.** The settings field writes into the service and is cleared
+  on save; nothing reads it back into the DOM. `logger` already redacts `sk-*` / `AIza*`
+  patterns, and `AiService` logs the feature, provider and model on failure — never the
+  payload, never the key.
+- **Deferred, unchanged:** the extension's own `chrome.storage.local` key handling, and
+  caching AI responses (nothing is cached today, so "clear cached AI responses" has
+  nothing to clear yet).

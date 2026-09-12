@@ -1,6 +1,15 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import {
+  cvRefinementPrompt,
+  parseCvRefinement,
+  type CvRefinement,
+  type CvRefinementRole,
+} from '@cairn/ai';
 import type { ExperienceEntry, ParsedCv } from '@cairn/profile';
 import type { SkillProficiency } from '@cairn/shared';
+import { AiService } from '../core/ai/ai.service';
+import { AiSettingsService } from '../core/ai/ai-settings.service';
 import { CvImportService } from '../core/cv/cv-import.service';
 import { ProfileService } from '../core/profile/profile.service';
 
@@ -65,6 +74,7 @@ function toEntry(role: RoleDraft): ExperienceEntry {
 @Component({
   selector: 'cn-profile',
   standalone: true,
+  imports: [RouterLink],
   template: `
     <h1>Your profile</h1>
     <p class="muted">
@@ -191,6 +201,90 @@ function toEntry(role: RoleDraft): ExperienceEntry {
 
         @if (form.sections.length) {
           <p class="muted small">Sections recognised: {{ form.sections.join(', ') }}</p>
+        }
+
+        <div class="refine">
+          @if (aiSettings.hasKey()) {
+            <button
+              type="button"
+              class="ghost"
+              [disabled]="ai.running()"
+              (click)="refine()"
+            >
+              {{ ai.running() ? 'Asking your provider…' : 'Re-read this CV with AI' }}
+            </button>
+            <span class="muted small">
+              Sends the CV text to your own {{ aiSettings.provider() }} key. You'll see
+              exactly what goes, and nothing is applied until you accept it.
+            </span>
+          } @else {
+            <p class="muted small">
+              A parser read this, not a model. Add your own API key under
+              <a routerLink="/settings">Settings</a> to have one re-read the CV and
+              suggest what the parser missed.
+            </p>
+          }
+          @if (aiError(); as message) {
+            <p class="error" role="alert">{{ message }}</p>
+          }
+        </div>
+
+        @if (proposal()) {
+          <div class="proposal">
+            <h3>Suggestions <span class="ai-tag">AI-generated · may be wrong</span></h3>
+            @if (newName(); as suggested) {
+              <p class="row">
+                <span>Name: {{ suggested }}</span>
+                <button type="button" class="tiny" (click)="acceptName(suggested)">
+                  Use this
+                </button>
+              </p>
+            }
+            @if (newEmail(); as suggested) {
+              <p class="row">
+                <span>Email: {{ suggested }}</span>
+                <button type="button" class="tiny" (click)="acceptEmail(suggested)">
+                  Use this
+                </button>
+              </p>
+            }
+            @if (newSkills().length) {
+              <p class="muted small">Skills the parser missed — tap to add:</p>
+              <div class="choices">
+                @for (tag of newSkills(); track tag) {
+                  <button type="button" class="tiny" (click)="acceptSkill(tag)">
+                    + {{ tag }}
+                  </button>
+                }
+              </div>
+            }
+            @if (newRoles().length) {
+              <p class="muted small">Roles the parser missed:</p>
+              @for (role of newRoles(); track $index) {
+                <p class="row">
+                  <span>
+                    {{ role.title }}
+                    @if (role.organization) {
+                      · {{ role.organization }}
+                    }
+                    @if (role.startYear) {
+                      <span class="muted">
+                        {{ role.startYear }}–{{ role.endYear ?? '' }}</span
+                      >
+                    }
+                  </span>
+                  <button type="button" class="tiny" (click)="acceptRole(role)">
+                    Add
+                  </button>
+                </p>
+              }
+            }
+            @if (nothingNew()) {
+              <p class="muted small">
+                Nothing new — the model found the same things the parser did.
+              </p>
+            }
+          </div>
         }
 
         <div class="actions">
@@ -385,6 +479,55 @@ function toEntry(role: RoleDraft): ExperienceEntry {
       .tag.src-cv {
         border-color: var(--accent);
       }
+      .refine {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+        margin-top: 1.2rem;
+      }
+      .proposal {
+        border: 1px dashed var(--accent);
+        border-radius: 10px;
+        padding: 0.75rem 1rem;
+        margin-top: 0.9rem;
+      }
+      .proposal h3 {
+        margin-top: 0;
+      }
+      .ai-tag {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.05rem 0.45rem;
+        vertical-align: middle;
+      }
+      .proposal .row {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin: 0.35rem 0;
+        font-size: 0.9rem;
+      }
+      .proposal .row button {
+        margin-left: auto;
+      }
+      .tiny {
+        padding: 0.15rem 0.55rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: none;
+        color: var(--fg);
+        font: inherit;
+        font-size: 0.8rem;
+        cursor: pointer;
+      }
+      .tiny:hover {
+        border-color: var(--accent);
+      }
       .sub {
         color: var(--muted);
         margin: 0.25rem 0 0.75rem;
@@ -399,6 +542,8 @@ function toEntry(role: RoleDraft): ExperienceEntry {
 export class ProfileComponent {
   protected readonly cv = inject(CvImportService);
   protected readonly profileSvc = inject(ProfileService);
+  protected readonly ai = inject(AiService);
+  protected readonly aiSettings = inject(AiSettingsService);
 
   protected readonly dragging = signal(false);
   protected readonly maxMb = Math.round(this.cv.maxBytes / (1024 * 1024));
@@ -408,6 +553,9 @@ export class ProfileComponent {
   private readonly skills = signal<readonly SkillChoice[]>([]);
   private readonly roles = signal<readonly RoleDraft[]>([]);
   private readonly sections = signal<readonly string[]>([]);
+  /** What the model proposed, if the user has run a refinement pass. */
+  protected readonly proposal = signal<CvRefinement | null>(null);
+  protected readonly aiError = signal<string | null>(null);
   /** The draft the form was last seeded from, so a new import reseeds it. */
   private seededFrom: ParsedCv | null = null;
 
@@ -490,6 +638,7 @@ export class ProfileComponent {
   }
 
   protected confirm(): void {
+    this.proposal.set(null);
     const name = this.name().trim();
     const email = this.email().trim();
     const parsed: ParsedCv = {
@@ -507,6 +656,8 @@ export class ProfileComponent {
   }
 
   protected cancel(): void {
+    this.proposal.set(null);
+    this.aiError.set(null);
     this.seededFrom = null;
     this.cv.reset();
   }
@@ -515,10 +666,100 @@ export class ProfileComponent {
     void this.profileSvc.clearCv();
   }
 
+  /**
+   * Only ever *offer* what the form does not already hold. A suggestion the user
+   * accepts disappears from the list because these derive from the form's own state,
+   * so there is no separate "accepted" bookkeeping to get out of step.
+   */
+  protected readonly newSkills = computed<readonly string[]>(() => {
+    const suggested = this.proposal()?.skills ?? [];
+    const have = new Set(this.skills().map((s) => s.tag));
+    return suggested.filter((tag) => !have.has(tag));
+  });
+
+  protected readonly newRoles = computed<readonly CvRefinementRole[]>(() => {
+    const suggested = this.proposal()?.experience ?? [];
+    const have = new Set(this.roles().map((r) => r.title.trim().toLowerCase()));
+    return suggested.filter((r) => !have.has(r.title.trim().toLowerCase()));
+  });
+
+  protected readonly newName = computed(() => {
+    const suggested = this.proposal()?.name;
+    return suggested && suggested !== this.name() ? suggested : null;
+  });
+
+  protected readonly newEmail = computed(() => {
+    const suggested = this.proposal()?.email;
+    return suggested && suggested !== this.email() ? suggested : null;
+  });
+
+  protected readonly nothingNew = computed(
+    () =>
+      this.newName() === null &&
+      this.newEmail() === null &&
+      this.newSkills().length === 0 &&
+      this.newRoles().length === 0,
+  );
+
+  /**
+   * The optional BYOK pass over the CV (ADR-0011). It proposes; the review form still
+   * decides. The disclosure panel inside `AiService.run` is what actually sends
+   * anything, so a user who cancels there has sent nothing.
+   */
+  protected async refine(): Promise<void> {
+    const draft = this.cv.draft();
+    if (!draft) return;
+    this.aiError.set(null);
+
+    const outcome = await this.ai.run(
+      'Re-reading your CV',
+      cvRefinementPrompt(draft.text),
+    );
+    if (outcome.status === 'declined') return;
+    if (outcome.status === 'error') {
+      this.aiError.set(outcome.message);
+      return;
+    }
+
+    const parsed = parseCvRefinement(outcome.text);
+    if (!parsed.ok) {
+      this.aiError.set(`${parsed.error} — the parsed fields above are unchanged.`);
+      return;
+    }
+    this.proposal.set(parsed.value);
+  }
+
+  protected acceptName(name: string): void {
+    this.name.set(name);
+  }
+
+  protected acceptEmail(email: string): void {
+    this.email.set(email);
+  }
+
+  protected acceptSkill(tag: string): void {
+    this.skills.update((list) => [...list, { tag, include: true }]);
+  }
+
+  protected acceptRole(role: CvRefinementRole): void {
+    this.roles.update((list) => [
+      ...list,
+      {
+        title: role.title,
+        organization: role.organization ?? '',
+        startYear: role.startYear === undefined ? '' : String(role.startYear),
+        endYear: role.endYear === undefined ? '' : String(role.endYear),
+        include: true,
+      },
+    ]);
+  }
+
   /** Copy a fresh parse into the editable form exactly once per import. */
   private seed(parsed: ParsedCv): void {
     if (this.seededFrom === parsed) return;
     this.seededFrom = parsed;
+    this.proposal.set(null);
+    this.aiError.set(null);
     this.name.set(parsed.name ?? '');
     this.email.set(parsed.email ?? '');
     this.skills.set(parsed.skills.map((tag) => ({ tag, include: true })));

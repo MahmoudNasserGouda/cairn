@@ -7,6 +7,8 @@ import type { RepositorySnapshot, IssueSnapshot } from '@cairn/matching';
 import { DashboardComponent } from './dashboard.component';
 import { ProfileService } from '../core/profile/profile.service';
 import { TargetService } from '../core/targets/target.service';
+import { AiService } from '../core/ai/ai.service';
+import { AiSettingsService } from '../core/ai/ai-settings.service';
 
 const PROFILE: UnifiedProfile = {
   schemaVersion: 1,
@@ -44,10 +46,21 @@ const ISSUE: IssueSnapshot = {
   mentorshipOffered: true,
 };
 
+const ISSUE_ITEM = {
+  number: 1,
+  title: 'Fix the flaky import test',
+  body: 'It fails about one run in ten.',
+  labels: ['good first issue'],
+  commentCount: 2,
+  reactions: 0,
+  htmlUrl: 'https://github.com/a/b/issues/1',
+};
+
 function render(opts: {
   profile?: UnifiedProfile | null;
   repo?: RepositorySnapshot | null;
   issue?: IssueSnapshot | null;
+  hasKey?: boolean;
 }) {
   const profile = signal(opts.profile ?? null);
   const repoSnapshot = signal(opts.repo ?? null);
@@ -76,11 +89,17 @@ function render(opts: {
           results: signal([]),
           searching: signal(false),
           issues: signal([]),
-          issueNumber: signal(null),
+          issueNumber: signal(opts.issue ? opts.issue.number : null),
+          selectedIssue: signal(opts.issue ? ISSUE_ITEM : null),
           loading: signal(false),
           error: signal(null),
           repoName: signal(opts.repo ? 'a/b' : null),
         },
+      },
+      { provide: AiSettingsService, useValue: { hasKey: signal(opts.hasKey ?? false) } },
+      {
+        provide: AiService,
+        useValue: { running: signal(false), run: async () => ({ status: 'declined' }) },
       },
     ],
   });
@@ -143,5 +162,42 @@ describe('scores with a profile', () => {
   it('asks for a target when there is a profile but no repo', () => {
     const fixture = render({ profile: PROFILE, repo: null });
     expect(text(fixture)).toMatch(/Pick a repository/);
+  });
+});
+
+describe('issue explainer', () => {
+  it('explains the picked issue with no API key at all', () => {
+    // ADR-0009: the non-AI path is the feature's floor, not an error state.
+    const body = text(render({ profile: PROFILE, repo: REPO, issue: ISSUE }));
+
+    expect(body).toMatch(/Understand this issue/);
+    expect(body).toMatch(/Fix the flaky import test/);
+    expect(body).toMatch(/estimated easy/);
+    expect(body).toMatch(/typescript/);
+    expect(body).not.toMatch(/Explain with AI/);
+    expect(body).toMatch(/Add your own API key/);
+  });
+
+  it('offers the written version only once a key exists', () => {
+    const body = text(
+      render({ profile: PROFILE, repo: REPO, issue: ISSUE, hasKey: true }),
+    );
+
+    expect(body).toMatch(/Explain with AI/);
+    // The deterministic read is still what is on screen until the user asks.
+    expect(body).toMatch(/estimated easy/);
+  });
+
+  it('explains the issue even with no profile — understanding it needs no scores', () => {
+    const body = text(render({ profile: null, repo: REPO, issue: ISSUE }));
+
+    expect(body).toMatch(/Understand this issue/);
+    expect(body).toMatch(/estimated easy/);
+  });
+
+  it('says nothing about an issue until one is picked', () => {
+    expect(text(render({ profile: PROFILE, repo: REPO }))).not.toMatch(
+      /Understand this issue/,
+    );
   });
 });

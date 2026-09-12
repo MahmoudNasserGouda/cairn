@@ -80,3 +80,18 @@ the choices it left open, recorded because each was constrained by a rule elsewh
   `new Worker(new URL(…, import.meta.url))` — so the URL cannot be hoisted and wrapped.
   `apps/web/src/app/core/cv/worker-url.ts` installs a `default` policy that admits a
   script URL only when it is same-origin *and* arrives inside that one synchronous call.
+
+### BYOK refinement pass (added 2026-09-12)
+
+The optional AI pass this ADR provided for is now built, on the terms it set.
+
+- `CvImportService` keeps the extracted text on the in-memory draft for as long as the
+  review form is open, because the pass needs something to send. It is still never
+  persisted and still never leaves the device without the disclosure panel's consent.
+- The prompt asks for **JSON only**, and `parseCvRefinement` in `libs/ai` validates every
+  field before the UI sees it: unknown keys ignored, skills outside the taxonomy dropped,
+  implausible years dropped, strings bounded. That validation is the injection defence —
+  a model talked into obeying the CV text cannot push arbitrary content into the profile.
+- What comes back is a **proposal**, accepted field by field in the review form. The
+  disclosure panel strips email addresses by default, so the model usually sees the CV
+  without one.
