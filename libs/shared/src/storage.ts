@@ -16,7 +16,14 @@ export interface StoreMeta {
   readonly schemaVersion: number;
 }
 
-export const SCHEMA_VERSION = 1;
+/**
+ * Bump when the set of backing stores changes.
+ *
+ * 2 — added the isolated `secrets` store that BYOK AI keys live in, so that clearing
+ * AI data never touches the profile and clearing the profile never leaves a key
+ * behind (ADR-0010).
+ */
+export const SCHEMA_VERSION = 2;
 
 export class MemoryStore implements KeyValueStore {
   private readonly map = new Map<string, string>();

@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import {
@@ -11,6 +11,9 @@ import {
 } from '@cairn/matching';
 import { explain } from '@cairn/scoring';
 import { contributionReadiness } from '@cairn/profile';
+import { explainIssueWithoutAI, issueExplainerPrompt } from '@cairn/ai';
+import { AiService } from '../core/ai/ai.service';
+import { AiSettingsService } from '../core/ai/ai-settings.service';
 import { ProfileService, profileToSnapshot } from '../core/profile/profile.service';
 import { TargetService } from '../core/targets/target.service';
 
@@ -270,6 +273,42 @@ const PART_LABELS: Readonly<Record<string, string>> = {
         }
       </section>
     }
+
+    @if (targetSvc.selectedIssue(); as issue) {
+      <section class="panel">
+        <h2>Understand this issue</h2>
+        <p class="sub">#{{ issue.number }} · {{ issue.title }}</p>
+
+        @if (aiExplanation(); as written) {
+          <p class="ai-tag">AI-generated · may be wrong</p>
+          <p class="explain">{{ written }}</p>
+          <button type="button" class="link" (click)="clearAiExplanation()">
+            Show the plain version
+          </button>
+        } @else {
+          <p class="explain">{{ plainExplanation() }}</p>
+          @if (aiSettings.hasKey()) {
+            <button
+              type="button"
+              class="link"
+              [disabled]="ai.running()"
+              (click)="explainIssue()"
+            >
+              {{ ai.running() ? 'Asking your provider…' : 'Explain with AI' }}
+            </button>
+          } @else {
+            <p class="muted small">
+              That is the deterministic read. Add your own API key under
+              <a routerLink="/settings">Settings</a> for a written explanation.
+            </p>
+          }
+        }
+
+        @if (aiError(); as message) {
+          <p class="error" role="alert">{{ message }}</p>
+        }
+      </section>
+    }
   `,
   styles: [
     `
@@ -328,6 +367,28 @@ const PART_LABELS: Readonly<Record<string, string>> = {
       }
       .profile h2 {
         margin-top: 0;
+      }
+      .ai-tag {
+        display: inline-block;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.05rem 0.45rem;
+        margin: 0 0 0.5rem;
+      }
+      .explain {
+        white-space: pre-wrap;
+        margin: 0 0 0.75rem;
+      }
+      p.error {
+        color: #f87171;
+        font-size: 0.9rem;
+      }
+      .small {
+        font-size: 0.85rem;
       }
       .sub {
         color: var(--muted);
@@ -488,7 +549,68 @@ const PART_LABELS: Readonly<Record<string, string>> = {
 export class DashboardComponent {
   protected readonly profileSvc = inject(ProfileService);
   protected readonly targetSvc = inject(TargetService);
+  protected readonly ai = inject(AiService);
+  protected readonly aiSettings = inject(AiSettingsService);
   protected searchText = '';
+
+  private readonly _aiExplanation = signal<string | null>(null);
+  protected readonly aiExplanation = this._aiExplanation.asReadonly();
+  protected readonly aiError = signal<string | null>(null);
+
+  constructor() {
+    // An explanation belongs to one issue. Picking another must not leave the previous
+    // issue's text sitting under the new issue's title.
+    effect(() => {
+      this.targetSvc.issueNumber();
+      this._aiExplanation.set(null);
+      this.aiError.set(null);
+    });
+  }
+
+  /**
+   * The no-key path, and the floor for the with-key one: a deterministic read of the
+   * issue from `analyzeIssue`'s output (ADR-0009 — every AI feature has a non-AI
+   * fallback, and here the fallback is what you see first).
+   */
+  protected readonly plainExplanation = computed(() => {
+    const issue = this.issue();
+    const item = this.targetSvc.selectedIssue();
+    if (!issue || !item) return '';
+    return explainIssueWithoutAI({
+      title: item.title,
+      difficulty: issue.difficulty,
+      requiredKnowledge: issue.requiredSkills,
+      scopeClarity: issue.scopeClarity,
+    });
+  });
+
+  protected clearAiExplanation(): void {
+    this._aiExplanation.set(null);
+  }
+
+  protected async explainIssue(): Promise<void> {
+    const item = this.targetSvc.selectedIssue();
+    const repo = this.targetSvc.repoName();
+    if (!item || repo === null) return;
+    this.aiError.set(null);
+
+    const outcome = await this.ai.run(
+      `Explaining issue #${item.number}`,
+      issueExplainerPrompt({
+        repo,
+        number: item.number,
+        title: item.title,
+        body: item.body,
+        labels: item.labels,
+      }),
+    );
+    if (outcome.status === 'declined') return;
+    if (outcome.status === 'error') {
+      this.aiError.set(outcome.message);
+      return;
+    }
+    this._aiExplanation.set(outcome.text);
+  }
 
   protected runSearch(): void {
     void this.targetSvc.search(this.searchText);

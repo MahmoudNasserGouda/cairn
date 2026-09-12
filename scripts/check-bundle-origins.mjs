@@ -51,6 +51,11 @@ const IGNORE = [
   'https://a',
   'https://x',
   'https://foo.bar',
+  // Reviewed 2026-09-12 (BYOK AI slice). Shown to the user as text on /settings —
+  // "this is where you mint a key". Rujoom never opens or fetches them; the origins
+  // it does call are the three provider APIs, which are in ALLOWED_CONNECT_ORIGINS.
+  'https://platform.openai.com',
+  'https://aistudio.google.com',
 ];
 
 const ASSET_EXT = new Set(['.js', '.mjs', '.css', '.html', '.json']);
