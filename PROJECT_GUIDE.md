@@ -17,15 +17,18 @@ context: [`ARCHITECTURE.md`](ARCHITECTURE.md) §1; roadmap: [§15](ARCHITECTURE.
 
 ## Current status
 
-**Phase 2 — Discovery Engine, with the first Phase 3 groundwork laid. Phase 1 is
-complete (monorepo + CI/CD, web app deployed, multi-provider sign-in, real GitHub
-profile, CV import, contribution readiness, and match / confidence / skill-gap scoring
-against a real repo + issue). The product now also *recommends* repositories
-([ADR-0027](docs/adr/0027-search-only-repository-discovery.md)), and — new — the
-optional BYOK AI layer is wired end to end: a `/settings` page holds the user's own
-key, a disclosure panel shows the exact payload before every send, and two features
-consume it (a written issue explanation, and an AI re-read of an imported CV). Both
-keep their deterministic version as the default.**
+**Phase 2 — Discovery Engine shipped, and the work has turned back to the foundations.**
+Phase 1 and 2 are built (monorepo + CI/CD, web app deployed, multi-provider sign-in, real
+GitHub profile, CV import, contribution readiness, match / confidence / skill-gap scoring
+against a real repo + issue, repository discovery, and a BYOK AI layer behind a disclosure
+panel). A review on 2026-09-13 found the optional layer had got ahead of the core it was
+supposed to be optional *to*: the profile holds seven fields, GitHub is read through four
+REST endpoints costing sixteen requests, the CV parser discards the document geometry
+pdf.js hands it, LinkedIn contributes a display name, and the UI is 33 lines of global
+CSS. So: **AI is frozen behind a flag, and the next stretch of work deepens the four data
+sources, rebuilds CV reading as a document pipeline, gives the profile per-field
+provenance, and gives the app a design system.** Six ADRs (0028–0033) and a research
+document (`docs/data-sources.md`) were written first; **no code has changed yet**.
 
 Done:
 
@@ -154,14 +157,28 @@ Done:
   OpenAI key will not work from a web page, and no proxy was added — which is what
   [ADR-0002](docs/adr/0002-no-mandatory-application-backend.md) requires.
 
-Next:
+Next — in order, each phase tests-first ([`docs/testing.md`](docs/testing.md)):
 
-1. First job/opportunity feed — a key-free source behind ADR-0026's acceptance bar, its
-   own mini-ADR, and an `OpportunitySnapshot` in `libs/matching`.
-2. Phase 3 proper — Architecture Explorer, Contribution Navigator, PR Explainer. The
-   disclosure panel and `AiService` they need now exist; `libs/repository-analysis` has
-   the model and `readingOrder` but nothing builds an `ArchitectureModel` from a real
-   repo yet, and `/repositories` is still just a health score.
+1. **Freeze AI** behind `FEATURES.ai` (off by default), keeping `libs/ai` green in CI
+   ([ADR-0033](docs/adr/0033-ai-capability-frozen.md)).
+2. **Fixtures + test scaffolding** — a synthetic CV and LinkedIn-archive corpus; no real
+   PII ever enters the repo.
+3. **Profile v2** — per-field provenance, `manual` always wins, idempotent entity merge,
+   v1→v2 migration ([ADR-0031](docs/adr/0031-profile-v2-provenance.md)).
+4. **GitHub deep read** — one GraphQL request replaces the sixteen REST calls; scopes go
+   to `read:user user:email read:org` ([ADR-0030](docs/adr/0030-github-graphql-profile-read.md)).
+5. **CV reading rebuilt** — `libs/doc-layout` + `libs/cv-parse` over pdf.js geometry, then
+   the `/ocr` sandbox for scanned files
+   ([ADR-0028](docs/adr/0028-ocr-and-document-vision-sandbox.md)).
+6. **LinkedIn archive import** ([ADR-0029](docs/adr/0029-linkedin-data-export-archive-import.md)).
+7. **Design system + IA redesign**
+   ([ADR-0032](docs/adr/0032-design-system-and-information-architecture.md)).
+
+Deferred behind their own mini-ADRs: GitLab (the only provider that supports public-client
+PKCE — it would need no Worker at all), Bitbucket, Stack Exchange, dev.to, and the first
+key-free job feed ([ADR-0026](docs/adr/0026-job-and-opportunity-ingestion.md)). Phase 3
+proper (Architecture Explorer, Contribution Navigator, PR Explainer) waits behind the
+foundations, and its AI half waits behind the freeze.
 
 ## Repo map
 
@@ -177,6 +194,10 @@ apps/web/                  Angular 20 SPA — primary MVP                 [built
   src/app/core/ai/         AiSettingsService (key in `secrets`), AiService (the one call path),
                            disclosure service + dialog — every AI call is gated here (ADR-0010)
   src/app/pages/           dashboard, discover, repositories, profile (CV import + review form), settings
+  src/styles/              design tokens — the one source of visual truth   [planned — ADR-0032]
+  src/app/ui/              cn-* component library                          [planned — ADR-0032]
+  src/app/features/        per-feature container + presentational split     [planned — ADR-0032]
+  public/ocr/              isolated OCR sandbox: own CSP, opaque origin     [planned — ADR-0028]
   public/_headers          security headers + CSP, applied by Cloudflare Workers
   wrangler.toml            Cloudflare Workers static-assets deploy config
 apps/extension/            Manifest V3 extension (esbuild)              [built: content + background]
@@ -197,6 +218,10 @@ libs/github/               GithubClient (cache + dedup + ETag + per-resource rat
 libs/profile/              UnifiedProfile + mergeProfile, githubToProfile, CV parser, contributionReadiness
                            (taxonomy re-exported from libs/shared)
 libs/cv-extract/           PDF/DOCX/text → plain text; own ZIP reader, pdf.js text layer (ADR-0011)
+libs/zip/                  hardened ZIP reader, shared by DOCX + archive    [planned — ADR-0029]
+libs/doc-layout/           pure: positioned runs → columns, blocks, order   [planned — ADR-0028]
+libs/cv-parse/             pure: layout blocks → structured CV              [planned — ADR-0028]
+libs/linkedin-archive/     pure: LinkedIn export ZIP → profile fragment     [planned — ADR-0029]
 libs/portfolio/            metrics, static HTML/MD generator, Ed25519 license verify
 libs/targets/              pure: RepoOverview + healthScore + analyzeIssue → Repository/IssueSnapshot
 libs/auth/                 framework-free multi-provider OAuth (provider records, state, exchange, identity)
@@ -204,7 +229,8 @@ libs/ai/                   IAIProvider (OpenRouter/Gemini/OpenAI), fenced prompt
                            task prompts + strict reply validation (`tasks.ts`)
 scripts/                   check-csp, check-bundle-origins, check-licenses, setup-hooks, test-setup (jsdom/TestBed)
 brand/                     logo.svg / logo-dark.svg / logo.png / mark.svg + brand/README.md
-docs/adr/                  27 ADRs · docs/ci-cd.md · docs/branch-protection.md
+docs/adr/                  33 ADRs · docs/ci-cd.md · docs/branch-protection.md
+                           docs/data-sources.md · docs/design-system.md · docs/testing.md
 ```
 
 ## How we work (conventions)
@@ -231,6 +257,15 @@ docs/adr/                  27 ADRs · docs/ci-cd.md · docs/branch-protection.md
   extraction matches on word boundaries, and tags that are also ordinary English words
   (`go`, `rest`, `spring`, `swift`, `express`, `node`) count only in a qualified form
   or as a standalone list item — see `AMBIGUOUS_SKILLS`.
+- **Tests come before the feature.** A new engine, parser or service lands its failing
+  test file first; a bug fix needs a test that fails without the fix, *verified by
+  reverting the fix*. Fixtures are synthetic and generated by code — no real CV and no
+  real LinkedIn archive ever enters the repo. Full contract:
+  [`docs/testing.md`](docs/testing.md).
+- **AI is frozen.** `FEATURES.ai` is off by default
+  ([ADR-0033](docs/adr/0033-ai-capability-frozen.md)); no new AI feature is built and
+  `libs/ai` is touched only to keep it compiling. Its tests stay green in CI — a frozen
+  library with skipped tests is a broken one. The rule below is what unfreezing restores.
 - **AI is optional, and gated.** Every AI feature has a non-AI fallback
   (`libs/ai/src/fallback.ts`) and shows it *first*; the AI version is an upgrade, never
   the default. Every provider call goes through `core/ai/AiService`, which cannot send
@@ -246,9 +281,14 @@ docs/adr/                  27 ADRs · docs/ci-cd.md · docs/branch-protection.md
 Full list: [`SECURITY.md`](SECURITY.md) §8. Enforced by CI (`check-csp.mjs`,
 `check-bundle-origins.mjs`, CodeQL, gitleaks, OSV, license guard). Short version:
 
-1. No `unsafe-inline` / `unsafe-eval` in **script** CSP directives. `style-src
-   'unsafe-inline'` is a ratified exception for Angular component styles (2026-08-31)
-   and permitted nowhere else. No `bypassSecurityTrust*` and no Trusted Types policy
+1. No `unsafe-inline` / `unsafe-eval` in **script** CSP directives **on the application
+   origin**. `style-src 'unsafe-inline'` is a ratified exception for Angular component
+   styles (2026-08-31) and permitted nowhere else. One further exception, ratified
+   2026-09-13 ([ADR-0028](docs/adr/0028-ocr-and-document-vision-sandbox.md)): the
+   **`/ocr/*` path only** may carry `'wasm-unsafe-eval'`, because no client-side OCR
+   engine exists that is not WebAssembly. That path serves an opaque-origin sandboxed
+   iframe holding no token, no key and no readable storage, under `default-src 'none'`
+   with no network egress. `check-csp.mjs` keeps it a hard failure everywhere else. No `bypassSecurityTrust*` and no Trusted Types policy
    without a reviewed, marked (`cairn-security-reviewed`) exception — two ratified:
    `SafeHtmlService.trust()` (post-DOMPurify + post-Angular-sanitizer only), and the
    `default` Trusted Types policy in `core/cv/worker-url.ts`, which admits a script URL
@@ -302,9 +342,14 @@ one — see `api/optional-serverless/oauth/README.md`.
 
 ## Decisions & open questions
 
-- **Decisions:** [`docs/adr/`](docs/adr/README.md) — 27 ADRs. Accepted: 0001–0014,
-  0016–0027. Future: 0015 (desktop). ADRs 0009 / 0010 / 0011 gained implementation
+- **Decisions:** [`docs/adr/`](docs/adr/README.md) — 33 ADRs. Accepted: 0001–0014,
+  0016–0033. Future: 0015 (desktop). ADRs 0009 / 0010 / 0011 gained implementation
   notes on 2026-09-12 when the BYOK layer was built; none of the decisions changed.
+  **0028–0033 added 2026-09-13** after re-researching what each data source actually
+  exposes ([`docs/data-sources.md`](docs/data-sources.md)): the OCR sandbox, LinkedIn
+  archive import, GitHub GraphQL + scope policy, Profile v2 provenance, the design
+  system, and the AI freeze. 0011 and 0012 keep their decisions; the specific lines they
+  deferred (OCR, "upload a LinkedIn export") are struck through and pointed at 0028/0029.
 - **Open questions:**
   - Per-resource cache TTLs — draft values in `libs/shared/src/config.ts`
     (`CACHE_TTL_MS`); still need calibration ([ADR-0006](docs/adr/0006-direct-github-api-usage.md)).
@@ -362,8 +407,10 @@ one — see `api/optional-serverless/oauth/README.md`.
     generator is *not* shipped. The guide's Status list should not imply otherwise.
   - ~~**No discovery.**~~ → **built 2026-09-11** — `/discover` ranks repositories from
     the profile ([ADR-0027](docs/adr/0027-search-only-repository-discovery.md)).
-    **No manual profile entry** remains: a user can only *deselect* CV-parsed skills,
-    not add one by hand. **Issue-level discovery** also remains manual — discovery
+    ~~**No manual profile entry.**~~ → **decided 2026-09-13**
+    ([ADR-0031](docs/adr/0031-profile-v2-provenance.md)): manual entry is not a gap to
+    fill but the *highest-precedence source* — every field editable, every edit stamped
+    `manual`, and no import may ever overwrite one. Not yet built. **Issue-level discovery** also remains manual — discovery
     recommends a repository, and the issue is still picked from that repo's open list.
   - **The ambiguity gate trades a false positive for a false negative.** Tags in
     `AMBIGUOUS_SKILLS` are missed in unqualified prose outside list position ("uses
@@ -386,8 +433,103 @@ one — see `api/optional-serverless/oauth/README.md`.
     updated in [ADR-0019](docs/adr/0019-security-first-rendering.md) and `SECURITY.md` §8.
   - GitHub Actions pinned by tag, not SHA, on first commit — Renovate
     (`helpers:pinGitHubActionDigests`) converts them on its first PR.
+  - **The OCR sandbox's one real unknown.** An opaque-origin iframe fetches its
+    subresources cross-origin. Whether Cloudflare Workers static assets will serve the
+    `/ocr/*` WASM and model files to that origin under the required
+    `Access-Control-Allow-Origin` is **unverified** and is spiked before the pipeline is
+    built. Fallback: serve the sandbox from a separate Workers subdomain — still $0, and
+    a genuinely cross-origin boundary rather than a same-site one
+    ([ADR-0028](docs/adr/0028-ocr-and-document-vision-sandbox.md)).
+  - **LinkedIn archive filenames are unverified.** They vary by vintage and locale and may
+    sit under a `Complete_LinkedInDataExport_<date>/` folder, so the parser must match
+    case-insensitively by path suffix and degrade per-file rather than failing the import
+    ([ADR-0029](docs/adr/0029-linkedin-data-export-archive-import.md)).
+  - **Stack Exchange and dev.to CORS is unverified.** Both look like good key-free signal
+    sources, and neither has been probed from a browser. They must clear
+    [ADR-0026](docs/adr/0026-job-and-opportunity-ingestion.md)'s acceptance bar first
+    ([`docs/data-sources.md`](docs/data-sources.md) §5).
+  - **GitLab is the one provider that supports public-client PKCE.** If it is ever added
+    it would be the first data connection needing no `cairn-auth` Worker at all — worth
+    weighing against the audience overlap with GitHub before spending the effort.
+  - **Private-repo reading is deliberately not a sign-in scope.** Classic OAuth `repo`
+    grants *write* to every private repository; the owner asked for private-repo data and
+    [ADR-0030](docs/adr/0030-github-graphql-profile-read.md) grants it through a separate,
+    revocable fine-grained PAT (`Metadata` + `Contents` read) instead. If classic `repo`
+    is ever wanted anyway, that needs a new ADR saying so plainly.
+  - **The `secrets` IndexedDB store now has two tenants** — the frozen BYOK key and the
+    optional GitHub PAT. "Clear all AI data" must clear only the former.
 
 ## Changelog
+
+### 2026-09-13 — Documentation first: six ADRs, three guides, and a research pass
+
+Phase 0 of a plan to deepen the product's foundations. **No code changed** — this entry
+records decisions and documents only, deliberately, because the owner asked for the guides
+to be right before anything was built.
+
+The trigger: the BYOK AI layer wired on 2026-09-12 was more finished than the
+deterministic core it is meant to be optional to. `UnifiedProfile` holds seven fields;
+GitHub is read through four REST endpoints costing up to sixteen requests per profile
+load; `itemsToText` discards the coordinates and font metrics pdf.js returns with every
+text run, so two-column CVs interleave and bullets detach from their role; LinkedIn
+contributes a display name; `styles.css` is 33 lines and the `brand/` palette is used by
+nothing but the favicon.
+
+Re-researched what each source actually exposes, and wrote it down as
+**[`docs/data-sources.md`](docs/data-sources.md)**. Three findings moved decisions:
+
+- **LinkedIn's DMA Member Data Portability API is EEA/Switzerland-only** and gated behind
+  a verified company page plus a LinkedIn review. For a product aimed at developers in
+  emerging markets that is not a path. The **data-export archive** — a ZIP the user
+  requests from LinkedIn and hands us — reaches everyone, needs no approval, and is the
+  same local-first shape as the CV drop that already works.
+- **One GitHub GraphQL request returns more than sixteen REST calls do**, at the
+  permission level we already hold: contribution calendar, pinned items, repositories
+  contributed to, organizations, social links, bio, sponsors.
+- **Every client-side OCR engine is WebAssembly**, and WebAssembly under
+  `script-src 'self'` needs `'wasm-unsafe-eval'` — which non-negotiable 1 forbids and
+  `check-csp.mjs` fails the build on. Resolved by moving the engine off the application
+  origin rather than widening its policy.
+
+Added ADRs **0028** (OCR + document vision in an opaque-origin `/ocr/*` sandbox;
+supersedes ADR-0011's OCR deferral), **0029** (LinkedIn archive import; adopts the
+alternative ADR-0012 filed as "future convenience"), **0030** (GitHub GraphQL + scope
+policy), **0031** (Profile v2 with per-field provenance), **0032** (design system + IA),
+**0033** (AI frozen behind `FEATURES.ai`, off by default).
+
+Two decisions worth naming because they are refusals:
+
+- **Classic OAuth `repo` will not be requested.** It grants *write* to every private
+  repository and GitHub offers no read-only equivalent. Private-repo reading is a
+  separate opt-in fine-grained PAT (`Metadata` + `Contents` read), stored like a BYOK key
+  and independently revocable ([ADR-0030](docs/adr/0030-github-graphql-profile-read.md)).
+- **The LinkedIn archive's `Connections.csv`, `messages.csv`, `Invitations.csv`,
+  `Contacts.csv`, `Reactions.csv` and `Comments.csv` are never opened.** That is other
+  people's data and no feature needs it. Enforced by a parser allowlist and a test, not by
+  a line in a README ([ADR-0029](docs/adr/0029-linkedin-data-export-archive-import.md)).
+
+New guides: [`docs/data-sources.md`](docs/data-sources.md),
+[`docs/design-system.md`](docs/design-system.md), [`docs/testing.md`](docs/testing.md).
+
+Updated: `ARCHITECTURE.md` (§1 product summary, §5 layout, §6b CV flow replaced and §6e
+archive flow added, §6c marked frozen, §7 classification, §8 a new document-pipeline
+engine section, §9 security, §15 roadmap, §16 index); `SECURITY.md` (non-negotiable 1
+amended with the `/ocr/*` exception, asset inventory gains the PAT and archive rows, scope
+paragraph rewritten, threat rows **T16–T19** added for hostile images, hostile archives,
+third-party PII and over-scoped credentials); `README.md` (status, features, the BYOK
+row); ADRs 0006 / 0009 / 0010 / 0011 / 0012 / 0025 gained dated cross-reference notes, with
+the two superseded lines in 0011 and 0012 struck through rather than deleted, per the
+lifecycle rule.
+
+Guide sections updated: Current status, Next, Repo map, Conventions (tests-first; AI
+frozen), Security non-negotiables (#1), Decisions & open questions.
+
+- Drift: **none.** No code changed, so nothing can have drifted from an ADR. Four new
+  *unknowns* are now tracked in Open questions rather than left implicit: the OCR
+  sandbox's cross-origin asset fetch is unverified and is spiked before anything is built
+  on it; LinkedIn archive filenames are unverified; Stack Exchange and dev.to CORS is
+  unprobed; and the `secrets` store now has two intended tenants, so "clear all AI data"
+  must clear only the key.
 
 ### 2026-09-13 — One technology vocabulary: word-boundary skill matching
 

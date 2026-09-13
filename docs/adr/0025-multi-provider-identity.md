@@ -7,6 +7,14 @@
   [ADR-0020](0020-oauth-token-and-byok-key-handling.md),
   [ADR-0024](0024-github-oauth-token-exchange-function.md)
 
+
+> **2026-09-13.** Still accurate, and re-verified: LinkedIn has no general profile-data
+> API. Two records extend this one without reversing it —
+> [ADR-0029](0029-linkedin-data-export-archive-import.md) lets the user *hand us a file*
+> LinkedIn exported for them (an import, not a connection: LinkedIn's OAuth role is
+> unchanged), and [ADR-0030](0030-github-graphql-profile-read.md) deepens what the one
+> data connection reads.
+
 ## Context
 
 Users asked to "sign in with GitHub, LinkedIn, Wuzzuf, Indeed, Gulf Talent, …" and

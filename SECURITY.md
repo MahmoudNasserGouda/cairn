@@ -54,15 +54,21 @@ Trust boundaries:
 |-------|-------------|----------------|------------------------|
 | GitHub OAuth access token | High | In-memory + `sessionStorage` mirror for refresh-resilience, tab-scoped, wiped on sign-out (ADR-0020 correction 2026-09-10) / encrypted IndexedDB (opt-in, unbuilt) | Read access to the user's GitHub per granted scopes |
 | BYOK AI API keys | High | IndexedDB `secrets` object store (separate from the `kv` app store, so "clear all AI data" is surgical) / memory-only mode, opt-in per user | Attacker bills the user's AI account |
+| GitHub fine-grained PAT (optional, private-repo read) | High | IndexedDB `secrets` store, same handling as a BYOK key; memory-only mode available; never requested at sign-in | Read access to the private repositories the user selected — `Metadata` + `Contents` read only, never write ([ADR-0030](docs/adr/0030-github-graphql-profile-read.md)) |
 | Unified developer profile / PII | Medium | IndexedDB | Personal data disclosure |
 | CV file contents | Medium | Transient (parsed, not stored raw) | Personal data disclosure |
+| LinkedIn archive contents | Medium | Transient — enumerated, allowlisted files parsed, nothing stored raw; refused files never opened | Personal data disclosure ([ADR-0029](docs/adr/0029-linkedin-data-export-archive-import.md)) |
 | License keys (premium) | Low | IndexedDB | A paid unlock is copyable |
 | License-signing **private** key | Critical | **Never in repo or app** — issuer environment only | Attacker forges premium unlocks |
 | Portfolio data | Low | IndexedDB + user-exported files | Minor; user chooses to publish it |
 
-Scopes are minimised at the source: GitHub `read:user` only (public repository data
-needs no scope; `public_repo` grants _write_ and is not requested), LinkedIn / Google
-`openid profile email` only
+Scopes are minimised at the source: GitHub `read:user`, `user:email` and `read:org`
+(`user:email` lets a CV's address be matched to the account, `read:org` unlocks
+organization affiliations; both are read-only. `public_repo` grants _write_ and is not
+requested, and **classic `repo` is never requested** — it grants full control of private
+repositories including write, so private-repo reading uses a separate, revocable
+fine-grained PAT instead, [ADR-0030](docs/adr/0030-github-graphql-profile-read.md)),
+LinkedIn / Google `openid profile email` only
 ([ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md),
 [ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md)).
 
@@ -86,6 +92,10 @@ needs no scope; `public_repo` grants _write_ and is not requested), LinkedIn / G
 | T13 | **Secrets committed to the repo** | Developer accidentally commits a token/key | gitleaks in CI **and** as a pre-commit hook; repo is designed to contain zero secrets | [ADR-0021](docs/adr/0021-supply-chain-and-dependency-security.md) |
 | T14 | **PII over-exposure in URLs / telemetry** | Profile fields or emails in query strings, referrers, analytics | Never put personal/sensitive data in URLs or query strings; anonymous aggregate telemetry only, opt-in, no PII, no AI payloads | [ADR-0010](docs/adr/0010-ai-key-privacy-and-data-disclosure.md) |
 | T15 | **Portfolio output XSS** | User free-text (bio, project notes) injected into generated HTML that they then host | Portfolio generator sanitises all user input and emits CSP-safe static HTML with no inline handlers | [ADR-0013](docs/adr/0013-client-side-portfolio-generation.md) |
+| T16 | **Hostile document image / OCR engine compromise** | A crafted image or scanned PDF exploits the OCR decoder; or a compromised OCR dependency tries to read the token or beacon data out | OCR runs in an **opaque-origin sandboxed iframe** (`sandbox="allow-scripts"`, no `allow-same-origin`) on `/ocr/*`, which has **no** access to `sessionStorage`, IndexedDB, the `secrets` store, the GitHub token or the BYOK key. That path has its own CSP (`default-src 'none'`; `script-src 'self' 'wasm-unsafe-eval'`) with **no network egress** beyond its own assets; the application origin's CSP is unchanged and still refuses WebAssembly. Recognised text is untrusted and goes to the mandatory review form | [ADR-0028](docs/adr/0028-ocr-and-document-vision-sandbox.md); `scripts/check-csp.mjs` |
+| T17 | **Malicious LinkedIn archive** | Zip bomb, entry-count bomb, lying size header, path traversal in an entry name, CSV formula injection | Same hardened ZIP reader as DOCX (entry cap, declared-size check, streaming byte cap that aborts mid-inflate); entry names are matched against a **read allowlist** and never used as filesystem paths; every CSV value is untrusted text, interpolated and never rendered as HTML; leading `=` `+` `-` `@` stripped from any exported field; parsed in the sandboxed worker under a size cap and time budget | [ADR-0029](docs/adr/0029-linkedin-data-export-archive-import.md) |
+| T18 | **Third-party PII ingestion** | A LinkedIn archive contains the connections, contacts and message history of people who never consented to Rujoom | The parser reads a **fixed allowlist** of career files and never opens `Connections.csv`, `messages.csv`, `Invitations.csv`, `Contacts.csv`, `Reactions.csv` or `Comments.csv`. Enforced in code and asserted by a test, not merely documented | [ADR-0029](docs/adr/0029-linkedin-data-export-archive-import.md) |
+| T19 | **Over-scoped GitHub credential** | A token that can *write* to private repositories is obtained for a read-only purpose and then stolen from `sessionStorage` | Sign-in never requests classic `repo` (which grants full control of private repositories including write). Private-repo reading is a separate opt-in using a **fine-grained PAT** limited to `Metadata: read` + `Contents: read`, stored in the isolated `secrets` IndexedDB store with the same handling as a BYOK key, and independently revocable | [ADR-0030](docs/adr/0030-github-graphql-profile-read.md) |
 
 ## 4. Supply chain & dependencies
 
@@ -139,10 +149,21 @@ needs no scope; `public_repo` grants _write_ and is not requested), LinkedIn / G
 ## 8. Non-negotiables (never violate)
 
 1. No `unsafe-inline` / `unsafe-eval` in **script** CSP directives (`script-src`,
-   `script-src-elem`, `default-src`). `style-src 'unsafe-inline'` is an accepted
-   exception for Angular component styles on a nonce-less static host (ratified
-   2026-08-31, [ADR-0019](docs/adr/0019-security-first-rendering.md)); it is not
-   permitted in any other directive. No `bypassSecurityTrust*`, and no Trusted Types
+   `script-src-elem`, `default-src`) **on the application origin**. `style-src
+   'unsafe-inline'` is an accepted exception for Angular component styles on a
+   nonce-less static host (ratified 2026-08-31,
+   [ADR-0019](docs/adr/0019-security-first-rendering.md)); it is not permitted in any
+   other directive.
+
+   One further exception, ratified 2026-09-13
+   ([ADR-0028](docs/adr/0028-ocr-and-document-vision-sandbox.md)): the **`/ocr/*` path
+   only** may carry `'wasm-unsafe-eval'`, because no client-side OCR engine exists that
+   is not WebAssembly. That path serves a document embedded as an opaque-origin
+   sandboxed iframe — it holds no token, no key and no storage the app can see — and its
+   CSP is `default-src 'none'` with no network egress beyond its own assets. The
+   application's `/*` CSP is unchanged and still refuses WebAssembly compilation.
+   `scripts/check-csp.mjs` enforces both halves: `'wasm-unsafe-eval'` remains a hard
+   build failure in the application block and is accepted **only** in `/ocr/*`. No `bypassSecurityTrust*`, and no Trusted Types
    policy, without a reviewed exception marked `cairn-security-reviewed` in the
    source — currently two:
    - `SafeHtmlService.trust()`, applied only to output already run through DOMPurify

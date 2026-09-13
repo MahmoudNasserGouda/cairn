@@ -36,7 +36,7 @@ bill — you bring your own API key if you want AI features at all.
 | 🧭 **Deterministic, explainable scoring** | Repository match, health, and contribution confidence are computed from named, weighted signals — never a black-box model. Every score shows *why*. |
 | 🔒 **Security-first** | Strict CSP, Trusted Types, allowlist sanitisation of everything external, OAuth Authorization Code through an origin-allowlisted token-exchange Worker, minimal pinned dependencies, and CI gates (CodeQL · OSV · gitleaks · custom CSP/bundle guards). See [`SECURITY.md`](SECURITY.md). |
 | 💸 **$0 to run** | Static hosting on a free tier, direct third-party APIs, local storage. Target infra cost for the MVP: **$0/month**. |
-| 🔑 **Bring your own key** | AI (architecture explorer, issue explainer, contribution navigator) is an *optional* enhancement via OpenAI / Gemini / OpenRouter. Keys stay on your device. Every AI feature has a non-AI fallback. |
+| 🔑 **Bring your own key** | AI is an *optional* enhancement via your own OpenAI / Gemini / OpenRouter key — built, and currently **frozen off by default** ([ADR-0033](docs/adr/0033-ai-capability-frozen.md)) while the deterministic core is deepened. Every AI feature has a non-AI fallback, and those fallbacks are what ships. |
 | 📦 **One shared core, many clients** | Framework-free TypeScript libraries power the web app today and a browser extension / desktop agent later. |
 
 ## Features
@@ -46,6 +46,10 @@ bill — you bring your own API key if you want AI features at all.
 - Multi-provider sign-in (GitHub · LinkedIn · Google); GitHub is the data connection
 - Unified developer profile from **GitHub analysis** + **CV upload** (PDF / .docx / txt,
   parsed on-device in a sandboxed worker, with a mandatory review step)
+- *In progress:* a much deeper profile — GitHub read over GraphQL, layout-aware CV
+  parsing with OCR for scanned files, **LinkedIn data-export archive import**, and
+  per-field provenance where your own edits always outrank an import
+  ([ADR-0028](docs/adr/0028-ocr-and-document-vision-sandbox.md)–[0031](docs/adr/0031-profile-v2-provenance.md))
 - **Contribution readiness** — a target-free score of how prepared you are, with
   ranked next steps
 - **Repository discovery** — your profile becomes a handful of GitHub searches, and the
@@ -168,13 +172,18 @@ review. New contributors: [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) is the fastest 
 
 ## Status
 
-Phase 1 (Foundation). The web app is live on Cloudflare Workers, backed by twelve
-shared libraries (157 passing tests), the browser extension, and the full CI/CD
-pipeline. Multi-provider sign-in (GitHub for data; LinkedIn/Google for identity), a real
-GitHub-derived unified profile, local-first CV import, contribution-readiness scoring,
-and a dashboard that scores against a real repo + issue the user picks are all shipped.
-Next up: make the comparison target always a real repo/issue (drop the demo fallback),
-then the first key-free job/opportunity feed.
+Phase 2 (Discovery), with Phase 1 being deepened. The web app is live on Cloudflare
+Workers, backed by thirteen shared libraries (367 passing tests), the browser extension,
+and the full CI/CD pipeline. Shipped: multi-provider sign-in (GitHub for data;
+LinkedIn/Google for identity), a GitHub-derived unified profile, local-first CV import,
+contribution-readiness scoring, repository discovery, and scoring against a real repo +
+issue the user picks.
+
+Current work goes back to the foundations rather than forward to new features: read each
+data source properly, parse a CV like a document instead of a string, make the profile
+editable with provenance, and give the app a design system. The optional AI layer is
+frozen meanwhile. See [`docs/data-sources.md`](docs/data-sources.md) and ADRs
+[0028](docs/adr/0028-ocr-and-document-vision-sandbox.md)–[0033](docs/adr/0033-ai-capability-frozen.md).
 
 ## License
 

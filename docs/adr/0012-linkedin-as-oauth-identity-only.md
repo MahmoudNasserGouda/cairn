@@ -10,6 +10,15 @@
 > identity layer with GitHub and Google; its token is discarded right after the one
 > `userinfo` call. Same "no scraping, CV/GitHub/manual for real history" stance.
 
+
+> **2026-09-13.** [ADR-0029](0029-linkedin-data-export-archive-import.md) adopts the
+> data-export archive this record filed under "possible future convenience". It changes
+> nothing here: LinkedIn stays an identity provider on `openid profile email`, there is
+> still no scraping and no unofficial endpoint, and the archive is a **file the user hands
+> us**, not a connection. The DMA Member Data Portability API is documented in
+> [`docs/data-sources.md`](../data-sources.md) and deliberately not built — it reaches
+> EEA and Swiss members only.
+
 ## Context
 
 The spec lists LinkedIn OAuth as an identity source. Its LinkedIn integration strategy:
@@ -43,5 +52,7 @@ LinkedIn exposes too little, and the product must remain useful without LinkedIn
 
 - **Scrape LinkedIn profiles the user pastes.** Rejected: violates LinkedIn ToS and the
   spec's explicit prohibition.
-- **Ask users to upload a LinkedIn data export.** Possible future convenience; not a
-  launch feature.
+- ~~**Ask users to upload a LinkedIn data export.** Possible future convenience; not a
+  launch feature.~~ **Adopted 2026-09-13** as
+  [ADR-0029](0029-linkedin-data-export-archive-import.md) — it turned out to be the only
+  path to real profile data that reaches members outside the EEA.

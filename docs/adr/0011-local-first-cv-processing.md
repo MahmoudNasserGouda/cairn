@@ -4,6 +4,14 @@
 - Date: 2026-08-30
 - Deciders: Project owner
 
+
+> **2026-09-13.** Two extensions, neither reversing the decision above.
+> [ADR-0028](0028-ocr-and-document-vision-sandbox.md) supersedes the OCR deferral and adds
+> geometry-aware document parsing (the coordinates and font metrics `extractPdfText`
+> currently discards). [ADR-0031](0031-profile-v2-provenance.md) makes the parser's output
+> a *provenance-tagged proposal* rather than a set of fields. The mandatory review step,
+> the "no bytes leave the device" rule and the local-first requirement are unchanged.
+
 ## Context
 
 Phase 1 accepts a CV upload (PDF/DOCX) as a skill source. The spec prefers local-first
@@ -34,8 +42,10 @@ Safety limits (file size cap, worker timeout, no macro/embedded-object execution
 
 - Parser quality for messy real-world CVs will be imperfect; the mandatory review step
   absorbs that.
-- Scanned/image-only PDFs yield no text; the UI detects this and points the user to
-  manual entry or GitHub analysis instead of bundling an OCR engine.
+- ~~Scanned/image-only PDFs yield no text; the UI detects this and points the user to
+  manual entry or GitHub analysis instead of bundling an OCR engine.~~ **Superseded
+  2026-09-13** by [ADR-0028](0028-ocr-and-document-vision-sandbox.md): such files are now
+  read by an OCR engine confined to an isolated, opaque-origin sandbox.
 - The skills taxonomy is a shared asset also used by matching
   ([ADR-0007](0007-deterministic-explainable-matching-engine.md)) and must be versioned.
 
@@ -45,7 +55,11 @@ Safety limits (file size cap, worker timeout, no macro/embedded-object execution
   violates [ADR-0001](0001-local-first-zero-cost-architecture.md) and adds cost and
   liability.
 - **Mandatory AI extraction.** Rejected: the spec requires a working no-paid-AI path.
-- **Bundle a WASM OCR engine.** Deferred: large payload for a minority of inputs.
+- ~~**Bundle a WASM OCR engine.** Deferred: large payload for a minority of inputs.~~
+  **Reversed 2026-09-13** by [ADR-0028](0028-ocr-and-document-vision-sandbox.md). The
+  payload objection is answered by lazy-loading it only for files with no text layer; the
+  CSP objection — WebAssembly needs `'wasm-unsafe-eval'`, which non-negotiable 1 forbids —
+  is answered by running the engine off the application origin entirely.
 
 ## Implementation notes
 

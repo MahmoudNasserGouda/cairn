@@ -65,3 +65,9 @@ supersedes it and update the old record's Status line to point at the new one.
 | 0025 | Multi-provider identity; GitHub is the only data connection      | Accepted            |
 | 0026 | Job and opportunity ingestion: feeds and user capture           | Accepted            |
 | 0027 | Repository discovery ranks from search results alone            | Accepted            |
+| 0028 | Client-side OCR and document vision in an isolated CSP sandbox  | Accepted            |
+| 0029 | LinkedIn data-export archive import                             | Accepted            |
+| 0030 | GitHub GraphQL profile read + scope policy                      | Accepted            |
+| 0031 | Profile v2: one editable profile with per-field provenance      | Accepted            |
+| 0032 | Design system and information architecture                      | Accepted            |
+| 0033 | The AI capability is frozen behind a flag                       | Accepted            |
