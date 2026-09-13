@@ -4,6 +4,7 @@ import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import type { ParsedCv, UnifiedProfile } from '@cairn/profile';
 import { ProfileComponent } from './profile.component';
+import { AI_ENABLED } from '../core/features';
 import { AiService } from '../core/ai/ai.service';
 import { AiSettingsService } from '../core/ai/ai-settings.service';
 import { CvImportService } from '../core/cv/cv-import.service';
@@ -54,6 +55,10 @@ function render(opts: {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([]),
+      // AI ships frozen (ADR-0033). These tests cover the *enabled* path, which
+      // has to keep working for unfreezing to be one constant; the frozen path is
+      // covered in core/ai/ai-freeze.test.ts.
+      { provide: AI_ENABLED, useValue: true },
       {
         provide: CvImportService,
         useValue: {

@@ -4,6 +4,21 @@
  * against (SECURITY.md, scripts/check-bundle-origins.mjs).
  */
 
+/**
+ * Capability flags. Framework-free and build-time, so every client reads the same
+ * answer; `apps/web` wraps this in an injection token so both states stay testable.
+ *
+ * `ai` — the BYOK layer is built and correct but **frozen off**
+ * ([ADR-0033](../../../docs/adr/0033-ai-capability-frozen.md)) while the deterministic
+ * core it is meant to be optional *to* is brought up to strength. With it off nothing
+ * can reach a provider: no key can be entered, no AI control renders, and `AiService`
+ * refuses before it would even open the disclosure panel. Unfreezing is this one
+ * constant — and ADRs 0009 and 0010 still govern what happens next.
+ */
+export const FEATURES = {
+  ai: false,
+} as const;
+
 /** Origins the app is permitted to talk to. Keep in sync with apps/web/public/_headers. */
 export const ALLOWED_CONNECT_ORIGINS: readonly string[] = [
   'https://api.github.com',

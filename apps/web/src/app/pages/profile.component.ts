@@ -8,6 +8,7 @@ import {
 } from '@cairn/ai';
 import type { ExperienceEntry, ParsedCv } from '@cairn/profile';
 import type { SkillProficiency } from '@cairn/shared';
+import { AI_ENABLED } from '../core/features';
 import { AiService } from '../core/ai/ai.service';
 import { AiSettingsService } from '../core/ai/ai-settings.service';
 import { CvImportService } from '../core/cv/cv-import.service';
@@ -203,31 +204,33 @@ function toEntry(role: RoleDraft): ExperienceEntry {
           <p class="muted small">Sections recognised: {{ form.sections.join(', ') }}</p>
         }
 
-        <div class="refine">
-          @if (aiSettings.hasKey()) {
-            <button
-              type="button"
-              class="ghost"
-              [disabled]="ai.running()"
-              (click)="refine()"
-            >
-              {{ ai.running() ? 'Asking your provider…' : 'Re-read this CV with AI' }}
-            </button>
-            <span class="muted small">
-              Sends the CV text to your own {{ aiSettings.provider() }} key. You'll see
-              exactly what goes, and nothing is applied until you accept it.
-            </span>
-          } @else {
-            <p class="muted small">
-              A parser read this, not a model. Add your own API key under
-              <a routerLink="/settings">Settings</a> to have one re-read the CV and
-              suggest what the parser missed.
-            </p>
-          }
-          @if (aiError(); as message) {
-            <p class="error" role="alert">{{ message }}</p>
-          }
-        </div>
+        @if (aiEnabled) {
+          <div class="refine">
+            @if (aiSettings.hasKey()) {
+              <button
+                type="button"
+                class="ghost"
+                [disabled]="ai.running()"
+                (click)="refine()"
+              >
+                {{ ai.running() ? 'Asking your provider…' : 'Re-read this CV with AI' }}
+              </button>
+              <span class="muted small">
+                Sends the CV text to your own {{ aiSettings.provider() }} key. You'll see
+                exactly what goes, and nothing is applied until you accept it.
+              </span>
+            } @else {
+              <p class="muted small">
+                A parser read this, not a model. Add your own API key under
+                <a routerLink="/settings">Settings</a> to have one re-read the CV and
+                suggest what the parser missed.
+              </p>
+            }
+            @if (aiError(); as message) {
+              <p class="error" role="alert">{{ message }}</p>
+            }
+          </div>
+        }
 
         @if (proposal()) {
           <div class="proposal">
@@ -544,6 +547,8 @@ export class ProfileComponent {
   protected readonly profileSvc = inject(ProfileService);
   protected readonly ai = inject(AiService);
   protected readonly aiSettings = inject(AiSettingsService);
+  /** Frozen off by default; the whole refinement block is absent then (ADR-0033). */
+  protected readonly aiEnabled = inject(AI_ENABLED);
 
   protected readonly dragging = signal(false);
   protected readonly maxMb = Math.round(this.cv.maxBytes / (1024 * 1024));

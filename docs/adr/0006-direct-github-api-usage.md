@@ -4,6 +4,14 @@
 - Date: 2026-08-30
 - Deciders: Project owner
 
+
+> **2026-09-13.** [ADR-0030](0030-github-graphql-profile-read.md) adds GitHub's **GraphQL**
+> endpoint as the profile data path — one request in place of the sixteen REST calls a
+> profile load used to cost. Everything this record requires of the client (caching,
+> deduplication, ETag revalidation, per-resource rate-limit awareness) applies to it
+> unchanged; `graphql` is simply a third resource alongside `core` and `search`. REST
+> remains the transport for repository analysis, issues and search.
+
 ## Context
 
 GitHub is the central data source: repository metadata, languages, issues, pull

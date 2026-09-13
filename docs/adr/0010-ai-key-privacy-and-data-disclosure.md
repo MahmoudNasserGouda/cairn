@@ -4,6 +4,12 @@
 - Date: 2026-08-30
 - Deciders: Project owner
 
+
+> **2026-09-13.** AI is frozen behind a flag ([ADR-0033](0033-ai-capability-frozen.md));
+> this record is unamended and still governs any future AI call. The isolated `secrets`
+> IndexedDB store it specifies does not become dead schema: it is also where
+> [ADR-0030](0030-github-graphql-profile-read.md)'s optional read-only GitHub PAT lives.
+
 ## Context
 
 The spec's AI privacy requirements: API keys must remain on the user's device, never be

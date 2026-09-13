@@ -4,6 +4,12 @@
 - Date: 2026-08-30
 - Deciders: Project owner
 
+
+> **2026-09-13.** The AI capability is **frozen behind an off-by-default flag**
+> ([ADR-0033](0033-ai-capability-frozen.md)) while the deterministic core it is meant to
+> be optional *to* is brought up to strength. Nothing in this record is amended — its
+> terms are exactly what unfreezing must still satisfy.
+
 ## Context
 
 Phase 3 (Open Source Copilot) and later phases use AI for the Architecture Explorer,

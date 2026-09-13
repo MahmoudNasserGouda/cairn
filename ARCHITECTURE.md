@@ -3,7 +3,11 @@
 This is the entry point for the Rujoom architecture. It gives the system
 picture and links to the deeper documents:
 
-- **Decisions:** [`docs/adr/`](docs/adr/README.md) — 23 Architecture Decision Records.
+- **Decisions:** [`docs/adr/`](docs/adr/README.md) — 33 Architecture Decision Records.
+- **Data sources:** [`docs/data-sources.md`](docs/data-sources.md) — what each source
+  actually exposes, and why.
+- **Design:** [`docs/design-system.md`](docs/design-system.md) · **Testing:**
+  [`docs/testing.md`](docs/testing.md).
 - **Security:** [`SECURITY.md`](SECURITY.md) — trust model, threat model, controls.
 - **CI/CD:** [`docs/ci-cd.md`](docs/ci-cd.md) — pipeline and gates.
 - **Working guide:** [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) — current status and conventions.
@@ -16,8 +20,10 @@ meaningful contributions, and turn those contributions into professional opportu
 
 The product is organised around five questions:
 
-1. **Who am I?** — a unified developer profile from GitHub, optional LinkedIn/Google, a
-   CV, and manual entry.
+1. **Who am I?** — one editable developer profile merged from four sources — GitHub
+   (deep read over GraphQL), a LinkedIn data-export archive, a CV, and manual entry —
+   with **per-field provenance**, where a hand edit always outranks an import
+   ([ADR-0031](docs/adr/0031-profile-v2-provenance.md)).
 2. **What should I contribute to?** — repository and issue discovery.
 3. **Why is it a good match?** — deterministic, explainable match and health scores.
 4. **How do I start?** — the Open Source Copilot (architecture explorer, issue
@@ -116,11 +122,20 @@ Single Git monorepo, npm workspaces, TypeScript `strict`
 OpenSourceCompass/
 ├── apps/
 │   ├── web/                  # Angular SPA — the primary MVP
+│   │   ├── src/styles/       # design tokens — the one source of visual truth
+│   │   ├── src/app/ui/       # cn-* component library
+│   │   ├── src/app/features/ # one folder per feature: container + presentational
+│   │   └── public/ocr/       # isolated OCR sandbox: own CSP, opaque origin
 │   ├── extension/            # MV3 browser extension (after web MVP)
 │   └── desktop/              # future — Tauri shell + local analysis
 ├── libs/
-│   ├── github/               # cached, deduped, rate-limit-aware GitHub client
-│   ├── profile/              # unified profile model, CV text extraction + parser, skills taxonomy
+│   ├── github/               # cached, deduped, rate-limit-aware GitHub client (REST + GraphQL)
+│   ├── profile/              # unified profile model + provenance merge, skills taxonomy
+│   ├── cv-extract/           # CV bytes -> text + positioned layout runs
+│   ├── doc-layout/           # pure: positioned runs -> columns, blocks, reading order
+│   ├── cv-parse/             # pure: layout blocks -> structured CV
+│   ├── linkedin-archive/     # pure: LinkedIn export ZIP -> profile fragment
+│   ├── zip/                  # hardened ZIP reader shared by DOCX + archive
 │   ├── matching/             # repository & issue match scores
 │   ├── scoring/              # score primitives, explanation objects, versioned weights config
 │   ├── repository-analysis/  # health engine, architecture model, reading order
@@ -172,34 +187,41 @@ sequenceDiagram
     App->>App: compute scores locally (libs/matching, libs/scoring)
 ```
 
-### 6b. CV upload → local parse
+### 6b. CV upload → layout parse (→ OCR only when there is no text layer)
 
 ```mermaid
 sequenceDiagram
     participant U as User
     participant App as Web app
     participant W as Sandboxed Web Worker
-    participant P as libs/profile parser
-    participant AI as BYOK provider (optional)
+    participant L as libs/doc-layout
+    participant P as libs/cv-parse
+    participant O as /ocr sandbox (opaque origin)
 
-    U->>App: Upload CV (PDF/DOCX)
+    U->>App: Upload CV (PDF/DOCX/image)
     App->>App: enforce size cap
     App->>W: file bytes (never leave device)
-    W->>W: extract text (timeout + CPU budget)
-    W-->>App: plain text
-    App->>P: parse (sections, skills taxonomy, date ranges)
-    P-->>App: draft profile fields
-    opt user has AI key
-        App->>U: disclosure panel — "CV text will be sent to <provider>"
-        U->>App: confirm
-        App->>AI: extract structured fields
-        AI-->>App: suggestions (sanitised, untrusted)
+    W->>W: extract positioned text runs (timeout + CPU budget)
+    alt has a text layer
+        W->>L: runs with x/y/size/weight
+        L-->>W: columns, blocks, reading order, headings
+    else scanned / image-only
+        W-->>App: empty: true
+        App->>O: page images over postMessage
+        Note over O: WASM OCR. No token, no key,<br/>no storage, no network egress.
+        O-->>App: recognised text + boxes
     end
+    App->>P: layout blocks → structured CV
+    P-->>App: draft fields, each tagged source: 'cv'
     App->>U: editable review form
-    U->>App: confirm → commit to unified profile (IndexedDB)
+    U->>App: confirm → merge with provenance (IndexedDB)
 ```
 
-### 6c. BYOK AI request with disclosure
+### 6c. BYOK AI request with disclosure — **frozen**
+
+> Built and correct, but gated off by default behind `FEATURES.ai`
+> ([ADR-0033](docs/adr/0033-ai-capability-frozen.md)) while the deterministic core it
+> enhances is brought up to strength. The flow below is what unfreezing restores.
 
 ```mermaid
 sequenceDiagram
@@ -237,13 +259,36 @@ sequenceDiagram
     U->>U: deploy to their own GitHub Pages / Cloudflare Pages
 ```
 
+### 6e. LinkedIn data-export archive → local parse
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant LI as linkedin.com
+    participant App as Web app
+    participant W as Sandboxed Web Worker
+    participant A as libs/linkedin-archive
+
+    U->>LI: Settings → Data Privacy → Get a copy of your data
+    LI-->>U: ZIP of CSVs (by email, 72h)
+    U->>App: drop the archive
+    App->>W: file bytes (never leave device)
+    W->>A: enumerate entries
+    A->>A: read ONLY the allowlist (Profile, Positions, Education,<br/>Skills, Certifications, Projects, Languages, Emails)
+    Note over A: Connections / messages / Invitations / Contacts<br/>are never opened — other people's data.
+    A-->>App: draft fields, each tagged source: 'linkedin'
+    App->>U: editable review form
+    U->>App: confirm → merge with provenance (IndexedDB)
+```
+
 ## 7. Data classification & storage
 
 | Class | Examples | Where | Policy |
 |-------|----------|-------|--------|
-| **User-specific** | Unified profile, skills, interests, saved repos/issues, preferences, AI config | IndexedDB (local only) | Source of truth; export/import JSON for backup; sync deferred ([ADR-0003](docs/adr/0003-no-mandatory-database-local-first-storage.md)) |
-| **Secrets** | GitHub token, BYOK AI keys | Memory by default; encrypted IndexedDB / isolated store opt-in | Never logged, never to Rujoom, never in URLs ([ADR-0010](docs/adr/0010-ai-key-privacy-and-data-disclosure.md), [ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)) |
+| **User-specific** | Unified profile (v2: contact, links, experience, education, projects, certifications, languages, skills — each with provenance), interests, saved repos/issues, preferences | IndexedDB (local only) | Source of truth; export/import JSON for backup; sync deferred ([ADR-0003](docs/adr/0003-no-mandatory-database-local-first-storage.md)) |
+| **Secrets** | GitHub token, BYOK AI keys, optional read-only fine-grained PAT | Memory by default; encrypted IndexedDB / isolated store opt-in | Never logged, never to Rujoom, never in URLs ([ADR-0010](docs/adr/0010-ai-key-privacy-and-data-disclosure.md), [ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)) |
 | **Public repo data** | Metadata, languages, issues, PRs, contributors, commit activity | IndexedDB cache from GitHub | Per-resource TTL, ETag revalidation, size cap + LRU eviction ([ADR-0006](docs/adr/0006-direct-github-api-usage.md)) |
+| **Imported documents** | CV bytes and text, LinkedIn archive bytes | Never persisted — transient in the worker and the review form only | The reviewed *fields* persist; the file never does ([ADR-0011](docs/adr/0011-local-first-cv-processing.md), [ADR-0029](docs/adr/0029-linkedin-data-export-archive-import.md)) |
 | **Derived** | Match Score, Health Score, Difficulty, Confidence, portfolio metrics | Not persisted (recomputed) or cached briefly with inputs | Deterministic, explainable ([ADR-0007](docs/adr/0007-deterministic-explainable-matching-engine.md), [ADR-0008](docs/adr/0008-ai-free-repository-health-engine.md)) |
 
 ## 8. Engines (AI-free, deterministic)
@@ -302,6 +347,26 @@ Discovery's score is deliberately coarser than Repository Match and is not compa
 with it: the cheap score produces a shortlist, and a repository the user then picks
 goes through the full health + match path.
 
+### Document pipeline — `libs/cv-extract` + `libs/doc-layout` + `libs/cv-parse`
+
+Same rules: pure, deterministic, no network, no clock. Three stages, each testable alone.
+
+```
+bytes ──> cv-extract ──> doc-layout ─────> cv-parse ──> ParsedCv
+          text + positioned    columns,        sections, roles
+          runs (x, y, size,    blocks,         + their bullets,
+          weight)              reading order   education, projects
+                   │
+                   └─ no text layer? ──> /ocr sandbox ──> text + boxes
+```
+
+The reason this is a pipeline and not one parser: **layout is where CV parsing is won or
+lost**, and layout is decidable from geometry alone. A two-column CV interleaves only if
+you have thrown away the x-coordinate; a bullet detaches from its role only if you have
+thrown away the indent. pdf.js hands both over with every text run, and the old
+`itemsToText` discarded them. OCR is the exception path, not the pipeline
+([ADR-0028](docs/adr/0028-ocr-and-document-vision-sandbox.md)).
+
 ### Repository Health Engine — `libs/repository-analysis`
 
 Signal-based, same rules. Signals: recent commit activity, release cadence, issue
@@ -320,14 +385,22 @@ See [ADR-0008](docs/adr/0008-ai-free-repository-health-engine.md).
 
 ## 9. Security architecture
 
-Everything from GitHub, LinkedIn, AI providers, CV files, and repository content is
-**untrusted input** rendered in a browser context that holds the user's GitHub token
+Everything from GitHub, LinkedIn, AI providers, CV files, LinkedIn archives, and
+repository content is **untrusted input** rendered in a browser context that holds the user's GitHub token
 and BYOK AI keys. The response is: strict CSP with no `unsafe-inline`/`eval`, Trusted
 Types, an allowlist HTML sanitiser on all Markdown and AI output, OAuth Authorization
 Code with an exact redirect-URI allowlist and an origin-allowlisted token-exchange
 Worker (no provider we use offers public-client PKCE — see ADR-0024), in-memory
 token storage mirrored only into `sessionStorage`,
 minimal pinned dependencies with CI scanning, and least-privilege everywhere.
+
+One capability cannot be provided under that CSP: WebAssembly, which every client-side
+OCR engine needs. Rather than widen the application's policy, the OCR engine runs in an
+**opaque-origin sandboxed iframe** on its own `/ocr/*` path with its own CSP — no token,
+no key, no storage the app can see, and no network egress. `scripts/check-csp.mjs`
+enforces both halves of that: `'wasm-unsafe-eval'` stays a hard build failure on the
+application origin and is accepted only there
+([ADR-0028](docs/adr/0028-ocr-and-document-vision-sandbox.md)).
 
 Full trust model, asset inventory, STRIDE-lite threat table, and the non-negotiables
 list: **[SECURITY.md](SECURITY.md)**. Decisions:
@@ -404,9 +477,9 @@ Add any of these only when a concrete product requirement justifies it, via a ne
 
 | Phase | Product goal | Enabling components | Key ADRs | Hackathon scope? |
 |-------|--------------|---------------------|----------|------------------|
-| **1 — Foundation & Profile Intelligence** | Unified developer profile, readiness dashboard | `libs/profile`, `libs/github`, `libs/matching`, `libs/scoring`, `libs/shared` | 0001, 0003, 0006, 0007, 0011, 0012, 0020 | ✅ (GitHub OAuth, LinkedIn OAuth, CV upload, unified profile, confidence score) |
+| **1 — Foundation & Profile Intelligence** | One editable profile from four sources, with provenance; readiness dashboard | `libs/profile`, `libs/github` (GraphQL), `libs/cv-extract`, `libs/doc-layout`, `libs/cv-parse`, `libs/linkedin-archive`, `libs/zip`, `libs/matching`, `libs/scoring`, `libs/shared` | 0001, 0003, 0006, 0007, 0011, 0012, 0020, **0028–0031** | ✅ shipped thin; **being deepened** — GraphQL read, layout-aware CV parsing + OCR, LinkedIn archive import, Profile v2 |
 | **2 — Discovery Engine** | Repository & issue discovery, filters, health | `libs/discovery`, `libs/github`, `libs/repository-analysis`, `libs/issue-analysis`, `libs/matching` | 0006, 0007, 0008, 0027 | ✅ (repo discovery, match engine, health analysis; issue-level discovery still manual) |
-| **3 — Open Source Copilot** | Architecture Explorer, Issue Explainer, Contribution Navigator, PR Explainer, Reading Order | `libs/ai`, `libs/repository-analysis`, `libs/issue-analysis` | 0009, 0010, 0019 | ✅ WOW features: Architecture Explorer, Issue Explainer, Contribution Navigator |
+| **3 — Open Source Copilot** | Architecture Explorer, Issue Explainer, Contribution Navigator, PR Explainer, Reading Order | `libs/ai`, `libs/repository-analysis`, `libs/issue-analysis` | 0009, 0010, 0019, **0033** | ⏸ **AI frozen** behind `FEATURES.ai` ([ADR-0033](docs/adr/0033-ai-capability-frozen.md)); deterministic parts unaffected |
 | **4 — Growth Engine** | Skill gap analysis, learning recs, roadmaps | `libs/matching` (skill gap), `libs/ai` (optional), curated content data | 0007, 0009 | ➖ |
 | **5 — Contributor Identity** | Portfolio, OSS resume, timeline, analytics | `libs/portfolio`, `libs/scoring` | 0013, 0018 | ✅ (contributor portfolio) |
 | **6 — Community Layer** | Reviews, stories, guides, recommendations | `api/optional-serverless` + serverless DB | 0016 | ➖ (needs backend) |
@@ -417,5 +490,17 @@ Add any of these only when a concrete product requirement justifies it, via a ne
 
 See [`docs/adr/README.md`](docs/adr/README.md) for the full table. Summary:
 
-- **Accepted:** 0001–0014, 0017 (principle), 0018–0027.
+- **Accepted:** 0001–0014, 0017 (principle), 0018–0033.
 - **Proposed / future:** 0015 (desktop agent), 0016 (serverless API).
+
+Added 2026-09-13, after re-researching what each data source actually exposes
+([`docs/data-sources.md`](docs/data-sources.md)):
+
+| ADR | Decision |
+|-----|----------|
+| [0028](docs/adr/0028-ocr-and-document-vision-sandbox.md) | OCR and document vision; WebAssembly confined to an opaque-origin `/ocr/*` sandbox |
+| [0029](docs/adr/0029-linkedin-data-export-archive-import.md) | LinkedIn data-export archive import — the only path to real profile data outside the EEA |
+| [0030](docs/adr/0030-github-graphql-profile-read.md) | GitHub GraphQL profile read; `read:user user:email read:org`, and **never** classic `repo` |
+| [0031](docs/adr/0031-profile-v2-provenance.md) | Profile v2 — per-field provenance, `manual` always wins, idempotent merge |
+| [0032](docs/adr/0032-design-system-and-information-architecture.md) | Design tokens, a `cn-*` component library, sidebar shell, `/profile` as a hub |
+| [0033](docs/adr/0033-ai-capability-frozen.md) | The AI capability is frozen behind an off-by-default flag |
