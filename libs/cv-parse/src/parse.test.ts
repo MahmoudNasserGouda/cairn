@@ -187,3 +187,44 @@ describe('degenerate input', () => {
     expect(await parse(singleColumnCv())).toEqual(await parse(singleColumnCv()));
   });
 });
+
+/**
+ * CodeQL `js/polynomial-redos` (high) on `splitTitle`'s separator — the sixth of this
+ * shape in the codebase, and the second one in a PR whose description asserted the
+ * property it was violating.
+ */
+describe('hostile input', () => {
+  it('splits a title in linear time however much whitespace it carries', async () => {
+    const line = `Engineer${' '.repeat(120_000)}x`;
+    const started = performance.now();
+    const cv = await parse([
+      { text: 'Amara Okonkwo', x: 72, y: 700, size: 22, bold: true },
+      { text: 'EXPERIENCE', x: 72, y: 660, size: 13, bold: true },
+      { text: line, x: 72, y: 640, size: 12, bold: true },
+      // Ordinary body text: a document that is *entirely* emphasis has no body face
+      // to infer from, which is a property of a three-line fixture, not of real CVs.
+      { text: 'Payment reconciliation services in Python.', x: 72, y: 624 },
+    ]);
+    const elapsed = performance.now() - started;
+
+    expect(cv.experience).toHaveLength(1);
+    // Linear is sub-millisecond; unbounded took 5.9s on 60k spaces alone.
+    expect(elapsed).toBeLessThan(1000);
+  });
+
+  it('still splits the separators it is meant to', async () => {
+    for (const [line, title, org] of [
+      ['Backend Engineer, Paystack', 'Backend Engineer', 'Paystack'],
+      ['Data Analyst · Andela', 'Data Analyst', 'Andela'],
+      ['Engineer at Acme', 'Engineer', 'Acme'],
+    ] as const) {
+      const cv = await parse([
+        { text: 'Amara Okonkwo', x: 72, y: 700, size: 22, bold: true },
+        { text: 'EXPERIENCE', x: 72, y: 660, size: 13, bold: true },
+        { text: line, x: 72, y: 640, size: 12, bold: true },
+        { text: 'Payment reconciliation services in Python.', x: 72, y: 624 },
+      ]);
+      expect(cv.experience[0]).toMatchObject({ title, organization: org });
+    }
+  });
+});

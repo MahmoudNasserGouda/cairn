@@ -149,7 +149,15 @@ function splitTitle(text: string): { title: string; organization?: string } {
   // A comma rarely has a space before it; the word-ish separators always do. Requiring
   // leading whitespace for all of them meant "Backend Engineer, Paystack" never split
   // at all, and the employer then had to be guessed from the next line instead.
-  const separator = /\s*(?:,|·|\||—|–)\s+|\s+(?:at|@)\s+/i.exec(text);
+  //
+  // The whitespace runs are **bounded**. Written as `\s*` and `\s+` this is quadratic
+  // on a line of spaces — the engine consumes the run, fails to find a separator,
+  // backtracks, and restarts from the next offset. Measured at 60k spaces: 5.9 seconds
+  // unbounded, 0.7ms bounded. A separator is surrounded by one or two spaces in any
+  // real document, and a CV is untrusted input, so the bound costs nothing worth
+  // having. (This PR's own description claimed every regex here was already bounded.
+  // It was not; CodeQL found this one.)
+  const separator = /\s{0,3}(?:,|·|\||—|–)\s{1,3}|\s{1,3}(?:at|@)\s{1,3}/i.exec(text);
   if (!separator || separator.index === 0) return { title: text.trim() };
 
   const title = text.slice(0, separator.index).trim();
