@@ -9,6 +9,8 @@ export default defineConfig({
       '@cairn/shared': r('./libs/shared/src/index.ts'),
       '@cairn/auth': r('./libs/auth/src/index.ts'),
       '@cairn/github': r('./libs/github/src/index.ts'),
+      // Before the bare specifier, or the prefix match would swallow it.
+      '@cairn/profile/testing': r('./libs/profile/src/__fixtures__/build.ts'),
       '@cairn/profile': r('./libs/profile/src/index.ts'),
       '@cairn/cv-extract': r('./libs/cv-extract/src/index.ts'),
       '@cairn/matching': r('./libs/matching/src/index.ts'),

@@ -26,17 +26,14 @@ import { SignInDialogService } from '../auth/sign-in-dialog.service';
 import { DashboardComponent } from '../../pages/dashboard.component';
 import { ProfileComponent } from '../../pages/profile.component';
 import { SettingsComponent } from '../../pages/settings.component';
+import { buildProfile, testLevel, testSkill } from '@cairn/profile/testing';
 
-const PROFILE: UnifiedProfile = {
-  schemaVersion: 1,
+const PROFILE: UnifiedProfile = buildProfile({
   identities: [{ provider: 'github', displayName: 'Octo' }],
-  skills: [{ tag: 'typescript', level: 0.9, source: 'github' }],
-  technologies: ['typescript'],
-  experienceLevel: 'intermediate',
+  skills: [testSkill('typescript', 0.9)],
   interests: ['web'],
-  experience: [],
-  totalYears: 4,
-};
+  experienceLevel: testLevel('intermediate'),
+});
 
 const REPO: RepositorySnapshot = {
   fullName: 'a/b',

@@ -9,6 +9,7 @@ import { AiService } from '../core/ai/ai.service';
 import { AiSettingsService } from '../core/ai/ai-settings.service';
 import { CvImportService } from '../core/cv/cv-import.service';
 import { ProfileService } from '../core/profile/profile.service';
+import { buildProfile, testLevel, testSkill } from '@cairn/profile/testing';
 
 const PARSED: ParsedCv = {
   name: 'Octo Cat',
@@ -20,22 +21,16 @@ const PARSED: ParsedCv = {
       organization: 'Acme',
       startYear: 2020,
       endYear: 'present',
-      source: 'cv',
     },
   ],
   sections: ['skills', 'experience'],
 };
 
-const MERGED: UnifiedProfile = {
-  schemaVersion: 1,
+const MERGED: UnifiedProfile = buildProfile({
   identities: [{ provider: 'github', displayName: 'Octo' }],
-  skills: [{ tag: 'typescript', level: 0.9, source: 'github' }],
-  technologies: ['typescript'],
-  experienceLevel: 'intermediate',
-  interests: [],
-  experience: [],
-  totalYears: 3,
-};
+  skills: [testSkill('typescript', 0.9)],
+  experienceLevel: testLevel('intermediate'),
+});
 
 function render(opts: {
   draft?: ParsedCv | null;
@@ -260,11 +255,12 @@ describe('optional AI refinement', () => {
 
     expect(committed[0]?.skills).toEqual(['typescript', 'docker', 'kubernetes']);
     expect(committed[0]?.experience).toHaveLength(2);
+    // The review form hands over what the *document* says. Provenance is stamped by
+    // `cvToFragment` on the way into the profile, not by the form (ADR-0031).
     expect(committed[0]?.experience[1]).toMatchObject({
       title: 'Maintainer',
       organization: 'OSS',
       startYear: 2018,
-      source: 'cv',
     });
   });
 

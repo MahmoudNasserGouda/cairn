@@ -654,7 +654,7 @@ export class DashboardComponent {
     if (!p) return null;
     return {
       displayName: p.identities.find((i) => i.provider === 'github')?.displayName ?? '',
-      experienceLevel: p.experienceLevel,
+      experienceLevel: p.experienceLevel.value,
       totalYears: p.totalYears,
       skills: [...p.skills].sort((a, b) => b.level - a.level),
       interests: p.interests,

@@ -28,7 +28,10 @@ pdf.js hands it, LinkedIn contributes a display name, and the UI is 33 lines of 
 CSS. So: **AI is frozen behind a flag, and the next stretch of work deepens the four data
 sources, rebuilds CV reading as a document pipeline, gives the profile per-field
 provenance, and gives the app a design system.** Six ADRs (0028–0033) and a research
-document (`docs/data-sources.md`) were written first; **no code has changed yet**.
+document (`docs/data-sources.md`) were written first. Since then: **AI is frozen**,
+the CV fixture corpus and `extractPdfLayout` are in, and **Profile v2 has landed** —
+every field now carries where it came from, a hand edit outranks every import, and the
+merged profile is *stored* rather than rebuilt from its sources on each load.
 
 Done:
 
@@ -159,12 +162,13 @@ Done:
 
 Next — in order, each phase tests-first ([`docs/testing.md`](docs/testing.md)):
 
-1. **Freeze AI** behind `FEATURES.ai` (off by default), keeping `libs/ai` green in CI
-   ([ADR-0033](docs/adr/0033-ai-capability-frozen.md)).
-2. **Fixtures + test scaffolding** — a synthetic CV and LinkedIn-archive corpus; no real
-   PII ever enters the repo.
-3. **Profile v2** — per-field provenance, `manual` always wins, idempotent entity merge,
-   v1→v2 migration ([ADR-0031](docs/adr/0031-profile-v2-provenance.md)).
+1. ~~**Freeze AI** behind `FEATURES.ai`~~ → **done** ([ADR-0033](docs/adr/0033-ai-capability-frozen.md)).
+2. ~~**Fixtures + test scaffolding**~~ → **done** for CVs: positioned-PDF builder, five
+   named CV shapes, a scanned PDF, and `extractPdfLayout`. The LinkedIn archive fixture
+   lands with the lib that reads it, in step 6.
+3. ~~**Profile v2**~~ → **done** ([ADR-0031](docs/adr/0031-profile-v2-provenance.md)).
+   Nothing edits the profile by hand *yet* — `ProfileService.replace()` exists and the
+   editing UI arrives with the design system in step 7.
 4. **GitHub deep read** — one GraphQL request replaces the sixteen REST calls; scopes go
    to `read:user user:email read:org` ([ADR-0030](docs/adr/0030-github-graphql-profile-read.md)).
 5. **CV reading rebuilt** — `libs/doc-layout` + `libs/cv-parse` over pdf.js geometry, then
@@ -186,7 +190,7 @@ foundations, and its AI half waits behind the freeze.
 apps/web/                  Angular 20 SPA — primary MVP                 [built: shell + 3 pages + sign-in]
   src/app/core/            SafeHtmlService (DOMPurify), IndexedDbStore + SecretStore (two IDB stores)
   src/app/core/auth/       AuthService (in-memory tokens, redirect flow) + sign-in-dialog modal
-  src/app/core/profile/    ProfileService — GitHub + reviewed CV → one UnifiedProfile (persisted)
+  src/app/core/profile/    ProfileService — every source → one stored UnifiedProfile (`profile:v2`)
   src/app/core/targets/    TargetService — repo search → pick repo + issue → scoring snapshots (persisted)
   src/app/core/discovery/  DiscoveryService — profile → search plan → ranked recommendations (preset persisted)
   src/app/core/github-client.ts  one shared GithubClient (token-bound when signed in)
@@ -215,8 +219,10 @@ libs/issue-analysis/       analyzeIssue — deterministic difficulty; required-k
 libs/github/               GithubClient (cache + dedup + ETag + per-resource rate-limit + 429 backoff
                            + stale-on-error + LRU eviction + uncached 202 statistics placeholders);
                            repo/health + viewer + repo-search + issue-list fetchers
-libs/profile/              UnifiedProfile + mergeProfile, githubToProfile, CV parser, contributionReadiness
-                           (taxonomy re-exported from libs/shared)
+libs/profile/              UnifiedProfile v2 (schemaVersion 2) — provenance.ts (source precedence),
+                           merge.ts (idempotent entity merge + forgetSource), migrate.ts,
+                           githubToFragment, cvToFragment, contributionReadiness,
+                           __fixtures__/build.ts (`@cairn/profile/testing`)
 libs/cv-extract/           PDF/DOCX/text → plain text; own ZIP reader, pdf.js text layer (ADR-0011)
 libs/zip/                  hardened ZIP reader, shared by DOCX + archive    [planned — ADR-0029]
 libs/doc-layout/           pure: positioned runs → columns, blocks, order   [planned — ADR-0028]
@@ -247,8 +253,11 @@ docs/adr/                  33 ADRs · docs/ci-cd.md · docs/branch-protection.md
   **A bug fixed in the wiring layer needs a test that fails without the fix** — verify
   that by reverting the fix, not by assuming.
 - **Determinism:** no `Date.now()` / `Math.random()` / IO inside `libs/scoring`,
-  `libs/matching`, `libs/repository-analysis`, `libs/issue-analysis`. Time-derived
-  inputs are computed by the caller and passed in.
+  `libs/matching`, `libs/repository-analysis`, `libs/issue-analysis`, `libs/profile`.
+  Time-derived inputs are computed by the caller and passed in — `mergeProfile` takes a
+  `currentYear`, every `Provenance` takes a `capturedAt`, and the only clock in the
+  profile path is in `ProfileService`, at the edge. Two latent reads were removed in the
+  process (`estimateYears`, and the GitHub activity span's fallback).
 - **Weights:** changing one means bumping `WEIGHTS_VERSION` in
   `libs/scoring/src/weights.ts` and updating inline snapshots on purpose.
 - **One technology vocabulary.** `libs/shared/src/taxonomy.ts` holds it; no module
@@ -456,10 +465,95 @@ one — see `api/optional-serverless/oauth/README.md`.
     [ADR-0030](docs/adr/0030-github-graphql-profile-read.md) grants it through a separate,
     revocable fine-grained PAT (`Metadata` + `Contents` read) instead. If classic `repo`
     is ever wanted anyway, that needs a new ADR saying so plainly.
+  - **⚠ `npm run typecheck` does not check Angular templates.** It runs plain `tsc`,
+    which never sees a component template — only `ng build` does. A template type error
+    therefore passes `npm run verify` locally and fails at build. CI runs `build` in the
+    same workflow so nothing reaches `main` broken, but the local gate is misleading:
+    Profile v2 hit exactly this (`p.experienceLevel.value` on a flattened view model
+    passed `verify`, failed `ng build`). Either fold a template check into `verify` or
+    say plainly in the docs that `verify` is not sufficient.
+  - **Nothing edits the profile by hand yet.** Profile v2 makes `manual` the
+    highest-precedence source and `ProfileService.replace()` is there for it, but no UI
+    calls it — so the rule is tested and unreachable until the profile hub lands
+    ([ADR-0032](docs/adr/0032-design-system-and-information-architecture.md)).
+  - **The flat CV parser puts the employer in the title** ("Backend Engineer, Paystack"),
+    so `organization` is `undefined` and `experienceKey` falls back to the start year
+    alone. Two roles starting the same year would merge. `libs/cv-parse`
+    ([ADR-0028](docs/adr/0028-ocr-and-document-vision-sandbox.md)) is what separates
+    them; until then the risk is real but small.
   - **The `secrets` IndexedDB store now has two tenants** — the frozen BYOK key and the
     optional GitHub PAT. "Clear all AI data" must clear only the former.
 
 ## Changelog
+
+### 2026-09-13 — Profile v2: every field knows where it came from
+
+Phases 1-3 of the plan above, in three commits. `npm run verify` green throughout:
+367 → **437 tests**, coverage 84% statements.
+
+**AI frozen** ([ADR-0033](docs/adr/0033-ai-capability-frozen.md)). `FEATURES.ai` is off
+by default, wrapped by an `AI_ENABLED` injection token so both states stay tested.
+`AiService.run()` refuses *before* reading the key or opening the disclosure panel — the
+template gates are what a user sees, that guard is what stops a request. `libs/ai` keeps
+its tests and stays in CI; they now pass the flag on explicitly, so unfreezing really is
+one constant.
+
+**CV fixtures and geometry.** `buildPositionedPdf` places text runs at explicit
+coordinates with a size and a face, so a test can state the layout it means; five named
+CV shapes and a scanned (no text layer) PDF stand in for real ones, all synthetic.
+`extractPdfLayout` returns those runs with `y` normalised to increase *downward*.
+Characterization tests pin today's wrong output — a two-column CV interleaving — so the
+defect is a fact in the suite rather than a claim in a document.
+
+Three findings from that work, two of them corrections to what we had assumed:
+
+- **pdf.js cannot report that a run is bold.** It substitutes the standard fonts and
+  reports every one as `sans-serif`; the objects carrying the real name resolve only
+  after `render()`, which this path never calls. The per-face id it *does* report is the
+  better signal — "set differently from the body" is the question heading detection
+  needs, and it survives embedded fonts with arbitrary names.
+- **A gutter date does not detach from its role** — pdf.js joins same-baseline runs. But
+  that is the *same* rule that interleaves two columns: one mechanism, two opposite
+  outcomes, and no way to keep the good one until reading order comes from geometry.
+- **Arabic cannot go in a base-14 PDF font**, so the non-Latin fixture is DOCX.
+
+**Profile v2** ([ADR-0031](docs/adr/0031-profile-v2-provenance.md)). `UnifiedProfile`
+grows from seven fields to contact, links, education, projects, certifications, spoken
+languages, contribution stats and skills-with-evidence, each carrying a
+`{source, confidence, capturedAt}`. Precedence is **manual > linkedin > cv > github**.
+Entities merge by identity rather than by concatenation, so re-importing a CV is a no-op
+instead of doubling someone's years — verified in the running app, not just in tests.
+
+The headline change is in `apps/web`: **the merged profile is now stored** under
+`profile:v2`, rather than rebuilt from GitHub + a stored `ParsedCv` on every load. That
+rebuild was never a caching choice — it was the workaround for the concatenating merge,
+and it is also why hand edits were impossible, because a profile regenerated from its
+sources has nowhere to keep one.
+
+Three corrections the implementation forced, all recorded in ADR-0031:
+
+- **The ADR was wrong about what was persisted.** It claimed a v1 `UnifiedProfile` lived
+  under `profile:cv:v1`. Nothing of the sort existed — only the reviewed `ParsedCv`. The
+  migration is that record into a provenance-tagged fragment; the legacy key is read once
+  and left in place so a broken migration can be retried.
+- **A role is keyed on where and when, not what it was called.** Keying on the title made
+  every typo fix a *second* role, and the next import restored the misspelling. Accepted
+  cost: two roles at one employer starting the same year merge.
+- **`Sourced<T>` keeps the claims it beat.** Without that, "remove my imported CV" blanked
+  a name the CV outranked instead of falling back to GitHub's. `forgetSource` is a
+  demotion, not a deletion — the same idea skills already had as `evidence`.
+
+Guide sections updated: Current status, Next, Repo map, Conventions (determinism now
+covers `libs/profile`), Open questions, Changelog.
+
+- Drift: **none against an ADR**, but ⚠ **one tooling gap worth a decision**:
+  `npm run typecheck` runs plain `tsc`, which never type-checks an Angular template. A
+  template error passes `npm run verify` and only fails at `ng build`. CI runs `build` in
+  the same workflow so nothing broken reaches `main`, but the local gate is misleading —
+  Profile v2 hit exactly this. Logged under Open questions.
+- Also noted: two latent `new Date()` reads inside `libs/profile` were removed
+  (`estimateYears`, and the GitHub span's fallback). The determinism rule had never
+  listed `libs/profile`; it does now.
 
 ### 2026-09-13 — Documentation first: six ADRs, three guides, and a research pass
 

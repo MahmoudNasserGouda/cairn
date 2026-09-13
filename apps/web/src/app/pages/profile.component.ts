@@ -6,8 +6,7 @@ import {
   type CvRefinement,
   type CvRefinementRole,
 } from '@cairn/ai';
-import type { ExperienceEntry, ParsedCv } from '@cairn/profile';
-import type { SkillProficiency } from '@cairn/shared';
+import type { ParsedCv, ParsedRole, ProfileSkill } from '@cairn/profile';
 import { AI_ENABLED } from '../core/features';
 import { AiService } from '../core/ai/ai.service';
 import { AiSettingsService } from '../core/ai/ai-settings.service';
@@ -40,7 +39,7 @@ function value(event: Event): string {
   return (event.target as HTMLInputElement).value;
 }
 
-function toRole(entry: ExperienceEntry): RoleDraft {
+function toRole(entry: ParsedRole): RoleDraft {
   return {
     title: entry.title,
     organization: entry.organization ?? '',
@@ -50,7 +49,7 @@ function toRole(entry: ExperienceEntry): RoleDraft {
   };
 }
 
-function toEntry(role: RoleDraft): ExperienceEntry {
+function toEntry(role: RoleDraft): ParsedRole {
   const start = Number.parseInt(role.startYear, 10);
   const end = role.endYear.trim().toLowerCase();
   const endYear = /^(?:present|current|now)$/.test(end)
@@ -62,7 +61,6 @@ function toEntry(role: RoleDraft): ExperienceEntry {
     ...(role.organization.trim() ? { organization: role.organization.trim() } : {}),
     ...(Number.isFinite(start) ? { startYear: start } : {}),
     ...(endYear === 'present' || Number.isFinite(endYear) ? { endYear } : {}),
-    source: 'cv',
   };
 }
 
@@ -308,13 +306,14 @@ function toEntry(role: RoleDraft): ExperienceEntry {
 
       @if (profileSvc.profile(); as p) {
         <p class="sub">
-          {{ p.experienceLevel }} · ~{{ p.totalYears }} yrs · {{ p.skills.length }} skills
+          {{ p.experienceLevel.value }} · ~{{ p.totalYears }} yrs ·
+          {{ p.skills.length }} skills
         </p>
         <div class="tags">
           @for (skill of sortedSkills(); track skill.tag) {
-            <span class="tag" [class]="'src-' + skill.source">
+            <span class="tag" [class]="'src-' + skill.from.source">
               {{ skill.tag }}
-              <span class="src">{{ skill.source }}</span>
+              <span class="src">{{ skill.from.source }}</span>
             </span>
           } @empty {
             <span class="muted">No skills yet.</span>
@@ -587,7 +586,7 @@ export class ProfileComponent {
     this.skills().filter((s) => s.include),
   );
 
-  protected readonly sortedSkills = computed<readonly SkillProficiency[]>(() => {
+  protected readonly sortedSkills = computed<readonly ProfileSkill[]>(() => {
     const profile = this.profileSvc.profile();
     return profile ? [...profile.skills].sort((a, b) => b.level - a.level) : [];
   });

@@ -10,22 +10,20 @@ import { TargetService } from '../core/targets/target.service';
 import { AI_ENABLED } from '../core/features';
 import { AiService } from '../core/ai/ai.service';
 import { AiSettingsService } from '../core/ai/ai-settings.service';
+import { buildProfile, testRole, testSkill } from '@cairn/profile/testing';
 
-const PROFILE: UnifiedProfile = {
-  schemaVersion: 1,
+const PROFILE: UnifiedProfile = buildProfile({
   identities: [{ provider: 'github', displayName: 'Octo' }],
-  skills: [
-    { tag: 'typescript', level: 0.9, source: 'github' },
-    { tag: 'react', level: 0.6, source: 'github' },
-  ],
-  technologies: ['typescript', 'react'],
-  experienceLevel: 'intermediate',
+  skills: [testSkill('typescript', 0.9), testSkill('react', 0.6)],
   interests: ['web'],
   experience: [
-    { title: 'Public GitHub activity', startYear: 2020, endYear: 2024, source: 'github' },
+    testRole(
+      'Public GitHub activity',
+      { organization: 'GitHub', startYear: 2020, endYear: 2024 },
+      'github',
+    ),
   ],
-  totalYears: 4,
-};
+});
 
 const REPO: RepositorySnapshot = {
   fullName: 'a/b',
