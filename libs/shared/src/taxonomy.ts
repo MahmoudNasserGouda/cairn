@@ -10,7 +10,7 @@ import { toSkillTag, type SkillTag } from './types';
  * through *this* table. When only one side did, a repo topic `nodejs` could never
  * match a developer's `node` skill and every score was quietly wrong.
  */
-export const TAXONOMY_VERSION = 3;
+export const TAXONOMY_VERSION = 4;
 
 /**
  * canonical tag -> aliases that should map to it.
@@ -182,9 +182,64 @@ export function isLanguageSkill(tag: string): boolean {
   return LANGUAGE_SKILL_SET.has(canonicalizeSkill(tag));
 }
 
+/**
+ * Tags whose canonical spelling is also an ordinary English word.
+ *
+ * `extractSkills` reads free prose — CV text and, since the issue explainer stopped
+ * keeping its own list, issue titles and bodies. There, "go ahead", "the rest of the
+ * config", "spring cleanup", "a swift fix", "express the intent" and "the parent node
+ * is null" are not technologies, and reporting them told a contributor to go and learn
+ * Spring before fixing a typo.
+ *
+ * A bare occurrence of one of these is therefore not enough on its own. It counts only
+ * in a **qualified form** listed here, or as a **standalone list item** — which is how
+ * a CV writes a skills line ("JavaScript, Node, React") and is a shape prose does not
+ * produce. Everything outside this table still matches on word boundaries alone.
+ *
+ * Aliases need no entry: `golang`, `nodejs` and `express.js` are separate candidates,
+ * unambiguous on their own, so they keep matching anywhere including mid-sentence.
+ */
+export const AMBIGUOUS_SKILLS: Readonly<Partial<Record<SkillTag, readonly RegExp[]>>> = {
+  go: [
+    /\bgo\.mod\b/,
+    /\bgoroutines?\b/,
+    /\bgofmt\b/,
+    /\bgo\s+(?:modules?|toolchain|compiler|runtime|stdlib|generics|vet|build|1\.\d+)\b/,
+    /\b(?:written|implemented|rewritten|ported)\s+in\s+go\b/,
+  ],
+  rest: [/\brestful\b/, /\brest\s+(?:apis?|endpoints?|clients?|services?|handlers?)\b/],
+  spring: [
+    /\bspringboot\b/,
+    /\bspring\s+(?:boot|framework|mvc|security|data|cloud|batch)\b/,
+  ],
+  swift: [
+    /\bswiftui\b/,
+    /\bswift\s+(?:packages?|compiler|code|concurrency|[56])\b/,
+    /\b(?:written|implemented|rewritten|ported)\s+in\s+swift\b/,
+  ],
+  express: [
+    /\bexpress\s+(?:app|apps|server|servers|routers?|routes?|middlewares?|handlers?)\b/,
+  ],
+  node: [
+    /\bnode\s+(?:v?\d+|lts|api|runtime|server|backend|process|version|modules?|streams?)\b/,
+  ],
+};
+
+/**
+ * Characters that separate items in a written list. `extractSkills` flattens most of
+ * them before matching, so the standalone-list-item test runs against a view of the
+ * text where they survive.
+ */
+const LIST_DELIM = '[\\n\\r,;:|/()\\[\\]\\t\\u2022]';
+/** Bullets and padding that may sit between the delimiter and the item itself. */
+const LIST_PAD = '[\\s*\\u2013\\u2014-]*';
+
 /** Extract known skills from a block of text (case-insensitive, word-ish boundaries). */
 export function extractSkills(text: string): SkillTag[] {
-  const hay = ` ${text.toLowerCase().replace(/[|,/()]/g, ' ')} `;
+  const lower = text.toLowerCase();
+  const hay = ` ${lower.replace(/[|,/()]/g, ' ')} `;
+  // Delimiters left intact, for the standalone-list-item test on ambiguous tags.
+  const listed = `\n${lower}\n`;
   const found = new Set<SkillTag>();
   const candidates = [
     ...KNOWN_SKILLS,
@@ -192,6 +247,16 @@ export function extractSkills(text: string): SkillTag[] {
   ];
   for (const cand of candidates) {
     const needle = cand.toLowerCase();
+    const qualifiers = AMBIGUOUS_SKILLS[needle];
+    if (qualifiers) {
+      const asListItem = new RegExp(
+        `(?:^|${LIST_DELIM})${LIST_PAD}${escapeRegex(needle)}${LIST_PAD}(?:$|${LIST_DELIM})`,
+      );
+      if (qualifiers.some((q) => q.test(hay)) || asListItem.test(listed)) {
+        found.add(canonicalizeSkill(cand));
+      }
+      continue;
+    }
     const boundary = new RegExp(`(^|[^a-z0-9+#.])${escapeRegex(needle)}([^a-z0-9+#.]|$)`);
     if (boundary.test(hay)) found.add(canonicalizeSkill(cand));
   }
