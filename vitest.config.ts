@@ -12,7 +12,10 @@ export default defineConfig({
       // Before the bare specifier, or the prefix match would swallow it.
       '@cairn/profile/testing': r('./libs/profile/src/__fixtures__/build.ts'),
       '@cairn/profile': r('./libs/profile/src/index.ts'),
+      // Before the bare specifier, or the prefix match would swallow it.
+      '@cairn/cv-extract/testing': r('./libs/cv-extract/src/__fixtures__/build.ts'),
       '@cairn/cv-extract': r('./libs/cv-extract/src/index.ts'),
+      '@cairn/doc-layout': r('./libs/doc-layout/src/index.ts'),
       '@cairn/matching': r('./libs/matching/src/index.ts'),
       '@cairn/discovery': r('./libs/discovery/src/index.ts'),
       '@cairn/scoring': r('./libs/scoring/src/index.ts'),

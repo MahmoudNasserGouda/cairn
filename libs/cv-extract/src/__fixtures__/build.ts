@@ -347,7 +347,10 @@ export function twoColumnCv(): PdfRun[] {
   const SIDEBAR = 60;
   const MAIN = 240;
   return [
-    { text: 'Amara Okonkwo', x: MAIN, y: TOP, size: 22, bold: true },
+    // The name banners across the top, above both columns — which is where a real
+    // two-column CV puts it, and the case that proves a spanning line is not swept
+    // into whichever column it happens to start in.
+    { text: 'Amara Okonkwo', x: SIDEBAR, y: TOP, size: 22, bold: true },
     { text: 'SKILLS', x: SIDEBAR, y: TOP - 40, size: 12, bold: true },
     { text: 'EXPERIENCE', x: MAIN, y: TOP - 40, size: 12, bold: true },
     { text: 'Python', x: SIDEBAR, y: TOP - 60 },
