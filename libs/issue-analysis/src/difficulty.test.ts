@@ -16,6 +16,27 @@ describe('extractRequiredKnowledge', () => {
       extractRequiredKnowledge('Migrate the Angular module to TypeScript strict'),
     ).toEqual(['angular', 'typescript']);
   });
+
+  it('does not match a tag inside an ordinary word', () => {
+    // Regression: a bare substring test reported `go` for any body containing "logs".
+    const found = extractRequiredKnowledge('Redact sensitive parsed values in logs');
+    expect(found).not.toContain('go');
+    expect(found).toEqual([]);
+  });
+
+  it('does not mistake "javascript" for java, nor "category" for go', () => {
+    expect(extractRequiredKnowledge('Port the javascript helper')).toEqual([
+      'javascript',
+    ]);
+    expect(extractRequiredKnowledge('Group results by category')).toEqual([]);
+  });
+
+  it('canonicalises aliases through the shared taxonomy', () => {
+    expect(extractRequiredKnowledge('Crashes under nodejs 22 with ts strict')).toEqual([
+      'node',
+      'typescript',
+    ]);
+  });
 });
 
 describe('analyzeIssue', () => {

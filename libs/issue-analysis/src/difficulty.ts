@@ -1,4 +1,4 @@
-import { clamp01, toSkillTag, type Difficulty, type SkillTag } from '@cairn/shared';
+import { clamp01, extractSkills, type Difficulty, type SkillTag } from '@cairn/shared';
 
 export interface IssueInput {
   readonly title: string;
@@ -42,39 +42,23 @@ const HARD_LABELS = [
   'research',
 ];
 
-const KNOWN_TECH = [
-  'typescript',
-  'javascript',
-  'rust',
-  'go',
-  'python',
-  'java',
-  'c++',
-  'angular',
-  'react',
-  'vue',
-  'node',
-  'webpack',
-  'vite',
-  'graphql',
-  'sql',
-  'docker',
-  'kubernetes',
-  'wasm',
-  'css',
-  'html',
-  'accessibility',
-  'i18n',
-  'testing',
-];
-
+/**
+ * Technologies the issue text implies are needed.
+ *
+ * Delegates to the shared taxonomy rather than keeping a local list. Two things were
+ * wrong with the list that used to live here. It matched with `hay.includes(t)`, a bare
+ * substring test, so short tags matched inside ordinary words — an issue body saying
+ * "redact sensitive parsed values in logs" was reported as requiring `go`, and
+ * "category"/"java" matched the same way. And it was a second vocabulary: it could emit
+ * `sql` and `testing`, which no `DeveloperSnapshot` can ever carry, so those tags
+ * scored zero coverage forever while the taxonomy's own tags went undetected (ADR-0007
+ * — one vocabulary on both sides of a comparison).
+ *
+ * `extractSkills` matches on word-ish boundaries and canonicalises aliases, so
+ * `nodejs` in an issue body now reaches the developer's `node` skill.
+ */
 export function extractRequiredKnowledge(text: string): SkillTag[] {
-  const hay = text.toLowerCase();
-  const found = new Set<SkillTag>();
-  for (const t of KNOWN_TECH) {
-    if (hay.includes(t)) found.add(toSkillTag(t));
-  }
-  return [...found].sort();
+  return extractSkills(text);
 }
 
 function scopeClarity(input: IssueInput): number {
