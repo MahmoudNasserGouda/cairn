@@ -6,6 +6,7 @@ import { DiscoveryService } from './discovery.service';
 import { ProfileService } from '../profile/profile.service';
 import { GithubClientService } from '../github-client';
 import { IndexedDbStore } from '../indexeddb-store';
+import { buildProfile, testLevel, testSkill } from '@cairn/profile/testing';
 
 const PRESET_KEY = 'discovery:preset:v1';
 
@@ -28,21 +29,17 @@ class FakeStore {
   }
 }
 
-function profile(skills: UnifiedProfile['skills']): UnifiedProfile {
-  return {
-    identities: [],
-    skills,
-    experienceLevel: 'intermediate',
-    totalYears: 3,
+function profile(skills: readonly { tag: string; level: number }[]): UnifiedProfile {
+  return buildProfile({
+    skills: skills.map((s) => testSkill(s.tag, s.level)),
     interests: ['react'],
-    experience: [],
-    education: [],
-  } as unknown as UnifiedProfile;
+    experienceLevel: testLevel('intermediate'),
+  });
 }
 
 const TS_PROFILE = profile([
-  { tag: 'typescript', level: 0.9, source: 'github' },
-  { tag: 'python', level: 0.5, source: 'github' },
+  { tag: 'typescript', level: 0.9 },
+  { tag: 'python', level: 0.5 },
 ]);
 
 function searchItem(name: string, extra: Record<string, unknown> = {}) {
@@ -142,7 +139,7 @@ describe('running discovery', () => {
     const svc = makeService(
       new FakeStore(),
       fakeClient(() => ({ items: [] })),
-      profile([{ tag: 'docker', level: 0.8, source: 'cv' }]),
+      profile([{ tag: 'docker', level: 0.8 }]),
     );
     await settle();
 

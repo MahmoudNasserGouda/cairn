@@ -1,4 +1,20 @@
-import { githubToProfile, type GithubActivityInput } from './github';
+import { githubToFragment, type GithubActivityInput } from './github';
+import { mergeProfile } from './merge';
+import { emptyProfile, type UnifiedProfile } from './model';
+
+/** The captured date is an input, not a clock read — see `githubExperience`. */
+const DAY = '2026-06-01';
+
+/**
+ * `githubToFragment` proposes; the merge decides. Every assertion below is about the
+ * profile a user would actually end up with, so the fragment and the merge are
+ * tested together rather than apart.
+ */
+function githubToProfile(activity: GithubActivityInput): UnifiedProfile {
+  return mergeProfile(emptyProfile(), githubToFragment(activity, DAY), {
+    currentYear: 2026,
+  });
+}
 
 function activity(over: Partial<GithubActivityInput> = {}): GithubActivityInput {
   return {
@@ -22,7 +38,7 @@ describe('githubToProfile', () => {
     for (const s of p.skills) {
       expect(s.level).toBeGreaterThanOrEqual(0);
       expect(s.level).toBeLessThanOrEqual(1);
-      expect(s.source).toBe('github');
+      expect(s.from.source).toBe('github');
     }
     // less-used language still clears the floor
     expect(py!.level).toBeGreaterThanOrEqual(0.3);
@@ -43,7 +59,7 @@ describe('githubToProfile', () => {
 
   it('turns account age into a non-beginner experience level', () => {
     const p = githubToProfile(activity());
-    expect(p.experienceLevel).not.toBe('beginner');
+    expect(p.experienceLevel.value).not.toBe('beginner');
     expect(p.totalYears).toBeGreaterThan(1.5);
   });
 
@@ -88,7 +104,7 @@ describe('experience from GitHub activity', () => {
     );
     expect(p.experience).toEqual([]);
     expect(p.totalYears).toBe(0);
-    expect(p.experienceLevel).toBe('beginner');
+    expect(p.experienceLevel.value).toBe('beginner');
   });
 
   it('does not let a dormant old account read as advanced', () => {
@@ -99,7 +115,7 @@ describe('experience from GitHub activity', () => {
       }),
     );
     expect(p.totalYears).toBe(0);
-    expect(p.experienceLevel).toBe('beginner');
+    expect(p.experienceLevel.value).toBe('beginner');
   });
 
   it('never produces a negative span when a push predates the account year', () => {

@@ -1,13 +1,16 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import type { GithubClient } from '@cairn/github';
-import type { ParsedCv } from '@cairn/profile';
+import type { ParsedCv, UnifiedProfile } from '@cairn/profile';
 import { ProfileService, profileToSnapshot } from './profile.service';
 import { AuthService } from '../auth/auth.service';
 import { GithubClientService } from '../github-client';
 import { IndexedDbStore } from '../indexeddb-store';
 
+/** Pre-v2 storage: the reviewed `ParsedCv`, read once to migrate. */
 const CV_KEY = 'profile:cv:v1';
+/** v2 storage: the merged profile, hand edits and all. */
+const PROFILE_KEY = 'profile:v2';
 
 class FakeStore {
   readonly map = new Map<string, unknown>();
@@ -95,7 +98,7 @@ async function settle(): Promise<void> {
 const CV: ParsedCv = {
   name: 'Octo',
   skills: ['python', 'docker'],
-  experience: [{ title: 'Dev', startYear: 2020, endYear: 2023, source: 'cv' }],
+  experience: [{ title: 'Dev', startYear: 2020, endYear: 2023 }],
   sections: ['skills'],
 };
 
@@ -142,7 +145,15 @@ describe('CV half of the profile', () => {
     expect(tags).toContain('typescript'); // from GitHub
     expect(tags).toContain('docker'); // from the CV
     expect(svc.hasCv()).toBe(true);
-    expect(store.map.get(CV_KEY)).toEqual(CV);
+
+    // v2 persists the *merged profile*, not the raw CV record. That is the change
+    // that makes hand edits possible: a profile rebuilt from its sources on every
+    // load has nowhere to keep one (ADR-0031).
+    const stored = store.map.get(PROFILE_KEY) as UnifiedProfile | undefined;
+    expect(stored?.skills.map((s) => s.tag)).toEqual(
+      expect.arrayContaining(['typescript', 'docker']),
+    );
+    expect(stored?.skills.find((s) => s.tag === 'docker')?.from.source).toBe('cv');
   });
 
   it('restores a previously reviewed CV', async () => {
@@ -174,8 +185,11 @@ describe('CV half of the profile', () => {
     await svc.clearCv();
 
     expect(svc.hasCv()).toBe(false);
-    expect(store.map.has(CV_KEY)).toBe(false);
     expect(svc.profile()?.skills.map((s) => s.tag)).toContain('typescript');
+    // No longer a delete — the CV is merged in, so removal demotes what it won and
+    // the remaining sources show through (ADR-0031).
+    const stored = store.map.get(PROFILE_KEY) as UnifiedProfile | undefined;
+    expect(stored?.skills.map((s) => s.tag)).not.toContain('docker');
   });
 
   it('works with a CV and no GitHub connection', async () => {

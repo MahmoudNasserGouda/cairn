@@ -91,11 +91,22 @@ Added: contact (name, emails, location, headline, summary), links, experience wi
 organization / location / employment type / bullets, education, projects, certifications,
 spoken languages, GitHub contribution stats, and per-field provenance throughout.
 
-A v1 profile is persisted for existing users under `profile:cv:v1`. Migration is
-one-way, lossless for everything v1 held, and tags every migrated field
-`source: 'cv'` or `'github'` as recorded, with the migration date as `capturedAt`. A
-profile that fails to migrate is preserved untouched and reported, never silently
-discarded.
+**Correction, found while building it (2026-09-13).** This section first claimed a v1
+`UnifiedProfile` was persisted under `profile:cv:v1`. It was not: `ProfileService`
+stored only the reviewed `ParsedCv` there and **rebuilt the profile from GitHub on
+every page load**. That was not a caching choice — it was the workaround for the
+concatenating merge described above, and it is also why hand edits were impossible.
+A profile regenerated from its sources on every load has nowhere to keep one.
+
+So the migration is `ParsedCv` → a provenance-tagged fragment (`parsedCvToFragment`),
+and the real change is that the **merged profile is now stored**, under `profile:v2`.
+The legacy `profile:cv:v1` record is read once and then left in place rather than
+deleted, so a broken migration can be retried against the CV the user confirmed.
+
+`readStoredProfile` accepts only the current schema and only when its collections are
+the shape the rest of the code will index into. Anything else returns `null`, the
+stored value is preserved untouched, and the user is told — a profile that fails to
+load is never silently discarded.
 
 ### 5. Everything is editable, and manual entry is a first-class source
 
@@ -106,6 +117,22 @@ source in the system, and the UI says so.
 The **mandatory review step** for imported data ([ADR-0011](0011-local-first-cv-processing.md))
 is unchanged and now applies to the LinkedIn archive too: nothing from any file reaches
 the profile without confirmation.
+
+### 6. Two corrections the implementation forced
+
+**A role is identified by where and when, not by what it was called.** Keying on the
+title made every typo fix a *second* role: the corrected entry got a new key, the
+original stayed, and the next import restored the misspelling. Organisation and start
+year survive rewording, so they are the key. The accepted cost is that two genuinely
+different roles at the same employer starting the same year merge into one — rare,
+usually a promotion recorded twice, and a far better failure than a profile that gains
+a duplicate every time someone fixes a letter.
+
+**A losing claim is kept, not discarded.** `Sourced<T>` carries the claims it beat, the
+way a skill carries its evidence. Without that, "remove my imported CV" would blank a
+name the CV happened to outrank instead of falling back to the one GitHub still
+reports — because the losing claim had already been thrown away. It is what makes
+`forgetSource` a demotion rather than a deletion.
 
 ## Consequences
 

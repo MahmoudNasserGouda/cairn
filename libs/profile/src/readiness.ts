@@ -127,8 +127,8 @@ export function contributionReadiness(input: ReadinessInput): ReadinessReport {
         note: plural(profile.skills.length, 'technology', 'technologies'),
       },
       experience: {
-        value: (EXPERIENCE_RANK[profile.experienceLevel] - 1) / 3,
-        note: `${profile.experienceLevel} · ~${profile.totalYears} yrs`,
+        value: (EXPERIENCE_RANK[profile.experienceLevel.value] - 1) / 3,
+        note: `${profile.experienceLevel.value} · ~${profile.totalYears} yrs`,
       },
       track: {
         value: contributions / TRACK_TARGET,

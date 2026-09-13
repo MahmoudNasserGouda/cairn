@@ -1,18 +1,30 @@
-import { stripToText, type SkillProficiency, type SkillTag } from '@cairn/shared';
+import { stripToText, type SkillTag } from '@cairn/shared';
 import { extractSkills } from './taxonomy';
-import type { ExperienceEntry, UnifiedProfile } from './model';
-import { mergeProfile, emptyProfile } from './model';
+import type { ProfileFragment } from './merge';
+import { parsedCvToFragment } from './migrate';
 
 /**
  * Deterministic CV parsing (ADR-0011). Input is plain text already extracted from
- * PDF/DOCX in a sandboxed worker by apps/web. No AI, no network. An optional BYOK
- * AI pass can refine the result but is never required.
+ * PDF/DOCX in a sandboxed worker by apps/web. No AI, no network.
+ *
+ * This is the *flat-text* parser, and it is on its way out: ADR-0028 replaces it with
+ * a layout pipeline (`libs/doc-layout` → `libs/cv-parse`) that reads the geometry
+ * pdf.js already returns. It stays until that lands so the CV path keeps working.
  */
+
+/** A role as the flat parser sees it — no provenance yet, no bullets. */
+export interface ParsedRole {
+  readonly title: string;
+  readonly organization?: string;
+  readonly startYear?: number;
+  readonly endYear?: number | 'present';
+}
+
 export interface ParsedCv {
   readonly name?: string;
   readonly email?: string;
   readonly skills: readonly SkillTag[];
-  readonly experience: readonly ExperienceEntry[];
+  readonly experience: readonly ParsedRole[];
   /** Sections the parser recognised, for the review UI. */
   readonly sections: readonly string[];
 }
@@ -75,8 +87,8 @@ function guessName(
   return undefined;
 }
 
-function extractExperience(lines: readonly string[]): ExperienceEntry[] {
-  const out: ExperienceEntry[] = [];
+function extractExperience(lines: readonly string[]): ParsedRole[] {
+  const out: ParsedRole[] = [];
   for (const line of lines) {
     const m = YEAR_RANGE_RE.exec(line);
     if (!m) continue;
@@ -90,20 +102,18 @@ function extractExperience(lines: readonly string[]): ExperienceEntry[] {
         .replace(YEAR_RANGE_RE, '')
         .replace(/[|,–—-]+\s*$/, '')
         .trim() || 'Role';
-    out.push({ title, startYear, endYear, source: 'cv' });
+    out.push({ title, startYear, endYear });
   }
   return out;
 }
 
-/** Turn a ParsedCv into a profile fragment merged onto a base profile. */
-export function cvToProfile(
-  parsed: ParsedCv,
-  base: UnifiedProfile = emptyProfile(),
-): UnifiedProfile {
-  const skills: SkillProficiency[] = parsed.skills.map((tag) => ({
-    tag,
-    level: 0.5,
-    source: 'cv',
-  }));
-  return mergeProfile(base, { skills, experience: parsed.experience });
+/**
+ * Turn a reviewed CV into a profile fragment (ADR-0031).
+ *
+ * It *proposes*; the merge decides. Everything it produces is stamped `source: 'cv'`,
+ * so a hand-edited field outranks it and a re-import updates the CV's own entries
+ * rather than duplicating them.
+ */
+export function cvToFragment(parsed: ParsedCv, capturedAt: string): ProfileFragment {
+  return parsedCvToFragment(parsed, capturedAt);
 }

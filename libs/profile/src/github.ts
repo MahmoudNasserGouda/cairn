@@ -1,7 +1,8 @@
-import { clamp01, roundTo, type SkillProficiency, type SkillTag } from '@cairn/shared';
+import { clamp01, roundTo, type SkillTag } from '@cairn/shared';
 import { canonicalizeSkill } from './taxonomy';
-import type { UnifiedProfile } from './model';
-import { mergeProfile, emptyProfile } from './model';
+import type { IncomingSkill, ProfileFragment } from './merge';
+import type { ExperienceEntry } from './model';
+import { provenance, sourced } from './provenance';
 
 /**
  * Structural view of what `collectGithubActivity` (@cairn/github) returns. Declared
@@ -21,6 +22,8 @@ export interface GithubActivityInput {
     readonly pushedAt?: string;
   }[];
   readonly mergedPrCount: number;
+  /** False when the merged-PR search was throttled rather than answered. */
+  readonly mergedPrCountKnown?: boolean;
 }
 
 /** A used language never scores below this, so it still counts toward matches. */
@@ -43,44 +46,44 @@ function yearOf(iso: string): number | null {
  * - the span ends at the most recent push we can see, not at today.
  *
  * It is still a proxy — GitHub cannot tell us when someone started programming —
- * but every year it claims is a year with visible work behind it.
+ * and it is stamped `source: 'github'`, the lowest precedence there is, so a CV or a
+ * hand-typed role replaces it the moment one exists.
  */
-function githubExperience(activity: GithubActivityInput): readonly {
-  readonly title: string;
-  readonly startYear: number;
-  readonly endYear: number;
-  readonly source: 'github';
-}[] {
+function githubExperience(
+  activity: GithubActivityInput,
+  capturedAt: string,
+): ExperienceEntry[] {
   const startYear = yearOf(activity.user.createdAt);
   if (startYear === null || activity.repos.length === 0) return [];
 
   const pushYears = activity.repos
     .map((r) => (r.pushedAt !== undefined ? yearOf(r.pushedAt) : null))
     .filter((y): y is number => y !== null);
+  // With no push dates at all there is nothing to end the span on but the moment we
+  // looked — which the caller supplies. The old code read `new Date()` here, a clock
+  // inside a lib that is supposed to be deterministic; `capturedAt` is the same
+  // answer, passed in, and testable.
   const lastActive =
-    pushYears.length > 0 ? Math.max(...pushYears) : new Date().getUTCFullYear();
+    pushYears.length > 0 ? Math.max(...pushYears) : (yearOf(capturedAt) ?? startYear);
 
   return [
     {
       title: 'Public GitHub activity',
+      organization: 'GitHub',
       startYear,
       endYear: Math.max(startYear, lastActive),
-      source: 'github',
+      highlights: [],
+      // Low confidence on purpose: it is an inference from account metadata, and
+      // saying so is what lets a better source win a tie rather than a coin toss.
+      from: provenance('github', capturedAt, 0.3),
     },
   ];
 }
 
-/**
- * Turn a GitHub activity snapshot into a profile fragment merged onto a base profile.
- * Skill levels are the share of a language's bytes against the user's most-used
- * language; topics become interests; the visible-activity span (see
- * `githubExperience`) drives the experience level via `mergeProfile`'s own year
- * estimation.
- */
-export function githubToProfile(
+function languageSkills(
   activity: GithubActivityInput,
-  base: UnifiedProfile = emptyProfile(),
-): UnifiedProfile {
+  capturedAt: string,
+): IncomingSkill[] {
   const bytes = new Map<SkillTag, number>();
   for (const repo of activity.repos) {
     for (const [lang, count] of Object.entries(repo.languages)) {
@@ -89,28 +92,64 @@ export function githubToProfile(
     }
   }
 
+  const total = [...bytes.values()].reduce((sum, n) => sum + n, 0);
   const maxBytes = Math.max(1, ...bytes.values());
-  const skills: SkillProficiency[] = [...bytes.entries()].map(([tag, count]) => ({
+  const from = provenance('github', capturedAt);
+
+  return [...bytes.entries()].map(([tag, count]) => ({
     tag,
     level: roundTo(Math.max(LEVEL_FLOOR, clamp01(count / maxBytes)), 2),
-    source: 'github',
+    // Evidence a user can check, rather than a bare percentage: the share is of
+    // their *own* pushed code, which is the only thing GitHub actually measured.
+    note:
+      total > 0
+        ? `${Math.round((count / total) * 100)}% of your pushed code`
+        : 'used in your repositories',
+    from,
   }));
+}
 
-  const interests = [
-    ...new Set(activity.repos.flatMap((r) => r.topics).map((t) => canonicalizeSkill(t))),
-  ].sort();
+/**
+ * Turn a GitHub activity snapshot into a profile fragment (ADR-0031).
+ *
+ * GitHub is last in precedence *on biography* — everything it says about who someone
+ * is comes from account metadata. It is first, and alone, on what it actually
+ * observes: language bytes, contribution counts, the repositories someone worked in.
+ * Precedence never comes up for those, because no other source claims them.
+ */
+export function githubToFragment(
+  activity: GithubActivityInput,
+  capturedAt: string,
+): ProfileFragment {
+  const from = provenance('github', capturedAt);
+  const displayName = activity.user.name ?? activity.user.login;
 
-  const experience = githubExperience(activity);
-
-  return mergeProfile(base, {
-    identities: [
+  return {
+    identities: [{ provider: 'github', displayName }],
+    contact: {
+      name: sourced(displayName, provenance('github', capturedAt, 0.5)),
+      emails: [],
+    },
+    links: [
       {
-        provider: 'github',
-        displayName: activity.user.name ?? activity.user.login,
+        kind: 'github',
+        url: `https://github.com/${activity.user.login}`,
+        from,
       },
     ],
-    skills,
-    interests,
-    experience,
-  });
+    skills: languageSkills(activity, capturedAt),
+    interests: [
+      ...new Set(
+        activity.repos.flatMap((r) => r.topics).map((t) => canonicalizeSkill(t)),
+      ),
+    ].sort(),
+    experience: githubExperience(activity, capturedAt),
+    contributions: {
+      mergedPullRequests: activity.mergedPrCount,
+      totalContributions: 0,
+      repositoriesContributedTo: activity.repos.length,
+      known: activity.mergedPrCountKnown ?? true,
+      from,
+    },
+  };
 }

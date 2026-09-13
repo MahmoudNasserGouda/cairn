@@ -1,4 +1,11 @@
-import { emptyProfile, mergeProfile, type UnifiedProfile } from './model';
+import { mergeProfile, type ProfileFragment } from './merge';
+import { emptyProfile, type UnifiedProfile } from './model';
+import { provenance } from './provenance';
+
+const DAY = '2026-09-13';
+const ctx = { currentYear: 2026 };
+const gh = provenance('github', DAY);
+const cv = provenance('cv', DAY);
 import {
   contributionReadiness,
   profileCompleteness,
@@ -6,21 +13,32 @@ import {
 } from './readiness';
 
 /** Fixed years only — `estimateYears` reads the clock for `endYear: 'present'`. */
-function profile(over: Partial<UnifiedProfile> = {}): UnifiedProfile {
-  return mergeProfile(emptyProfile(), {
-    identities: [{ provider: 'github', displayName: 'Dev' }],
-    skills: [
-      { tag: 'typescript', level: 0.9, source: 'github' },
-      { tag: 'javascript', level: 0.7, source: 'github' },
-      { tag: 'git', level: 0.5, source: 'cv' },
-      { tag: 'css', level: 0.4, source: 'github' },
-    ],
-    interests: ['web'],
-    experience: [
-      { title: 'Junior developer', startYear: 2022, endYear: 2024, source: 'cv' },
-    ],
-    ...over,
-  });
+function profile(over: ProfileFragment = {}): UnifiedProfile {
+  return mergeProfile(
+    emptyProfile(),
+    {
+      identities: [{ provider: 'github', displayName: 'Dev' }],
+      skills: [
+        { tag: 'typescript', level: 0.9, from: gh },
+        { tag: 'javascript', level: 0.7, from: gh },
+        { tag: 'git', level: 0.5, from: cv },
+        { tag: 'css', level: 0.4, from: gh },
+      ],
+      interests: ['web'],
+      experience: [
+        {
+          title: 'Junior developer',
+          organization: 'Acme',
+          startYear: 2022,
+          endYear: 2024,
+          highlights: [],
+          from: cv,
+        },
+      ],
+      ...over,
+    },
+    ctx,
+  );
 }
 
 function input(over: Partial<ReadinessInput> = {}): ReadinessInput {
@@ -28,18 +46,29 @@ function input(over: Partial<ReadinessInput> = {}): ReadinessInput {
 }
 
 const maxed: ReadinessInput = {
-  profile: mergeProfile(emptyProfile(), {
-    identities: [{ provider: 'github', displayName: 'Dev' }],
-    skills: Array.from({ length: 8 }, (_, i) => ({
-      tag: `skill-${i}`,
-      level: 1,
-      source: 'github' as const,
-    })),
-    interests: ['web'],
-    experience: [
-      { title: 'Staff engineer', startYear: 2008, endYear: 2024, source: 'cv' },
-    ],
-  }),
+  profile: mergeProfile(
+    emptyProfile(),
+    {
+      identities: [{ provider: 'github', displayName: 'Dev' }],
+      skills: Array.from({ length: 8 }, (_, i) => ({
+        tag: `skill-${i}`,
+        level: 1,
+        from: gh,
+      })),
+      interests: ['web'],
+      experience: [
+        {
+          title: 'Staff engineer',
+          organization: 'Acme',
+          startYear: 2008,
+          endYear: 2024,
+          highlights: [],
+          from: cv,
+        },
+      ],
+    },
+    ctx,
+  ),
   priorContributions: 12,
   hasCv: true,
 };
@@ -99,11 +128,11 @@ describe('contributionReadiness', () => {
       input({
         profile: profile({
           skills: [
-            { tag: 'typescript', level: 0.9, source: 'github' },
-            { tag: 'javascript', level: 0.7, source: 'github' },
-            { tag: 'git', level: 0.5, source: 'cv' },
-            { tag: 'css', level: 0.4, source: 'github' },
-            { tag: 'python', level: 0.4, source: 'cv' },
+            { tag: 'typescript', level: 0.9, from: gh },
+            { tag: 'javascript', level: 0.7, from: gh },
+            { tag: 'git', level: 0.5, from: cv },
+            { tag: 'css', level: 0.4, from: gh },
+            { tag: 'python', level: 0.4, from: cv },
           ],
         }),
       }),
