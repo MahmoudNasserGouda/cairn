@@ -104,6 +104,50 @@ write access to all private repositories was accepted, and why.
   covered by recorded-response fixtures, and a malformed or partial response degrades to
   the fields that did arrive rather than failing the profile load.
 
+## Implementation notes
+
+Added 2026-09-13, when it was built. The decision above is unchanged; these are the
+things it left open, each settled by something the code or a test insisted on.
+
+- **The REST viewer module is gone**, not kept alongside. `libs/github/src/user.ts`
+  existed only to assemble the profile, and once GraphQL did that its last caller
+  disappeared. REST remains the transport for repository analysis, health signals,
+  issue lists and search, exactly as this ADR says — what went is the fan-out, not the
+  client.
+- **`mergedPullRequests` is nullable, and that is the point.** The Search API version
+  reported a throttle as `0`, which then scored as an empty track record; that bug is
+  named in this ADR's context. GraphQL removes the throttle, so the instinct was to
+  drop the "known" flag — but a *partial* GraphQL response can still null the field,
+  and collapsing that to `0` would have reintroduced the same bug through a different
+  door. `null` means "we could not check" all the way through
+  `collectViewerGraph` -> `githubToFragment` -> `contributions.known`. An existing
+  test is what caught this.
+- **Organisation membership is read but never becomes employment.** GitHub cannot tell
+  a job from a community, an alumni group or a hackathon team, so an `ExperienceEntry`
+  built from one would invent a role the user never claimed — and then sit in the
+  profile looking authoritative. It is carried for the UI to show as an affiliation.
+- **A bio fills `headline`, not `summary`.** It is a one-line header; `summary` waits
+  for a source that actually carries prose.
+- **Pinned repositories become projects.** They are the one part of a GitHub profile
+  the user curated by hand, so the claim is one GitHub genuinely supports.
+- **Biographical claims are stamped at low confidence** (0.5, and 0.3 for the activity
+  span) so they lose a tie to any source that actually asked the user. What GitHub
+  *measures* — language bytes, contribution counts — carries full confidence, because
+  nothing else claims those and precedence never arises.
+- **`graphql` is a third rate-limit resource** alongside `core` and `search`, under the
+  same `resourceForPath` / `floorFor` mechanism. GraphQL is a POST, so ETag
+  revalidation does not apply and freshness is TTL alone; and because GitHub reports a
+  failed query as **200 with an `errors` array**, success is read from the body rather
+  than the status line, and a failed query is never cached.
+- **Scopes are live**: `read:user user:email read:org`. The read-only private-repo PAT
+  this ADR specifies is **not built yet** — no UI collects one, so nothing reads a
+  private repository today.
+
+**Not verified end to end.** The query is covered by recorded-response fixtures and the
+transport by unit tests, but no signed-in run against real GitHub has happened — that
+needs a live OAuth flow. First real sign-in is where a schema or scope mismatch would
+show up.
+
 ## Alternatives considered
 
 - **Keep REST and just raise `LANGUAGE_FETCH_LIMIT`.** Rejected: makes the request

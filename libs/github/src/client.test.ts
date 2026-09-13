@@ -254,3 +254,161 @@ describe('GithubClient resilience', () => {
     expect(keys).not.toContain('gh:/repos/a/r0');
   });
 });
+
+/**
+ * GraphQL transport (ADR-0030).
+ *
+ * One query replaces the sixteen REST calls a profile load used to cost, so it has to
+ * inherit the same protections rather than become a hole beside them: caching,
+ * deduplication, rate-limit awareness, stale-on-error. Two things differ from `get`
+ * and both are tested here — GraphQL is a POST so ETag revalidation does not apply,
+ * and it reports failure as a 200 with an `errors` array rather than a status code.
+ */
+describe('GithubClient.graphql', () => {
+  const QUERY = 'query Viewer { viewer { login } }';
+
+  function gqlResponse(
+    body: unknown,
+    init: { status?: number; headers?: Record<string, string> } = {},
+  ): Response {
+    return response(body, {
+      ...init,
+      headers: { 'x-ratelimit-resource': 'graphql', ...init.headers },
+    });
+  }
+
+  it('POSTs the query and variables to /graphql with the token', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(gqlResponse({ data: { viewer: {} } }));
+    const c = new GithubClient({
+      fetchImpl,
+      token: 'gho_secret',
+      cache: new MemoryStore(),
+    });
+
+    await c.graphql(QUERY, { login: 'octocat' });
+
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toMatch(/\/graphql$/);
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({
+      query: QUERY,
+      variables: { login: 'octocat' },
+    });
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      'Bearer gho_secret',
+    );
+  });
+
+  it('caches by query and variables together', async () => {
+    // A fresh Response per call: a body can only be read once, and this test is the
+    // only one here that expects more than one fetch to actually happen.
+    const fetchImpl = vi.fn().mockImplementation(() => gqlResponse({ data: { n: 1 } }));
+    const c = new GithubClient({ fetchImpl, cache: new MemoryStore() });
+
+    await c.graphql(QUERY, { a: 1 }, { ttlMs: 10_000 });
+    await c.graphql(QUERY, { a: 1 }, { ttlMs: 10_000 });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+
+    // Same query, different variables, is a different question.
+    await c.graphql(QUERY, { a: 2 }, { ttlMs: 10_000 });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('deduplicates concurrent identical queries', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockImplementation(
+        () => new Promise((r) => setTimeout(() => r(gqlResponse({ data: { n: 1 } })), 5)),
+      );
+    const c = new GithubClient({ fetchImpl });
+    await Promise.all([c.graphql(QUERY), c.graphql(QUERY), c.graphql(QUERY)]);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * GraphQL answers 200 with both `data` and `errors` when part of a query fails —
+   * an organisation the token cannot see, a field behind a scope we did not ask for.
+   * ADR-0030: degrade to the fields that did arrive rather than failing the whole
+   * profile load over one unreadable corner.
+   */
+  it('returns partial data when some fields errored', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      gqlResponse({
+        data: { viewer: { login: 'octocat', organizations: null } },
+        errors: [{ message: 'Resource not accessible by integration' }],
+      }),
+    );
+    const c = new GithubClient({ fetchImpl });
+
+    const data = await c.graphql<{ viewer: { login: string } }>(QUERY);
+    expect(data.viewer.login).toBe('octocat');
+  });
+
+  it('throws when the query failed outright and no data came back', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        gqlResponse({ data: null, errors: [{ message: 'Bad credentials' }] }),
+      );
+    const c = new GithubClient({ fetchImpl });
+
+    await expect(c.graphql(QUERY)).rejects.toThrow(/Bad credentials/);
+  });
+
+  it('does not cache a failed query', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(gqlResponse({ data: null, errors: [{ message: 'nope' }] }))
+      .mockResolvedValue(gqlResponse({ data: { n: 1 } }));
+    const c = new GithubClient({ fetchImpl, cache: new MemoryStore() });
+
+    await expect(c.graphql(QUERY, {}, { ttlMs: 10_000 })).rejects.toThrow();
+    await c.graphql(QUERY, {}, { ttlMs: 10_000 });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * GraphQL bills against its own budget of 5,000 *points* an hour, separate from
+   * REST's request budget. Tracking it as a third resource is what stops a spent
+   * GraphQL quota from blocking repository reads, the same way `search` was kept
+   * apart from `core`.
+   */
+  it('tracks graphql quota separately from core', async () => {
+    const exhausted = {
+      'x-ratelimit-resource': 'graphql',
+      'x-ratelimit-limit': '5000',
+      'x-ratelimit-remaining': '0',
+      'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 3600),
+    };
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(response({ data: { n: 1 } }, { headers: exhausted }))
+      .mockResolvedValue(response({ full_name: 'a/b' }));
+    const c = new GithubClient({ fetchImpl, cache: new MemoryStore() });
+
+    await c.graphql(QUERY);
+    // GraphQL's floor is hit...
+    await expect(c.graphql('query Other { viewer { id } }')).rejects.toThrow(
+      RateLimitError,
+    );
+    // ...but a REST read is unaffected.
+    await expect(c.get('/repos/a/b')).resolves.toEqual({ full_name: 'a/b' });
+  });
+
+  it('serves stale cache when the network fails', async () => {
+    let now = 1_000;
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(gqlResponse({ data: { n: 1 } }))
+      .mockRejectedValue(new Error('offline'));
+    const c = new GithubClient({
+      fetchImpl,
+      cache: new MemoryStore(),
+      now: () => now,
+    });
+
+    await c.graphql(QUERY, {}, { ttlMs: 100 });
+    now += 1_000; // expire it
+    await expect(c.graphql(QUERY, {}, { ttlMs: 100 })).resolves.toEqual({ n: 1 });
+  });
+});
