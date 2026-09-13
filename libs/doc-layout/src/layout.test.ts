@@ -233,3 +233,31 @@ describe('degenerate input', () => {
     expect(backwards).toEqual(forwards);
   });
 });
+
+/**
+ * CodeQL `js/polynomial-redos` (high) on `joinRuns`'s trailing trim — the fifth of
+ * this shape in the codebase, and the first in a library written specifically to
+ * avoid it.
+ *
+ * The tabs are not incidental: `joinRuns` emits one per column gap, so a document
+ * with many gapped runs on a line decides how long the run is, and the document is
+ * untrusted (SECURITY.md T7).
+ */
+describe('hostile input', () => {
+  it('joins a line of many gapped runs in linear time', () => {
+    // Every run far enough from the last to be a gutter, so every join emits a tab.
+    const items = Array.from({ length: 4000 }, (_, i) => run('x', 72 + i * 200, 100));
+    const started = performance.now();
+    const out = layoutPage(page(items));
+    const elapsed = performance.now() - started;
+
+    expect(out.blocks[0]?.text.startsWith('x\tx')).toBe(true);
+    // Linear is milliseconds; the regex version was 2.2s on 60k tabs alone.
+    expect(elapsed).toBeLessThan(1000);
+  });
+
+  it('still trims the trailing whitespace it is meant to', () => {
+    const out = layoutPage(page([run('trailing   ', 72, 100)]));
+    expect(out.blocks[0]?.text).toBe('trailing');
+  });
+});
