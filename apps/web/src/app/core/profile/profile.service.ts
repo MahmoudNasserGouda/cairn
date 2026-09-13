@@ -1,5 +1,5 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
-import { collectGithubActivity } from '@cairn/github';
+import { collectViewerGraph } from '@cairn/github';
 import {
   cvToFragment,
   emptyProfile,
@@ -195,12 +195,14 @@ export class ProfileService {
     try {
       // The one shared client (`GithubClientService`), not a second instance: a
       // private client would keep its own rate-limit and in-flight state, so the
-      // Search API quota this burns on the merged-PR count would be invisible to the
-      // dashboard's repository search and vice versa.
-      const activity = await collectGithubActivity(this.gh.get());
+      // GraphQL budget this spends would be invisible to the dashboard's repository
+      // search and vice versa.
+      //
+      // One request, where this used to cost up to sixteen (ADR-0030).
+      const graph = await collectViewerGraph(this.gh.get());
       // A token change mid-flight wins; ignore this stale result.
       if (this.loadedFor !== token) return;
-      await this.apply(githubToFragment(activity, today()));
+      await this.apply(githubToFragment(graph, today()));
     } catch (e) {
       this._error.set(
         e instanceof Error ? e.message : 'could not load your GitHub profile',

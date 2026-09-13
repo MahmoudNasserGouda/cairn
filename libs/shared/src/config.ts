@@ -81,7 +81,19 @@ export const OAUTH_PROVIDERS = {
     tokenExchangeUrl: `${OAUTH_EXCHANGE_BASE}/github/token`,
     userInfoUrl: 'https://api.github.com/user',
     redirectUri: OAUTH_REDIRECT_URI,
-    scopes: ['read:user'],
+    /**
+     * Read-only, and deliberately short of `repo` (ADR-0030).
+     *
+     * `user:email` lets a CV's address be matched to the account, which is what makes
+     * cross-source identity resolution possible at all. `read:org` unlocks
+     * organisation affiliations. Both are reads.
+     *
+     * **Classic `repo` is not requested and must not be.** It grants full control of
+     * private repositories *including write access to code* — GitHub offers no
+     * read-only equivalent — and this token lives in `sessionStorage`. Private-repo
+     * reading is a separate opt-in fine-grained PAT instead.
+     */
+    scopes: ['read:user', 'user:email', 'read:org'],
   },
   linkedin: {
     id: 'linkedin',
@@ -121,9 +133,8 @@ export const CACHE_TTL_MS = {
   pulls: 60 * 60 * 1000,
   commitActivity: 6 * 60 * 60 * 1000,
   releases: 12 * 60 * 60 * 1000,
+  /** The whole viewer profile, in one GraphQL request (ADR-0030). */
   viewer: 60 * 60 * 1000,
-  viewerRepos: 60 * 60 * 1000,
-  mergedPrCount: 60 * 60 * 1000,
 } as const;
 
 /** Total cache budget before LRU eviction kicks in. */

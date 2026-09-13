@@ -169,8 +169,10 @@ Next — in order, each phase tests-first ([`docs/testing.md`](docs/testing.md))
 3. ~~**Profile v2**~~ → **done** ([ADR-0031](docs/adr/0031-profile-v2-provenance.md)).
    Nothing edits the profile by hand *yet* — `ProfileService.replace()` exists and the
    editing UI arrives with the design system in step 7.
-4. **GitHub deep read** — one GraphQL request replaces the sixteen REST calls; scopes go
-   to `read:user user:email read:org` ([ADR-0030](docs/adr/0030-github-graphql-profile-read.md)).
+4. ~~**GitHub deep read**~~ → **done** ([ADR-0030](docs/adr/0030-github-graphql-profile-read.md)).
+   One GraphQL request replaced the sixteen REST calls; scopes are now
+   `read:user user:email read:org`. The read-only private-repo PAT is **not built** —
+   no UI collects one, so nothing reads a private repository today.
 5. **CV reading rebuilt** — `libs/doc-layout` + `libs/cv-parse` over pdf.js geometry, then
    the `/ocr` sandbox for scanned files
    ([ADR-0028](docs/adr/0028-ocr-and-document-vision-sandbox.md)).
@@ -216,9 +218,10 @@ libs/discovery/            pure: profile → planQueries (GitHub search syntax) 
 libs/repository-analysis/  healthScore (AI-free), architecture model + readingOrder
 libs/issue-analysis/       analyzeIssue — deterministic difficulty; required-knowledge is the
                            shared taxonomy's (no second tech list of its own)
-libs/github/               GithubClient (cache + dedup + ETag + per-resource rate-limit + 429 backoff
-                           + stale-on-error + LRU eviction + uncached 202 statistics placeholders);
-                           repo/health + viewer + repo-search + issue-list fetchers
+libs/github/               GithubClient — REST + GraphQL over one cache/dedupe/rate-limit path
+                           (ETag + per-resource floor incl. `graphql` + 429 backoff + stale-on-error
+                           + LRU eviction + uncached 202 statistics placeholders);
+                           viewer-graph (whole profile in one query), repo/health, search, issues
 libs/profile/              UnifiedProfile v2 (schemaVersion 2) — provenance.ts (source precedence),
                            merge.ts (idempotent entity merge + forgetSource), migrate.ts,
                            githubToFragment, cvToFragment, contributionReadiness,
@@ -485,6 +488,56 @@ one — see `api/optional-serverless/oauth/README.md`.
     optional GitHub PAT. "Clear all AI data" must clear only the former.
 
 ## Changelog
+
+### 2026-09-13 — One GraphQL request replaces sixteen REST calls
+
+Phase 4 ([ADR-0030](docs/adr/0030-github-graphql-profile-read.md)). 452 -> **475
+tests**, 84.7% statements.
+
+A profile load cost up to sixteen requests — `/user`, `/user/repos`, a merged-PR
+search, and `/repos/{full_name}/languages` fifteen times over — and returned skills,
+interests and one synthetic experience entry. One GraphQL query now returns all of
+that plus the bio fields, social links, pinned work, organisations, contribution
+totals, and the repositories the user contributed *to* rather than only owns.
+
+`libs/github/src/user.ts` is deleted rather than kept alongside: it existed only to
+assemble the profile, and its last caller went with the fan-out. REST stays the
+transport for repository analysis, health, issues and search.
+
+GraphQL runs through the **same** cache, dedupe, rate-limit and stale-on-error path as
+`get`, not beside it — one request now carries what sixteen did, so it needs those
+protections more, not less. Two things differ and both are tested: it is a POST, so
+ETag revalidation does not apply and freshness is TTL alone; and GitHub reports a
+failed query as **200 with an `errors` array**, so success is read from the body, a
+partial response degrades to the fields that arrived, and a failure is never cached.
+`graphql` joins `core` and `search` as a third rate-limit resource.
+
+Scopes are now `read:user user:email read:org`. **Classic `repo` is still not
+requested** and the read-only PAT alternative is not built, so nothing reads a private
+repository today.
+
+One bug caught by an existing test, worth naming: the merged-PR count used to come
+from the Search API, whose throttle was reported as `0` and scored as an empty track
+record. GraphQL removes the throttle, so the instinct was to drop the "known" flag —
+but a *partial* GraphQL response can still null the field, and collapsing that to `0`
+would have reintroduced the same bug through a different door. `null` now means "we
+could not check" the whole way through.
+
+Two things GitHub knows and the profile declines to claim: an **organisation
+membership is not employment** (GitHub cannot tell a job from a community or an alumni
+group), and a **bio is not a CV summary** — it fills `headline`. Pinned repositories
+*do* become projects: they are the one part of a GitHub profile the user curated by
+hand.
+
+Guide sections updated: Next, Repo map, Changelog.
+
+- Drift: **none.** No new dependency, no new outbound origin (`api.github.com` was
+  already allowlisted), no CSP change.
+- ⚠ **Not verified end to end.** The query is covered by recorded-response fixtures and
+  the transport by unit tests, but no signed-in run against real GitHub has happened —
+  that needs a live OAuth flow, which the preview cannot complete. First real sign-in
+  is where a schema or scope mismatch would surface. Logged here rather than implied by
+  a green suite.
 
 ### 2026-09-13 — Profile v2: every field knows where it came from
 

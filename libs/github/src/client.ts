@@ -49,6 +49,26 @@ export interface GetOptions {
   readonly forceRevalidate?: boolean;
 }
 
+/** What GitHub returns from `/graphql`: data, errors, or both. */
+interface GraphqlEnvelope<T> {
+  readonly data?: T | null;
+  readonly errors?: readonly { readonly message: string }[];
+}
+
+/** One request, described enough for `send` to cache, dedupe and rate-limit it. */
+interface RequestSpec<T> {
+  readonly path: string;
+  readonly cacheKey: string;
+  /** Present for a POST; absent for a GET. */
+  readonly body?: string;
+  /**
+   * True when a 200 response is actually a failure, which only GraphQL does. A
+   * response that fails this is never cached — otherwise one "Bad credentials" would
+   * be served back for the rest of the TTL.
+   */
+  readonly isFailure?: (data: T) => boolean;
+}
+
 export class RateLimitError extends Error {
   constructor(public readonly rateLimit: RateLimit) {
     super('GitHub rate limit reached; serving cache only.');
@@ -77,8 +97,35 @@ const SWEEP_INTERVAL = 50;
 const INDEX_KEY = 'gh:__index';
 
 /** GitHub reports quota per resource; `/search/*` has its own (tiny) bucket. */
+/**
+ * Which quota a path spends.
+ *
+ * Three budgets, not one: `core` is 5,000 requests an hour, `search` is a 10-30 per
+ * *minute* bucket, and `graphql` is 5,000 *points* an hour. Keeping them apart is what
+ * stops a search burst — or now a spent GraphQL budget — from blocking ordinary
+ * repository reads (ADR-0030).
+ */
 function resourceForPath(path: string): string {
+  if (path === '/graphql') return 'graphql';
   return path.startsWith('/search/') ? 'search' : 'core';
+}
+
+/**
+ * A stable cache key for a GraphQL query plus its variables.
+ *
+ * FNV-1a, not a cryptographic hash: this only has to be deterministic and spread
+ * well enough that two different questions do not collide in a local cache. Hashing
+ * rather than storing the whole query keeps the key short, and keeps a query that may
+ * contain a login out of the key itself.
+ */
+function queryKey(query: string, variables: unknown): string {
+  const source = `${query}\u0000${JSON.stringify(variables ?? {})}`;
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < source.length; i++) {
+    hash ^= source.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(36);
 }
 
 /**
@@ -135,25 +182,70 @@ export class GithubClient {
 
   /** GET a JSON resource, using the cache and deduplicating concurrent calls. */
   async get<T>(path: string, options: GetOptions = {}): Promise<T> {
-    const key = `gh:${path}`;
+    return this.send<T>({ path, cacheKey: `gh:${path}` }, options);
+  }
+
+  /**
+   * Run a GraphQL query (ADR-0030).
+   *
+   * Deliberately routed through the same machinery as `get` rather than beside it: one
+   * query now carries what sixteen REST calls used to, so it needs the caching,
+   * deduplication, rate-limit floor, backoff and stale-on-error behaviour at least as
+   * much, not less.
+   *
+   * Two things differ, both forced by the protocol. It is a POST, so ETag
+   * revalidation does not apply and freshness is TTL alone. And GitHub reports a
+   * failed query as **200 with an `errors` array**, so success has to be read out of
+   * the body rather than the status line.
+   */
+  async graphql<T>(
+    query: string,
+    variables: Record<string, unknown> = {},
+    options: GetOptions = {},
+  ): Promise<T> {
+    const envelope = await this.send<GraphqlEnvelope<T>>(
+      {
+        path: '/graphql',
+        cacheKey: `gql:${queryKey(query, variables)}`,
+        body: JSON.stringify({ query, variables }),
+        isFailure: (data) => data.data === null || data.data === undefined,
+      },
+      options,
+    );
+
+    if (envelope.errors && envelope.errors.length > 0) {
+      // Partial failure is normal — an organisation the token cannot see, a field
+      // behind a scope we did not ask for. ADR-0030: degrade to what did arrive
+      // rather than lose the whole profile over one unreadable corner. Messages only;
+      // a GraphQL error can quote the query, and the query can name the user.
+      logger.warn('github: graphql returned partial errors', {
+        count: envelope.errors.length,
+        first: envelope.errors[0]?.message,
+      });
+    }
+    return envelope.data as T;
+  }
+
+  private async send<T>(request: RequestSpec<T>, options: GetOptions): Promise<T> {
+    const key = request.cacheKey;
     // A forced revalidation must not be answered by an in-flight plain read, or the
     // caller asking for fresh data silently gets the stale copy it was avoiding.
     const flightKey = options.forceRevalidate ? `${key}#revalidate` : key;
     const existing = this.inFlight.get(flightKey);
     if (existing) return existing as Promise<T>;
 
-    const p = this.getUncached<T>(key, path, options).finally(() => {
+    const p = this.sendUncached<T>(request, options).finally(() => {
       this.inFlight.delete(flightKey);
     });
     this.inFlight.set(flightKey, p);
     return p;
   }
 
-  private async getUncached<T>(
-    key: string,
-    path: string,
+  private async sendUncached<T>(
+    request: RequestSpec<T>,
     options: GetOptions,
   ): Promise<T> {
+    const { cacheKey: key, path } = request;
     const cached = (await this.cache.get<CacheEntry<T>>(key)) ?? null;
     const age = cached ? this.now() - cached.fetchedAtMs : Infinity;
     const fresh = cached && age < cached.ttlMs && !options.forceRevalidate;
@@ -184,13 +276,18 @@ export class GithubClient {
       'X-GitHub-Api-Version': '2022-11-28',
     };
     if (this.opts.token) headers.Authorization = `Bearer ${this.opts.token}`;
-    if (cached?.etag) headers['If-None-Match'] = cached.etag;
+    // A POST has no ETag to revalidate against; freshness there is TTL alone.
+    if (cached?.etag && request.body === undefined) {
+      headers['If-None-Match'] = cached.etag;
+    }
+    if (request.body !== undefined) headers['Content-Type'] = 'application/json';
 
     const signal = this.abortSignal();
     let res: Response;
     try {
       res = await this.fetchImpl(`${this.baseUrl}${path}`, {
         headers,
+        ...(request.body !== undefined ? { method: 'POST', body: request.body } : {}),
         ...(signal ? { signal } : {}),
       });
     } catch (e) {
@@ -251,6 +348,18 @@ export class GithubClient {
     }
 
     const data = (await res.json()) as T;
+
+    // GraphQL says "failed" with a 200 and an `errors` array, so the check has to
+    // happen here rather than on the status line — and a failure must not be cached,
+    // or one `Bad credentials` would be replayed for the whole TTL.
+    if (request.isFailure?.(data) === true) {
+      if (cached) {
+        logger.warn('github: query failed, serving stale cache', { path });
+        return cached.data;
+      }
+      throw new Error(graphqlErrorMessage(data, path));
+    }
+
     const entry: CacheEntry<T> = {
       data,
       etag: res.headers.get('etag'),
@@ -325,4 +434,21 @@ export class GithubClient {
     this.rateLimits.set(resource, rl);
     return rl;
   }
+}
+
+/**
+ * Turn a failed GraphQL envelope into a message worth reading.
+ *
+ * Only the `message` fields: a GraphQL error can echo the query back, and the query
+ * can carry a login — so the rest of the envelope stays out of the thrown error and
+ * out of the logs.
+ */
+function graphqlErrorMessage(data: unknown, path: string): string {
+  const errors = (data as GraphqlEnvelope<unknown>)?.errors ?? [];
+  const messages = errors
+    .map((e) => e.message)
+    .filter((m): m is string => typeof m === 'string' && m.length > 0);
+  return messages.length > 0
+    ? `GitHub GraphQL: ${messages.join('; ')}`
+    : `GitHub GraphQL returned no data for ${path}`;
 }

@@ -31,34 +31,34 @@ class FakeStore {
   }
 }
 
-/** `searchOk: false` makes the merged-PR search fail, as a throttle would. */
-function fakeClient(searchOk = true): GithubClient {
+/**
+ * The GraphQL client, stubbed at `collectViewerGraph`'s single call.
+ *
+ * `prCountKnown: false` returns the shape a partial GraphQL response produces —
+ * `pullRequests: null` — which used to be the Search API being throttled. The failure
+ * mode moved; the requirement did not.
+ */
+function fakeClient(prCountKnown = true): GithubClient {
   return {
-    async get(path: string) {
-      if (path.startsWith('/search/issues')) {
-        if (!searchOk) throw new Error('rate limited');
-        return { total_count: 12 };
-      }
-      if (path === '/user')
-        return {
+    async graphql() {
+      return {
+        viewer: {
           login: 'octo',
           name: 'The Octocat',
-          created_at: '2018-01-01T00:00:00Z',
-          avatar_url: null,
-        };
-      if (path.startsWith('/user/repos'))
-        return [
-          {
-            full_name: 'octo/a',
-            language: 'TypeScript',
-            topics: ['react'],
-            fork: false,
-            stargazers_count: 1,
-            pushed_at: '2024-06-01T00:00:00Z',
+          createdAt: '2018-01-01T00:00:00Z',
+          pullRequests: prCountKnown ? { totalCount: 12 } : null,
+          repositories: {
+            nodes: [
+              {
+                nameWithOwner: 'octo/a',
+                pushedAt: '2024-06-01T00:00:00Z',
+                repositoryTopics: { nodes: [{ topic: { name: 'react' } }] },
+                languages: { edges: [{ size: 5000, node: { name: 'TypeScript' } }] },
+              },
+            ],
           },
-        ];
-      if (path.includes('/languages')) return { TypeScript: 5000 };
-      return [];
+        },
+      };
     },
   } as unknown as GithubClient;
 }
@@ -66,7 +66,7 @@ function fakeClient(searchOk = true): GithubClient {
 function makeService(opts: {
   store?: FakeStore;
   signedIn?: boolean;
-  searchOk?: boolean;
+  prCountKnown?: boolean;
 }): { svc: ProfileService; store: FakeStore } {
   const store = opts.store ?? new FakeStore();
   const signedIn = opts.signedIn ?? true;
@@ -76,7 +76,7 @@ function makeService(opts: {
       { provide: IndexedDbStore, useValue: store },
       {
         provide: GithubClientService,
-        useValue: { get: () => fakeClient(opts.searchOk ?? true) },
+        useValue: { get: () => fakeClient(opts.prCountKnown ?? true) },
       },
       {
         provide: AuthService,
@@ -119,8 +119,10 @@ describe('GitHub half of the profile', () => {
 
   it('flags an unknown merged-PR count instead of reporting zero contributions', async () => {
     // A throttled Search API used to silently become "0 merged PRs", which then
-    // scored as an empty track record.
-    const { svc } = makeService({ searchOk: false });
+    // scored as an empty track record. GraphQL removed the throttle, but a partial
+    // response can still null the field — so the distinction has to survive the
+    // change of mechanism, not just the change of API (ADR-0030).
+    const { svc } = makeService({ prCountKnown: false });
     await settle();
 
     expect(svc.priorContributions()).toBe(0);
