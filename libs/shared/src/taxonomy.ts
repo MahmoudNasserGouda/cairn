@@ -10,7 +10,7 @@ import { toSkillTag, type SkillTag } from './types';
  * through *this* table. When only one side did, a repo topic `nodejs` could never
  * match a developer's `node` skill and every score was quietly wrong.
  */
-export const TAXONOMY_VERSION = 4;
+export const TAXONOMY_VERSION = 5;
 
 /**
  * canonical tag -> aliases that should map to it.
@@ -257,7 +257,19 @@ export function extractSkills(text: string): SkillTag[] {
       }
       continue;
     }
-    const boundary = new RegExp(`(^|[^a-z0-9+#.])${escapeRegex(needle)}([^a-z0-9+#.]|$)`);
+    // The trailing boundary is a pair of lookaheads rather than a character class.
+    // A class excluding `.` kept `node` from matching inside `node.js` — correct, and
+    // `node.js` is its own alias — but it also made a full stop block the match, so
+    // "in Python." found nothing while "in Python" found python. That was invisible
+    // while this only read skills lines; `libs/cv-parse` reads bullet prose, which
+    // ends in full stops, so it was dropping skills wherever they mattered most.
+    //
+    // `(?![a-z0-9+#])` keeps a tag from matching inside a longer word, and
+    // `(?!\.[a-z0-9])` keeps it from matching the head of a dotted name. A period
+    // that ends a sentence satisfies both.
+    const boundary = new RegExp(
+      `(^|[^a-z0-9+#.])${escapeRegex(needle)}(?![a-z0-9+#])(?!\\.[a-z0-9])`,
+    );
     if (boundary.test(hay)) found.add(canonicalizeSkill(cand));
   }
   return [...found].sort();
