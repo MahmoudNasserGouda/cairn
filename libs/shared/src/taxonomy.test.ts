@@ -156,3 +156,51 @@ describe('extractSkills', () => {
     }
   });
 });
+
+/**
+ * A skill at the end of a sentence.
+ *
+ * The trailing boundary used to be `[^a-z0-9+#.]`, excluding `.` so that `node.js`
+ * and `.net` kept working — which also meant a full stop after a skill blocked it.
+ * `"in Python"` matched and `"in Python."` did not.
+ *
+ * That was tolerable while this only read skills lines. It is not now: `libs/cv-parse`
+ * reads a role's **bullets**, which are prose and end in full stops, so every skill
+ * mentioned at the end of one was being dropped.
+ */
+describe('a skill at the end of a sentence', () => {
+  it.each([
+    ['Built payment reconciliation in Python.', 'python'],
+    ['Reporting over PostgreSQL.', 'postgresql'],
+    ['Containerised the service with Docker.', 'docker'],
+    ['Deployed to Kubernetes.', 'kubernetes'],
+  ])('finds the skill in %s', (sentence, expected) => {
+    expect(extractSkills(sentence)).toContain(expected);
+  });
+
+  /**
+   * The ambiguity gate still applies at the end of a sentence. "Wrote the API in Go."
+   * is not a qualified form, and `AMBIGUOUS_SKILLS` deliberately trades that false
+   * negative for the false positives that "go ahead" and "the rest of it" used to
+   * produce. Fixing the full stop did not quietly widen that gate.
+   */
+  it('does not let a full stop smuggle an ambiguous tag through the gate', () => {
+    expect(extractSkills('Wrote the API in Go.')).not.toContain('go');
+    expect(extractSkills('Rewritten in Go.')).toContain('go');
+  });
+
+  it('still refuses to see a tag inside a longer word', () => {
+    expect(extractSkills('pythonic code')).not.toContain('python');
+    expect(extractSkills('Python3000')).not.toContain('python');
+  });
+
+  /**
+   * The reason the period was excluded in the first place, still holding: `node` must
+   * not match inside `node.js`, because `node.js` is its own alias and matching both
+   * would double-count. Only a period that ends a sentence is a boundary.
+   */
+  it('still does not match a tag that is only the head of a dotted name', () => {
+    expect(extractSkills('we use node.js here')).toEqual(['node']);
+    expect(extractSkills('vue.js on the front end')).toEqual(['vue']);
+  });
+});

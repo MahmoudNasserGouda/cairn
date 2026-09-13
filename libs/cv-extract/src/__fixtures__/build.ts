@@ -399,8 +399,13 @@ export function dateGutterCv(): PdfRun[] {
     { text: 'EXPERIENCE', x: LEFT, y: TOP - 40, size: 13, bold: true },
     { text: 'Backend Engineer, Paystack', x: LEFT, y: TOP - 64, size: 12, bold: true },
     { text: '2021 - present', x: GUTTER, y: TOP - 64 },
-    { text: 'Data Analyst, Andela', x: LEFT, y: TOP - 96, size: 12, bold: true },
-    { text: '2019 - 2021', x: GUTTER, y: TOP - 96 },
+    // Body text under each role. Not decoration: without it almost every line here is
+    // bold, and no body face can be inferred from a document that is entirely
+    // emphasis — which is a property of this fixture, not of real CVs.
+    { text: 'Payment reconciliation services in Python.', x: LEFT, y: TOP - 80 },
+    { text: 'Data Analyst, Andela', x: LEFT, y: TOP - 112, size: 12, bold: true },
+    { text: '2019 - 2021', x: GUTTER, y: TOP - 112 },
+    { text: 'Reporting and dashboards over PostgreSQL.', x: LEFT, y: TOP - 128 },
   ];
 }
 

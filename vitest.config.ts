@@ -16,6 +16,7 @@ export default defineConfig({
       '@cairn/cv-extract/testing': r('./libs/cv-extract/src/__fixtures__/build.ts'),
       '@cairn/cv-extract': r('./libs/cv-extract/src/index.ts'),
       '@cairn/doc-layout': r('./libs/doc-layout/src/index.ts'),
+      '@cairn/cv-parse': r('./libs/cv-parse/src/index.ts'),
       '@cairn/matching': r('./libs/matching/src/index.ts'),
       '@cairn/discovery': r('./libs/discovery/src/index.ts'),
       '@cairn/scoring': r('./libs/scoring/src/index.ts'),

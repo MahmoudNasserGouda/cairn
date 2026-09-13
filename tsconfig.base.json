@@ -27,6 +27,7 @@
       "@cairn/cv-extract": ["libs/cv-extract/src/index.ts"],
       "@cairn/cv-extract/testing": ["libs/cv-extract/src/__fixtures__/build.ts"],
       "@cairn/doc-layout": ["libs/doc-layout/src/index.ts"],
+      "@cairn/cv-parse": ["libs/cv-parse/src/index.ts"],
       "@cairn/matching": ["libs/matching/src/index.ts"],
       "@cairn/discovery": ["libs/discovery/src/index.ts"],
       "@cairn/scoring": ["libs/scoring/src/index.ts"],
