@@ -17,13 +17,15 @@ context: [`ARCHITECTURE.md`](ARCHITECTURE.md) §1; roadmap: [§15](ARCHITECTURE.
 
 ## Current status
 
-**Phase 2 — Discovery Engine. Phase 1 is complete (monorepo + CI/CD, web app
-deployed, multi-provider sign-in, real GitHub profile, CV import, contribution
-readiness, and match / confidence / skill-gap scoring against a real repo + issue).
-The product now also *recommends* repositories: `/discover` turns the user's profile
-into at most four GitHub searches and ranks the results deterministically
-([ADR-0027](docs/adr/0027-search-only-repository-discovery.md)), closing the last
-"not started" item in the README's original MVP scope.**
+**Phase 2 — Discovery Engine, with the first Phase 3 groundwork laid. Phase 1 is
+complete (monorepo + CI/CD, web app deployed, multi-provider sign-in, real GitHub
+profile, CV import, contribution readiness, and match / confidence / skill-gap scoring
+against a real repo + issue). The product now also *recommends* repositories
+([ADR-0027](docs/adr/0027-search-only-repository-discovery.md)), and — new — the
+optional BYOK AI layer is wired end to end: a `/settings` page holds the user's own
+key, a disclosure panel shows the exact payload before every send, and two features
+consume it (a written issue explanation, and an AI re-read of an imported CV). Both
+keep their deterministic version as the default.**
 
 Done:
 
@@ -131,25 +133,50 @@ Done:
   **excluded rather than scored** (`skillCoverage` returns a neutral 1 for an empty
   requirement list, which would otherwise float it to the top as a perfect match).
 
+- **BYOK AI, wired and gated** — `libs/ai` had been a finished engine with no caller
+  since Phase 1. `/settings` now holds the user's own provider, model and key; the key
+  lives in its **own IndexedDB object store** (`secrets`, separate from `kv`, schema
+  version 2) or memory-only if the user opts in, never in LocalStorage and never in a
+  log. Every call goes through one `AiService`, and every call is gated by a disclosure
+  panel showing the verbatim prompt, each document with its size, per-document include
+  toggles and email stripping on by default — **per action, never remembered**
+  ([ADR-0010](docs/adr/0010-ai-key-privacy-and-data-disclosure.md)). Cancel, Escape or
+  the backdrop fire no request at all. Two consumers: the dashboard's **issue
+  explainer** (deterministic `explainIssueWithoutAI` first, the written version only if
+  a key exists) and the CV review form's **AI re-read**, which proposes fields the
+  parser missed for per-field accept and never applies anything itself. Replies that
+  should be data are schema-validated in `libs/ai` before the UI sees them — that
+  validation is the prompt-injection defence, not politeness.
+- **The CORS consequence ADR-0009 predicted is real, and it moved the default.**
+  Probing each provider from the running app: OpenRouter (401) and Gemini (400) answer
+  a browser; `api.openai.com` sends no `Access-Control-Allow-Origin` and the request
+  never leaves. So **OpenRouter is the default provider**, the settings page says an
+  OpenAI key will not work from a web page, and no proxy was added — which is what
+  [ADR-0002](docs/adr/0002-no-mandatory-application-backend.md) requires.
+
 Next:
 
 1. First job/opportunity feed — a key-free source behind ADR-0026's acceptance bar, its
    own mini-ADR, and an `OpportunitySnapshot` in `libs/matching`.
-2. Optional BYOK AI refinement pass over the parsed CV — deliberately deferred out of
-   the CV slice; needs the ADR-0010 disclosure panel wired first.
+2. Phase 3 proper — Architecture Explorer, Contribution Navigator, PR Explainer. The
+   disclosure panel and `AiService` they need now exist; `libs/repository-analysis` has
+   the model and `readingOrder` but nothing builds an `ArchitectureModel` from a real
+   repo yet, and `/repositories` is still just a health score.
 
 ## Repo map
 
 ```
 apps/web/                  Angular 20 SPA — primary MVP                 [built: shell + 3 pages + sign-in]
-  src/app/core/            SafeHtmlService (DOMPurify), IndexedDbStore
+  src/app/core/            SafeHtmlService (DOMPurify), IndexedDbStore + SecretStore (two IDB stores)
   src/app/core/auth/       AuthService (in-memory tokens, redirect flow) + sign-in-dialog modal
   src/app/core/profile/    ProfileService — GitHub + reviewed CV → one UnifiedProfile (persisted)
   src/app/core/targets/    TargetService — repo search → pick repo + issue → scoring snapshots (persisted)
   src/app/core/discovery/  DiscoveryService — profile → search plan → ranked recommendations (preset persisted)
   src/app/core/github-client.ts  one shared GithubClient (token-bound when signed in)
   src/app/core/cv/         CvImportService + sandboxed extraction worker + Trusted Types worker URL
-  src/app/pages/           dashboard, discover, repositories, profile (CV import + review form)
+  src/app/core/ai/         AiSettingsService (key in `secrets`), AiService (the one call path),
+                           disclosure service + dialog — every AI call is gated here (ADR-0010)
+  src/app/pages/           dashboard, discover, repositories, profile (CV import + review form), settings
   public/_headers          security headers + CSP, applied by Cloudflare Workers
   wrangler.toml            Cloudflare Workers static-assets deploy config
 apps/extension/            Manifest V3 extension (esbuild)              [built: content + background]
@@ -172,7 +199,8 @@ libs/cv-extract/           PDF/DOCX/text → plain text; own ZIP reader, pdf.js 
 libs/portfolio/            metrics, static HTML/MD generator, Ed25519 license verify
 libs/targets/              pure: RepoOverview + healthScore + analyzeIssue → Repository/IssueSnapshot
 libs/auth/                 framework-free multi-provider OAuth (provider records, state, exchange, identity)
-libs/ai/                   IAIProvider (OpenAI/Gemini/OpenRouter), fenced prompts, disclosure, fallbacks
+libs/ai/                   IAIProvider (OpenRouter/Gemini/OpenAI), fenced prompts, disclosure, fallbacks,
+                           task prompts + strict reply validation (`tasks.ts`)
 scripts/                   check-csp, check-bundle-origins, check-licenses, setup-hooks, test-setup (jsdom/TestBed)
 brand/                     logo.svg / logo-dark.svg / logo.png / mark.svg + brand/README.md
 docs/adr/                  27 ADRs · docs/ci-cd.md · docs/branch-protection.md
@@ -196,7 +224,12 @@ docs/adr/                  27 ADRs · docs/ci-cd.md · docs/branch-protection.md
   inputs are computed by the caller and passed in.
 - **Weights:** changing one means bumping `WEIGHTS_VERSION` in
   `libs/scoring/src/weights.ts` and updating inline snapshots on purpose.
-- **AI is optional** — every AI feature has a non-AI fallback (`libs/ai/src/fallback.ts`).
+- **AI is optional, and gated.** Every AI feature has a non-AI fallback
+  (`libs/ai/src/fallback.ts`) and shows it *first*; the AI version is an upgrade, never
+  the default. Every provider call goes through `core/ai/AiService`, which cannot send
+  anything until the disclosure panel is approved — no feature calls a provider directly,
+  and nothing runs on load or on a timer. A reply used as data is validated in `libs/ai`
+  before it reaches the UI; a reply shown as prose is interpolated text, never HTML.
 - **Commits:** Conventional Commits. **Branches:** no direct push to `main`; PR + all
   required checks + (in team mode) 1 review. Currently **solo mode** — 0 approvals,
   admin bypass (see [`docs/branch-protection.md`](docs/branch-protection.md)).
@@ -217,7 +250,10 @@ Full list: [`SECURITY.md`](SECURITY.md) §8. Enforced by CI (`check-csp.mjs`,
 2. All external content (GitHub, AI, CV, user free-text) is sanitised before rendering.
 3. OAuth tokens and BYOK keys: never logged, never stored by Cairn, never in URLs.
    The GitHub token transits the stateless `cairn-auth` Worker once during the code
-   exchange (and LinkedIn's identity relay), then lives only in browser memory.
+   exchange (and LinkedIn's identity relay), then lives only in browser memory. The BYOK
+   AI key goes to the user's chosen provider and nowhere else — no Rujoom endpoint is in
+   that path — and rests in the isolated `secrets` IndexedDB store, or memory only if
+   the user opts in.
 4. No secret is committed to the repo. OAuth client secrets live only in the
    `cairn-auth` Worker env.
 5. OAuth is Authorization Code + single-use `state` + exact redirect-URI allowlist.
@@ -259,11 +295,22 @@ one — see `api/optional-serverless/oauth/README.md`.
 
 ## Decisions & open questions
 
-- **Decisions:** [`docs/adr/`](docs/adr/README.md) — 26 ADRs. Accepted: 0001–0014,
-  0016–0026. Future: 0015 (desktop).
+- **Decisions:** [`docs/adr/`](docs/adr/README.md) — 27 ADRs. Accepted: 0001–0014,
+  0016–0027. Future: 0015 (desktop). ADRs 0009 / 0010 / 0011 gained implementation
+  notes on 2026-09-12 when the BYOK layer was built; none of the decisions changed.
 - **Open questions:**
   - Per-resource cache TTLs — draft values in `libs/shared/src/config.ts`
     (`CACHE_TTL_MS`); still need calibration ([ADR-0006](docs/adr/0006-direct-github-api-usage.md)).
+  - **BYOK key at rest.** [ADR-0010](docs/adr/0010-ai-key-privacy-and-data-disclosure.md)
+    deferred passphrase encryption in favour of origin isolation plus an opt-in
+    memory-only mode. Both are now built; the encrypted option is still not, and the ADR
+    says it can be added later without a reversal.
+  - **The extension has no BYOK path yet.** ADR-0010 requires `chrome.storage.local`
+    (never `sync`) and no key in a content script. Nothing in `apps/extension` calls a
+    provider today, so nothing violates that — it is simply unbuilt.
+  - **Nothing caches an AI response**, so "clear all AI data" currently has only the key
+    and the settings row to clear. If a cache is added it must be wiped by the same
+    control.
   - ~~Job-board ingestion: which public APIs (Adzuna / Remotive / …) and the extension
     "save this listing" capture pattern?~~ → **two paths only** (public feeds +
     `activeTab` capture), with an acceptance bar every feed must clear and a mini-ADR
@@ -329,6 +376,51 @@ one — see `api/optional-serverless/oauth/README.md`.
     (`helpers:pinGitHubActionDigests`) converts them on its first PR.
 
 ## Changelog
+
+### 2026-09-12 — BYOK AI: key handling, the disclosure panel, and its first two consumers
+
+- **Wired `libs/ai`, which had no caller since Phase 1.** New `/settings` page (fifth
+  nav item) for provider, model and the user's own API key; new `core/ai/` with
+  `AiSettingsService`, `AiService` (the single call path) and the disclosure
+  service + dialog. New `libs/ai/src/tasks.ts`: prompt builders for both features plus
+  `parseCvRefinement`, a strict validator for replies meant to be data.
+- **Keys live in their own IndexedDB object store.** `SCHEMA_VERSION` 1 → 2 adds
+  `secrets` alongside `kv`, both created in one `onupgradeneeded`, so existing data
+  survives and "clear all AI data" cannot touch the profile.
+  [ADR-0010](docs/adr/0010-ai-key-privacy-and-data-disclosure.md)'s "isolated store" is
+  now literal. Session-only mode writes nothing at all, and switching to it deletes the
+  persisted copy immediately.
+- **Consent is per action and never remembered** — the panel shows the verbatim prompt,
+  each document with its size, per-document toggles, and email stripping on by default.
+  Cancel / Escape / backdrop resolve as a decline and fire no request (verified live in
+  the running app, with a fetch spy).
+- **Two consumers, fallback first.** Dashboard "Understand this issue" renders
+  `explainIssueWithoutAI` immediately — and now sits *outside* the match block, since
+  understanding an issue needs no profile — offering the written version only if a key
+  exists. The CV review form gained "Re-read this CV with AI", which proposes fields for
+  per-field accept and applies nothing on its own. `CvImportService` now keeps the
+  extracted text on the in-memory draft (never persisted) so there is something to send;
+  `TargetService` exposes `selectedIssue`, because `IssueSnapshot` deliberately carries
+  no title or body.
+- **⚠ Finding, resolved in this slice:** ADR-0009 warned that some providers block
+  browser calls. Probing from the running app settled it — OpenRouter `401`, Gemini
+  `400`, `api.openai.com` **CORS-blocked with no `Access-Control-Allow-Origin`**. So the
+  default provider moved to OpenRouter, `AI_PROVIDERS` carries a `browserCallable` flag,
+  and the settings page warns that an OpenAI key will not work here. **No proxy was
+  added**, per [ADR-0002](docs/adr/0002-no-mandatory-application-backend.md).
+- **Tests 323 → 357**, `npm run verify` + both guards green. `scripts/check-bundle-origins.mjs`
+  gained a reviewed ignore for `platform.openai.com` / `aistudio.google.com` — shown to
+  the user as text, never fetched. No new *outbound* origin: the three provider APIs were
+  already in `ALLOWED_CONNECT_ORIGINS` and the CSP. Web bundle initial transfer 71 → 74 kB.
+- Docs: implementation notes appended to ADR-0009, ADR-0010 and ADR-0011 (no decision
+  changed); `SECURITY.md` asset table names the `secrets` store and T10 now covers CV
+  text and schema validation.
+- Sections updated: Status, Repo map, Conventions, Security non-negotiables, Decisions &
+  open questions, this changelog.
+- Drift: none. Noted separately for a future slice —
+  `extractRequiredKnowledge` in `libs/issue-analysis` matches technologies as bare
+  substrings, so an issue mentioning "logs" is reported as requiring `go`; it should use
+  the shared taxonomy's word-boundary matching.
 
 ### 2026-09-11 — Phase 2 slice: repository discovery
 

@@ -22,5 +22,10 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./pages/repositories.component').then((m) => m.RepositoriesComponent),
   },
+  {
+    path: 'settings',
+    loadComponent: () =>
+      import('./pages/settings.component').then((m) => m.SettingsComponent),
+  },
   { path: '**', redirectTo: 'dashboard' },
 ];

@@ -13,6 +13,12 @@ export type CvImportStatus = 'idle' | 'reading' | 'review' | 'error';
 export interface CvDraft {
   readonly fileName: string;
   readonly parsed: ParsedCv;
+  /**
+   * The extracted plain text, kept only so the optional BYOK refinement pass has
+   * something to send (ADR-0011). It lives in memory for as long as the review form is
+   * open and goes no further: nothing persists it, and `reset()` drops it.
+   */
+  readonly text: string;
   /** Set when the file parsed but the page budget cut the text short. */
   readonly truncated: boolean;
 }
@@ -26,8 +32,9 @@ function megabytes(bytes: number): string {
  * (ADR-0011). Nothing here writes to the profile — the draft it produces goes to
  * the review form first, and only a confirmed draft reaches `ProfileService`.
  *
- * The raw file bytes and the extracted text are held for the duration of a single
- * call and never persisted; SECURITY.md classes CV contents as transient.
+ * The raw file bytes are held for the duration of a single call. The extracted text
+ * outlives it by exactly one review — the AI refinement pass needs something to send —
+ * and neither is ever persisted; SECURITY.md classes CV contents as transient.
  */
 @Injectable({ providedIn: 'root' })
 export class CvImportService {
@@ -84,6 +91,7 @@ export class CvImportService {
       this._draft.set({
         fileName: file.name,
         parsed: parseCvText(result.text),
+        text: result.text,
         truncated: result.truncated,
       });
       this._status.set('review');

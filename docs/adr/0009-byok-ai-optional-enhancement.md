@@ -51,3 +51,28 @@ Key handling and data disclosure are covered by
   cheaper or free options.
 - **Local-model-only (Ollama).** Deferred to the desktop client
   ([ADR-0015](0015-desktop-local-agent.md)); not viable for a pure web MVP.
+
+## Implementation notes
+
+Added 2026-09-12, when the first two BYOK features were built. The decision above is
+unchanged; these record what building it settled.
+
+- **The CORS consequence is real, and it picks the default.** This ADR warned that "not
+  all providers allow direct browser calls". Probing each endpoint from the running app
+  on 2026-09-12 with a junk key: OpenRouter answered `401` and Gemini answered `400` —
+  both send CORS headers — while `api.openai.com` sent no `Access-Control-Allow-Origin`
+  at all, so the browser blocked the request before it left. So **OpenRouter is the
+  default provider**, `AI_PROVIDERS` in `apps/web` carries a `browserCallable` flag, and
+  the settings page says plainly that an OpenAI key will not work from a web page. No
+  Rujoom proxy was added, as this ADR and
+  [ADR-0002](0002-no-mandatory-application-backend.md) require.
+- **A blocked request is indistinguishable from a dead connection** in `fetch` — the
+  browser refuses the reply before any status exists — so `AiService` names both
+  possibilities rather than guessing at one.
+- **Two features shipped, both with their fallback first.** The dashboard's issue
+  explainer renders `explainIssueWithoutAI` immediately and offers the written version
+  only if a key exists; the CV pass proposes fields the deterministic parser missed and
+  the review form still decides. Neither is reachable without a key, and neither
+  replaces its fallback silently.
+- **Model output is prose, rendered as interpolated text.** Nothing asks a model for
+  HTML or markdown, so no sanitiser sits in this path at all.

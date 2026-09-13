@@ -3,11 +3,18 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth/auth.service';
 import { SignInDialogComponent } from './core/auth/sign-in-dialog.component';
 import { SignInDialogService } from './core/auth/sign-in-dialog.service';
+import { AiDisclosureDialogComponent } from './core/ai/ai-disclosure-dialog.component';
 
 @Component({
   selector: 'cn-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, SignInDialogComponent],
+  imports: [
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    SignInDialogComponent,
+    AiDisclosureDialogComponent,
+  ],
   template: `
     <header class="topbar">
       <span class="brand">
@@ -19,6 +26,7 @@ import { SignInDialogService } from './core/auth/sign-in-dialog.service';
         <a routerLink="/discover" routerLinkActive="active">Discover</a>
         <a routerLink="/repositories" routerLinkActive="active">Repositories</a>
         <a routerLink="/profile" routerLinkActive="active">Profile</a>
+        <a routerLink="/settings" routerLinkActive="active">Settings</a>
       </nav>
 
       <div class="account">
@@ -51,6 +59,7 @@ import { SignInDialogService } from './core/auth/sign-in-dialog.service';
     </header>
     <main><router-outlet /></main>
     <cn-sign-in-dialog />
+    <cn-ai-disclosure-dialog />
   `,
   styles: [
     `
