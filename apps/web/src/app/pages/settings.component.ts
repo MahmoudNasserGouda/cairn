@@ -5,6 +5,7 @@ import {
   AiSettingsService,
   type KeyStorageMode,
 } from '../core/ai/ai-settings.service';
+import { AI_ENABLED } from '../core/features';
 
 function value(event: Event): string {
   return (event.target as HTMLInputElement | HTMLSelectElement).value;
@@ -24,110 +25,145 @@ function value(event: Event): string {
     <h1>Settings</h1>
 
     <section class="panel">
-      <h2>AI features <span class="opt">optional</span></h2>
-      <p class="muted small">
-        Rujoom never pays for AI and never proxies it. If you add your own API key,
-        requests go from this browser straight to the provider you pick; if you don't,
-        every feature still works — you get the deterministic version instead of the
-        written one.
-      </p>
+      <h2>
+        AI features
+        <span class="opt">{{ aiEnabled ? 'optional' : 'turned off' }}</span>
+      </h2>
 
-      <div class="fields">
-        <label>
-          Provider
-          <select [value]="settings.provider()" (change)="onProvider($event)">
-            @for (p of providers; track p.id) {
-              <option [value]="p.id">{{ p.label }}</option>
-            }
-          </select>
-        </label>
-        <label>
-          Model
+      @if (aiEnabled) {
+        <p class="muted small">
+          Rujoom never pays for AI and never proxies it. If you add your own API key,
+          requests go from this browser straight to the provider you pick; if you don't,
+          every feature still works — you get the deterministic version instead of the
+          written one.
+        </p>
+
+        <div class="fields">
+          <label>
+            Provider
+            <select [value]="settings.provider()" (change)="onProvider($event)">
+              @for (p of providers; track p.id) {
+                <option [value]="p.id">{{ p.label }}</option>
+              }
+            </select>
+          </label>
+          <label>
+            Model
+            <input
+              type="text"
+              [value]="settings.model()"
+              (change)="onModel($event)"
+              autocomplete="off"
+            />
+          </label>
+        </div>
+
+        <p class="muted small">
+          Get a key from <code>{{ keysUrl() }}</code> — Rujoom does not open that page for
+          you, and never sees the key you create there.
+        </p>
+
+        @if (!browserCallable()) {
+          <p class="warn">
+            Heads up: this provider's API refuses requests made from a web page, so a key
+            for it will not work here. Rujoom will not route your request through a server
+            of ours to get around that. Pick OpenRouter or Gemini instead.
+          </p>
+        }
+
+        <label class="key">
+          API key
           <input
-            type="text"
-            [value]="settings.model()"
-            (change)="onModel($event)"
+            type="password"
+            name="cn-ai-key"
+            placeholder="{{
+              settings.hasKey() ? 'A key is saved — type to replace it' : 'Paste your key'
+            }}"
             autocomplete="off"
+            spellcheck="false"
+            [value]="draftKey()"
+            (input)="draftKey.set(asValue($event))"
           />
         </label>
-      </div>
 
-      <p class="muted small">
-        Get a key from <code>{{ keysUrl() }}</code> — Rujoom does not open that page for
-        you, and never sees the key you create there.
-      </p>
+        <div class="actions">
+          <button type="button" [disabled]="draftKey().length === 0" (click)="saveKey()">
+            Save key
+          </button>
+          @if (settings.hasKey()) {
+            <span class="saved" role="status">
+              <span class="dot"></span> Key saved ({{ storageLabel() }})
+            </span>
+          }
+        </div>
 
-      @if (!browserCallable()) {
-        <p class="warn">
-          Heads up: this provider's API refuses requests made from a web page, so a key
-          for it will not work here. Rujoom will not route your request through a server
-          of ours to get around that. Pick OpenRouter or Gemini instead.
-        </p>
-      }
+        <label class="choice">
+          <input
+            type="checkbox"
+            [checked]="settings.storage() === 'session'"
+            (change)="onStorageMode($event)"
+          />
+          <span>
+            Forget the key when I close this tab
+            <span class="muted small">
+              — keeps it in memory only. Off by default: the key is kept in this browser's
+              own database, in a store that holds nothing else.
+            </span>
+          </span>
+        </label>
 
-      <label class="key">
-        API key
-        <input
-          type="password"
-          name="cn-ai-key"
-          placeholder="{{
-            settings.hasKey() ? 'A key is saved — type to replace it' : 'Paste your key'
-          }}"
-          autocomplete="off"
-          spellcheck="false"
-          [value]="draftKey()"
-          (input)="draftKey.set(asValue($event))"
-        />
-      </label>
+        <hr />
 
-      <div class="actions">
-        <button type="button" [disabled]="draftKey().length === 0" (click)="saveKey()">
-          Save key
+        <button type="button" class="danger" (click)="clearAll()">
+          Clear all AI data
         </button>
-        @if (settings.hasKey()) {
-          <span class="saved" role="status">
-            <span class="dot"></span> Key saved ({{ storageLabel() }})
-          </span>
+        <p class="muted small">
+          Deletes the key and these preferences from this device. Your profile, CV and
+          scoring target are untouched.
+        </p>
+        @if (cleared()) {
+          <p class="muted small" role="status">Cleared.</p>
         }
-      </div>
-
-      <label class="choice">
-        <input
-          type="checkbox"
-          [checked]="settings.storage() === 'session'"
-          (change)="onStorageMode($event)"
-        />
-        <span>
-          Forget the key when I close this tab
-          <span class="muted small">
-            — keeps it in memory only. Off by default: the key is kept in this browser's
-            own database, in a store that holds nothing else.
-          </span>
-        </span>
-      </label>
-
-      <hr />
-
-      <button type="button" class="danger" (click)="clearAll()">Clear all AI data</button>
-      <p class="muted small">
-        Deletes the key and these preferences from this device. Your profile, CV and
-        scoring target are untouched.
-      </p>
-      @if (cleared()) {
-        <p class="muted small" role="status">Cleared.</p>
+      } @else {
+        <p class="muted small">
+          AI is turned off in this build (<a
+            href="https://github.com/MahmoudNasserGouda/cairn/blob/main/docs/adr/0033-ai-capability-frozen.md"
+            rel="noopener noreferrer"
+            >ADR-0033</a
+          >). It was built, it works, and it is paused while the parts of Rujoom that need
+          no model — your profile, the scores, repository discovery — are made properly
+          good. Nothing is missing in the meantime: every feature that would have had an
+          AI version ships its deterministic version, which is the one that was always
+          meant to be the default.
+        </p>
+        @if (settings.hasKey()) {
+          <hr />
+          <p class="muted small">
+            A key you saved before the freeze is still on this device. Nothing can use it
+            while AI is off, and you can remove it now.
+          </p>
+          <button type="button" class="danger" (click)="clearAll()">
+            Clear all AI data
+          </button>
+          @if (cleared()) {
+            <p class="muted small" role="status">Cleared.</p>
+          }
+        }
       }
     </section>
 
-    <section class="panel">
-      <h2>What gets sent</h2>
-      <p class="muted small">
-        Before every AI action Rujoom shows you the exact payload — provider, model, and
-        the full prompt — and sends nothing until you approve it. You can drop documents
-        from the payload or strip email addresses out of it there. Answers from a model
-        are labelled as AI-generated: they can be wrong, and they are never applied to
-        your profile without you accepting them field by field.
-      </p>
-    </section>
+    @if (aiEnabled) {
+      <section class="panel">
+        <h2>What gets sent</h2>
+        <p class="muted small">
+          Before every AI action Rujoom shows you the exact payload — provider, model, and
+          the full prompt — and sends nothing until you approve it. You can drop documents
+          from the payload or strip email addresses out of it there. Answers from a model
+          are labelled as AI-generated: they can be wrong, and they are never applied to
+          your profile without you accepting them field by field.
+        </p>
+      </section>
+    }
   `,
   styles: [
     `
@@ -247,6 +283,8 @@ function value(event: Event): string {
 })
 export class SettingsComponent {
   protected readonly settings = inject(AiSettingsService);
+  /** Frozen off by default (ADR-0033); only the clear-my-key path stays reachable. */
+  protected readonly aiEnabled = inject(AI_ENABLED);
   protected readonly providers = AI_PROVIDERS;
 
   protected readonly draftKey = signal('');

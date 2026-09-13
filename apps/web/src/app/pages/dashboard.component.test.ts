@@ -7,6 +7,7 @@ import type { RepositorySnapshot, IssueSnapshot } from '@cairn/matching';
 import { DashboardComponent } from './dashboard.component';
 import { ProfileService } from '../core/profile/profile.service';
 import { TargetService } from '../core/targets/target.service';
+import { AI_ENABLED } from '../core/features';
 import { AiService } from '../core/ai/ai.service';
 import { AiSettingsService } from '../core/ai/ai-settings.service';
 
@@ -70,6 +71,10 @@ function render(opts: {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([]),
+      // AI ships frozen (ADR-0033). These tests cover the *enabled* path, which
+      // has to keep working for unfreezing to be one constant; the frozen path is
+      // covered in core/ai/ai-freeze.test.ts.
+      { provide: AI_ENABLED, useValue: true },
       {
         provide: ProfileService,
         useValue: {

@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import type { BuildPromptInput } from '@cairn/ai';
+import { AI_ENABLED } from '../features';
 import { AiDisclosureService } from './ai-disclosure.service';
 import { AiService } from './ai.service';
 import { AiSettingsService } from './ai-settings.service';
@@ -31,6 +32,10 @@ function setup(key: string | null = 'sk-test-key-value') {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
+      // AI ships frozen (ADR-0033). These tests cover the *enabled* path, which
+      // has to keep working for unfreezing to be one constant; the frozen path is
+      // covered in core/ai/ai-freeze.test.ts.
+      { provide: AI_ENABLED, useValue: true },
       {
         provide: AiSettingsService,
         useValue: {

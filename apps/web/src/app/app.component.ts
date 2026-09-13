@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { AI_ENABLED } from './core/features';
 import { AuthService } from './core/auth/auth.service';
 import { SignInDialogComponent } from './core/auth/sign-in-dialog.component';
 import { SignInDialogService } from './core/auth/sign-in-dialog.service';
@@ -59,7 +60,9 @@ import { AiDisclosureDialogComponent } from './core/ai/ai-disclosure-dialog.comp
     </header>
     <main><router-outlet /></main>
     <cn-sign-in-dialog />
-    <cn-ai-disclosure-dialog />
+    @if (aiEnabled) {
+      <cn-ai-disclosure-dialog />
+    }
   `,
   styles: [
     `
@@ -150,4 +153,6 @@ import { AiDisclosureDialogComponent } from './core/ai/ai-disclosure-dialog.comp
 export class AppComponent {
   protected readonly auth = inject(AuthService);
   protected readonly dialog = inject(SignInDialogService);
+  /** Frozen off by default — nothing can open this dialog (ADR-0033). */
+  protected readonly aiEnabled = inject(AI_ENABLED);
 }

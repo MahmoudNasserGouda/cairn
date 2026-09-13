@@ -12,6 +12,7 @@ import {
 import { explain } from '@cairn/scoring';
 import { contributionReadiness } from '@cairn/profile';
 import { explainIssueWithoutAI, issueExplainerPrompt } from '@cairn/ai';
+import { AI_ENABLED } from '../core/features';
 import { AiService } from '../core/ai/ai.service';
 import { AiSettingsService } from '../core/ai/ai-settings.service';
 import { ProfileService, profileToSnapshot } from '../core/profile/profile.service';
@@ -279,7 +280,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
         <h2>Understand this issue</h2>
         <p class="sub">#{{ issue.number }} · {{ issue.title }}</p>
 
-        @if (aiExplanation(); as written) {
+        @if (aiEnabled && aiExplanation(); as written) {
           <p class="ai-tag">AI-generated · may be wrong</p>
           <p class="explain">{{ written }}</p>
           <button type="button" class="link" (click)="clearAiExplanation()">
@@ -287,24 +288,26 @@ const PART_LABELS: Readonly<Record<string, string>> = {
           </button>
         } @else {
           <p class="explain">{{ plainExplanation() }}</p>
-          @if (aiSettings.hasKey()) {
-            <button
-              type="button"
-              class="link"
-              [disabled]="ai.running()"
-              (click)="explainIssue()"
-            >
-              {{ ai.running() ? 'Asking your provider…' : 'Explain with AI' }}
-            </button>
-          } @else {
-            <p class="muted small">
-              That is the deterministic read. Add your own API key under
-              <a routerLink="/settings">Settings</a> for a written explanation.
-            </p>
+          @if (aiEnabled) {
+            @if (aiSettings.hasKey()) {
+              <button
+                type="button"
+                class="link"
+                [disabled]="ai.running()"
+                (click)="explainIssue()"
+              >
+                {{ ai.running() ? 'Asking your provider…' : 'Explain with AI' }}
+              </button>
+            } @else {
+              <p class="muted small">
+                That is the deterministic read. Add your own API key under
+                <a routerLink="/settings">Settings</a> for a written explanation.
+              </p>
+            }
           }
         }
 
-        @if (aiError(); as message) {
+        @if (aiEnabled && aiError(); as message) {
           <p class="error" role="alert">{{ message }}</p>
         }
       </section>
@@ -551,6 +554,8 @@ export class DashboardComponent {
   protected readonly targetSvc = inject(TargetService);
   protected readonly ai = inject(AiService);
   protected readonly aiSettings = inject(AiSettingsService);
+  /** Frozen off by default; the deterministic explanation is then all there is. */
+  protected readonly aiEnabled = inject(AI_ENABLED);
   protected searchText = '';
 
   private readonly _aiExplanation = signal<string | null>(null);

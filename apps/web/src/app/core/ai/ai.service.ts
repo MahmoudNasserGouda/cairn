@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { buildMessages, createProvider, type BuildPromptInput } from '@cairn/ai';
 import { logger } from '@cairn/shared';
+import { AI_ENABLED } from '../features';
 import { AiDisclosureService } from './ai-disclosure.service';
 import { AiSettingsService } from './ai-settings.service';
 
@@ -45,6 +46,7 @@ function describe(error: unknown): string {
 export class AiService {
   private readonly settings = inject(AiSettingsService);
   private readonly disclosure = inject(AiDisclosureService);
+  private readonly enabled = inject(AI_ENABLED);
 
   private readonly _running = signal(false);
   readonly running = this._running.asReadonly();
@@ -57,6 +59,14 @@ export class AiService {
   }
 
   async run(feature: string, input: BuildPromptInput): Promise<AiOutcome> {
+    // First, before the key is even read (ADR-0033). Every AI control is hidden while
+    // the flag is off, so reaching here means something bypassed the UI — and the
+    // disclosure panel, which is the thing that would offer to send the payload, must
+    // not open either.
+    if (!this.enabled) {
+      return { status: 'error', message: 'AI features are turned off in this build' };
+    }
+
     const key = this.settings.peekKey();
     if (key === null) {
       return { status: 'error', message: 'add an API key on the settings page first' };
