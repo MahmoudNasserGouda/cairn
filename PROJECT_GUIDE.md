@@ -33,7 +33,7 @@ Done:
   [`docs/ci-cd.md`](docs/ci-cd.md), ADRs 0001–0027.
 - **Monorepo scaffold** — npm workspaces, TS strict, path aliases, ESLint flat config
   with the `libs → apps` import-boundary rule, Prettier, Vitest.
-- **Thirteen `libs/*` implemented** with real logic; **311 passing tests** across
+- **Thirteen `libs/*` implemented** with real logic; **367 passing tests** across
   `libs/`, `apps/web` and the `cairn-auth` Worker:
   deterministic matching + scoring, AI-free repository health, issue difficulty, the
   cached GitHub client (dedup + ETag + rate-limit floor), CV parser + skills taxonomy,
@@ -183,13 +183,14 @@ apps/extension/            Manifest V3 extension (esbuild)              [built: 
 apps/desktop/              Tauri local agent                           [future — ADR-0015]
 api/optional-serverless/oauth/  cairn-auth Worker: stateless code→token + LinkedIn identity relay
 libs/shared/               Result, math, redacting logger, KeyValueStore, sanitizer contract, config,
-                           skills taxonomy (moved here from libs/profile so the repo side canonicalises too)
+                           skills taxonomy — the one vocabulary every side speaks (TAXONOMY_VERSION=4)
 libs/scoring/              weightedScore + explanation, versioned WEIGHTS (WEIGHTS_VERSION=1),
                            incl. DISCOVERY_WEIGHTS + the three presets
 libs/matching/             repositoryMatch / issueMatch / contributionConfidence / skillGap
 libs/discovery/            pure: profile → planQueries (GitHub search syntax) → rankRepositories (ADR-0027)
 libs/repository-analysis/  healthScore (AI-free), architecture model + readingOrder
-libs/issue-analysis/       analyzeIssue — deterministic difficulty + required-knowledge
+libs/issue-analysis/       analyzeIssue — deterministic difficulty; required-knowledge is the
+                           shared taxonomy's (no second tech list of its own)
 libs/github/               GithubClient (cache + dedup + ETag + per-resource rate-limit + 429 backoff
                            + stale-on-error + LRU eviction + uncached 202 statistics placeholders);
                            repo/health + viewer + repo-search + issue-list fetchers
@@ -224,6 +225,12 @@ docs/adr/                  27 ADRs · docs/ci-cd.md · docs/branch-protection.md
   inputs are computed by the caller and passed in.
 - **Weights:** changing one means bumping `WEIGHTS_VERSION` in
   `libs/scoring/src/weights.ts` and updating inline snapshots on purpose.
+- **One technology vocabulary.** `libs/shared/src/taxonomy.ts` holds it; no module
+  keeps a second list (`libs/issue-analysis` did, and matched it as bare substrings —
+  "logs" reported `go`). Changing the table bumps `TAXONOMY_VERSION`. Free-text
+  extraction matches on word boundaries, and tags that are also ordinary English words
+  (`go`, `rest`, `spring`, `swift`, `express`, `node`) count only in a qualified form
+  or as a standalone list item — see `AMBIGUOUS_SKILLS`.
 - **AI is optional, and gated.** Every AI feature has a non-AI fallback
   (`libs/ai/src/fallback.ts`) and shows it *first*; the AI version is an upgrade, never
   the default. Every provider call goes through `core/ai/AiService`, which cannot send
@@ -349,16 +356,21 @@ one — see `api/optional-serverless/oauth/README.md`.
     frames one as a shortlist and one as a decision, but whether that is enough for a
     real user is untested ([ADR-0027](docs/adr/0027-search-only-repository-discovery.md)
     consequences).
-  - **`libs/ai` and `libs/portfolio` have no consumer.** Both are implemented and
-    tested; nothing in `apps/` imports either, so the three "WOW" AI features and the
-    portfolio generator are *not* shipped. `libs/ai` also needs the ADR-0010 disclosure
-    panel and a BYOK key-entry UI before it can be wired at all. README now says so
-    plainly; the guide's Status list should not imply otherwise.
+  - ~~**`libs/ai` has no consumer.**~~ → **wired 2026-09-12** behind the disclosure
+    panel (issue explanation + CV re-read). **`libs/portfolio` still has none**: it is
+    implemented and tested, but nothing in `apps/` imports it, so the portfolio
+    generator is *not* shipped. The guide's Status list should not imply otherwise.
   - ~~**No discovery.**~~ → **built 2026-09-11** — `/discover` ranks repositories from
     the profile ([ADR-0027](docs/adr/0027-search-only-repository-discovery.md)).
     **No manual profile entry** remains: a user can only *deselect* CV-parsed skills,
     not add one by hand. **Issue-level discovery** also remains manual — discovery
     recommends a repository, and the issue is still picked from that repo's open list.
+  - **The ambiguity gate trades a false positive for a false negative.** Tags in
+    `AMBIGUOUS_SKILLS` are missed in unqualified prose outside list position ("uses
+    Node to build the CLI"). That is the right trade for the issue explainer, where a
+    wrong "you will likely need" costs more than a missing one, but it applies to CV
+    prose sections too, and the gated set is a judgement call — `rails` and `flask`
+    are arguably next. Wants the same real-text sample as the health thresholds.
   - The GitHub-derived experience span is a proxy: account creation year → most recent
     visible push. It no longer runs to `present` (a dormant 2015 account used to read as
     a decade and scored `advanced`), but it still cannot know when someone started
@@ -376,6 +388,39 @@ one — see `api/optional-serverless/oauth/README.md`.
     (`helpers:pinGitHubActionDigests`) converts them on its first PR.
 
 ## Changelog
+
+### 2026-09-13 — One technology vocabulary: word-boundary skill matching
+
+Closes the drift noted in the 2026-09-12 entry below, and removes the second
+technology list that caused it.
+
+- **`extractRequiredKnowledge` no longer keeps its own `KNOWN_TECH`.** It matched with
+  `hay.includes(t)`, so short tags hit inside ordinary words: an issue body reading
+  "redact sensitive parsed values in logs" was reported as requiring `go` (seen live on
+  the dashboard explainer for colinhacks/zod#6591), as were "going", "category" and the
+  `java` inside "javascript". It now delegates to the shared taxonomy's `extractSkills`,
+  which matches on word boundaries and canonicalises aliases — so `nodejs` in an issue
+  body finally reaches a developer's `node` skill.
+- **Vocabulary change, on purpose.** That list could emit `sql` and `testing`, which no
+  `DeveloperSnapshot` can carry, so they scored zero coverage forever while the
+  taxonomy's own tags went undetected — exactly the drift
+  [ADR-0007](docs/adr/0007-deterministic-explainable-matching-engine.md) exists to
+  prevent. Those two are gone; the taxonomy's full set is now detectable in issue text.
+  Since `breadth = knowledge.length / 6` feeds the difficulty score, multi-technology
+  issues rate slightly harder than before.
+- **New `AMBIGUOUS_SKILLS` gate in `libs/shared`.** Delegating exposed issue text to a
+  problem `extractSkills` already had on the CV path: tags whose canonical spelling is
+  an ordinary English word. `go`, `rest`, `spring`, `swift`, `express` and `node` now
+  count only in a qualified form (`go.mod`, `REST API`, `Spring Boot`, `SwiftUI`,
+  `node 20`) or as a standalone list item — the shape a CV skills line has and prose
+  does not. Aliases are never gated, so `golang` and `nodejs` still match mid-sentence.
+  `TAXONOMY_VERSION` 3 → 4.
+- **Tests 357 → 367**, `npm run verify` green. No new dependency, no new outbound
+  origin, no security surface touched.
+- Sections updated: Status (test count), Repo map (`libs/shared`,
+  `libs/issue-analysis`), Conventions (new "one technology vocabulary" rule), Open
+  questions (struck the resolved `libs/ai` half; added the gate's false-negative trade).
+- Drift: none. Resolves the drift carried since 2026-09-12.
 
 ### 2026-09-12 — BYOK AI: key handling, the disclosure panel, and its first two consumers
 
