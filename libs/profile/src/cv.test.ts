@@ -122,3 +122,34 @@ describe('cvToFragment', () => {
     ).toBe(6);
   });
 });
+
+/**
+ * Both of this PR's ReDoS fixes, kept honest. CodeQL found the one in `linkKey`;
+ * this one is the same shape, in the same PR, on input that is *more* clearly
+ * untrusted — so leaving it knowingly would have been the inconsistent choice.
+ */
+describe('parsing does not blow up on hostile input', () => {
+  it('parses a hostile line in linear time', () => {
+    // A run of dashes is the worst case for two separate patterns here: the trailing
+    // delimiter trim, and the email scan (`-` is inside its local-part class). Both
+    // were quadratic; together they took **12.4 seconds** on this input.
+    const line = `Engineer 2019 - 2021 ${'-'.repeat(120_000)}x`;
+    const started = performance.now();
+    const parsed = parseCvText(line);
+    const elapsed = performance.now() - started;
+
+    expect(parsed.experience[0]?.startYear).toBe(2019);
+    expect(elapsed).toBeLessThan(1000);
+  });
+
+  it('still finds a real email address', () => {
+    const cv = ['Ada Lovelace', 'ada.lovelace+cv@example.co.uk'].join('\n');
+    expect(parseCvText(cv).email).toBe('ada.lovelace+cv@example.co.uk');
+  });
+
+  it('still strips the delimiters it is meant to', () => {
+    expect(
+      parseCvText('Backend Engineer, Paystack | 2021 - present').experience[0],
+    ).toMatchObject({ title: 'Backend Engineer, Paystack', startYear: 2021 });
+  });
+});

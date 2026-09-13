@@ -229,13 +229,30 @@ export function languageKey(entry: SpokenLanguage): string {
   return `lng:${norm(entry.name)}`;
 }
 
+/**
+ * Scheme and trailing slashes are noise: the same profile linked as `http://x.dev`
+ * and `https://x.dev/` is one link.
+ *
+ * Done with string operations rather than `.replace(/\/+$/, '')`, which CodeQL
+ * flagged as `js/polynomial-redos` (high) and which really is quadratic — the engine
+ * consumes a whole run of slashes, fails `$`, gives one back, fails again, and starts
+ * over from the next offset. Measured at **24.7 seconds** for a 200k-slash URL before
+ * this change; `model.test.ts` keeps it honest.
+ *
+ * URLs here are short *today*, because they come from a GitHub login. They will not
+ * stay that way: [ADR-0029](../../../docs/adr/0029-linkedin-data-export-archive-import.md)
+ * feeds LinkedIn archive URLs through this, and the profile hub lets people type their
+ * own. "In practice the input is small" is how a ReDoS ships.
+ */
 export function linkKey(entry: ProfileLink): string {
-  // Scheme and a trailing slash are noise; the same profile linked as
-  // `http://x.dev` and `https://x.dev/` is one link.
-  return `lnk:${norm(entry.url)
-    .replace(/^https?:\/\//, '')
-    .replace(/\/+$/, '')}`;
+  const url = norm(entry.url);
+  const scheme = url.startsWith('https://') ? 8 : url.startsWith('http://') ? 7 : 0;
+  let end = url.length;
+  while (end > scheme && url.charCodeAt(end - 1) === SLASH) end--;
+  return `lnk:${url.slice(scheme, end)}`;
 }
+
+const SLASH = '/'.charCodeAt(0);
 
 /** Years of professional experience implied by a set of dated entries. */
 export function estimateYears(

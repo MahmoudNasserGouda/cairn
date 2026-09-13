@@ -29,7 +29,18 @@ export interface ParsedCv {
   readonly sections: readonly string[];
 }
 
-const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
+/**
+ * Bounded on purpose. Unbounded (`[a-z0-9._%+-]+@…`) this is quadratic on untrusted CV
+ * text: `-` is inside the class, so a long run of dashes is consumed greedily, `@`
+ * fails, the engine backtracks the whole run, and then restarts from the next offset.
+ * Measured at 3.2 seconds for a 60k-dash line.
+ *
+ * The limits are RFC 5321's own — 64 octets of local part, 255 of domain — so this is
+ * a correctness fix as much as a safety one: a 60,000-character local part was never
+ * an email address. Capping the quantifiers caps the backtracking, which makes the
+ * whole scan linear.
+ */
+const EMAIL_RE = /[a-z0-9._%+-]{1,64}@[a-z0-9.-]{1,255}\.[a-z]{2,24}/i;
 const YEAR_RANGE_RE =
   /((?:19|20)\d{2})\s*(?:-|–|—|to)\s*((?:19|20)\d{2}|present|current|now)/i;
 const SECTION_HEADS = [
@@ -87,6 +98,26 @@ function guessName(
   return undefined;
 }
 
+/**
+ * Characters that trail a role once its date range has been cut out — "Engineer, |"
+ * and similar.
+ *
+ * Trimmed by walking backwards rather than with `/[|,–—-]+\s*$/`, which is the
+ * same backtracking shape CodeQL flagged in `linkKey`: a run of delimiters, then an
+ * end anchor, so the engine consumes the run, fails `$`, gives one back, fails again,
+ * and restarts from the next offset. Measured on a line of repeated dashes before this
+ * change: 5k in 39ms, 20k in 658ms, 60k in **5.7 seconds** — quadratic, on CV text,
+ * which is untrusted input (SECURITY.md T7). The worker's 10s budget turned that into
+ * a failed parse rather than a hung tab, but a budget is a backstop, not a fix.
+ */
+const TRAILING_NOISE = new Set([...'|,–—- 	']);
+
+function trimTrailingNoise(value: string): string {
+  let end = value.length;
+  while (end > 0 && TRAILING_NOISE.has(value[end - 1] as string)) end--;
+  return value.slice(0, end);
+}
+
 function extractExperience(lines: readonly string[]): ParsedRole[] {
   const out: ParsedRole[] = [];
   for (const line of lines) {
@@ -97,11 +128,7 @@ function extractExperience(lines: readonly string[]): ParsedRole[] {
     const endYear = /present|current|now/.test(endRaw)
       ? ('present' as const)
       : Number(endRaw);
-    const title =
-      line
-        .replace(YEAR_RANGE_RE, '')
-        .replace(/[|,–—-]+\s*$/, '')
-        .trim() || 'Role';
+    const title = trimTrailingNoise(line.replace(YEAR_RANGE_RE, '')).trim() || 'Role';
     out.push({ title, startYear, endYear });
   }
   return out;
