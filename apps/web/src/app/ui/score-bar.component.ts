@@ -1,4 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  booleanAttribute,
+  computed,
+  input,
+} from '@angular/core';
 import type { ScoreBreakdown } from '@cairn/scoring';
 
 /** A part of the score, as the UI needs it: named, sized, and explained. */
@@ -188,12 +194,12 @@ export class ScoreBarComponent {
    * search bucket is 10-30 requests a minute, and a throttled merged-PR count read as
    * "no contributions" was a real bug in this project.
    */
-  readonly unknown = input(false);
+  readonly unknown = input(false, { transform: booleanAttribute });
   readonly unknownReason = input(
     'We could not reach the data this needs. Try again later.',
   );
   /** Show the named parts. Off for a compact row of several scores. */
-  readonly showParts = input(true);
+  readonly showParts = input(true, { transform: booleanAttribute });
 
   protected readonly rows = computed<Row[]>(() => {
     const score = this.breakdown();

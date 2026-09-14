@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  booleanAttribute,
   Directive,
   computed,
   inject,
@@ -87,7 +88,7 @@ export class FieldComponent {
   readonly label = input.required<string>();
   readonly hint = input<string | null>(null);
   readonly error = input<string | null>(null);
-  readonly optional = input(false);
+  readonly optional = input(false, { transform: booleanAttribute });
   /** Override the generated control id. Rarely needed; the default is unique. */
   readonly controlIdOverride = input<string | null>(null, { alias: 'for' });
 

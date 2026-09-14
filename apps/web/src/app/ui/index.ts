@@ -12,6 +12,7 @@ export { ButtonComponent, type ButtonSize, type ButtonVariant } from './button.c
 export { CardComponent } from './card.component';
 export { EmptyStateComponent } from './empty-state.component';
 export { FieldComponent, FieldControlDirective } from './field.component';
+export { LogoComponent } from './logo.component';
 export { ScoreBarComponent } from './score-bar.component';
 export { SectionComponent } from './section.component';
 export { SheetComponent } from './sheet.component';
@@ -27,6 +28,7 @@ import { ButtonComponent } from './button.component';
 import { CardComponent } from './card.component';
 import { EmptyStateComponent } from './empty-state.component';
 import { FieldComponent, FieldControlDirective } from './field.component';
+import { LogoComponent } from './logo.component';
 import { ScoreBarComponent } from './score-bar.component';
 import { SectionComponent } from './section.component';
 import { SheetComponent } from './sheet.component';
@@ -40,6 +42,7 @@ export const UI = [
   EmptyStateComponent,
   FieldComponent,
   FieldControlDirective,
+  LogoComponent,
   ScoreBarComponent,
   SectionComponent,
   SheetComponent,

@@ -1,4 +1,9 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  booleanAttribute,
+  input,
+} from '@angular/core';
 
 /**
  * The one panel (ADR-0032).
@@ -68,8 +73,8 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 })
 export class CardComponent {
   readonly padding = input<'md' | 'sm' | 'none'>('md');
-  readonly raised = input(false);
-  readonly quiet = input(false);
+  readonly raised = input(false, { transform: booleanAttribute });
+  readonly quiet = input(false, { transform: booleanAttribute });
   /** Hover and focus affordances. Set it only when the whole card is a target. */
-  readonly interactive = input(false);
+  readonly interactive = input(false, { transform: booleanAttribute });
 }

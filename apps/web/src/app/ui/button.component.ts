@@ -1,4 +1,9 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  booleanAttribute,
+  input,
+} from '@angular/core';
 
 export type ButtonVariant = 'primary' | 'ghost' | 'quiet' | 'danger';
 export type ButtonSize = 'sm' | 'md';
@@ -124,7 +129,7 @@ export type ButtonSize = 'sm' | 'md';
 export class ButtonComponent {
   readonly variant = input<ButtonVariant>('primary');
   readonly size = input<ButtonSize>('md');
-  readonly loading = input(false);
+  readonly loading = input(false, { transform: booleanAttribute });
   /** Fill the available width — its own input, because a full-width ghost is normal. */
-  readonly block = input(false);
+  readonly block = input(false, { transform: booleanAttribute });
 }
