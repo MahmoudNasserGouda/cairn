@@ -1,4 +1,10 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  booleanAttribute,
+  input,
+} from '@angular/core';
+import { LogoComponent } from './logo.component';
 
 /**
  * What is missing, and the action that fixes it (ADR-0032).
@@ -8,29 +14,17 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
  * `<p class="muted">No data</p>` tells them nothing about what to do. Every empty panel
  * gets a heading that names the gap and a slot for the control that closes it.
  *
- * The mark is the cairn — four stones, the thing the product is named for — drawn from
- * the brand gradient. An empty page is the one place there is room for it.
+ * The mark is the cairn — four stones, the thing the product is named for. An empty
+ * panel is the one place there is room for it.
  */
 @Component({
   selector: 'cn-empty-state',
   standalone: true,
+  imports: [LogoComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (!compact()) {
-      <svg class="mark" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-        <defs>
-          <linearGradient id="cn-empty-stone" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="var(--stone-400)" />
-            <stop offset="1" stop-color="var(--stone-700)" />
-          </linearGradient>
-        </defs>
-        <g fill="url(#cn-empty-stone)">
-          <rect x="16" y="7" width="16" height="7" rx="3.5" />
-          <rect x="12" y="17" width="24" height="8" rx="4" />
-          <rect x="9" y="28" width="30" height="8" rx="4" />
-          <rect x="13" y="39" width="22" height="5" rx="2.5" />
-        </g>
-      </svg>
+      <cn-logo [size]="40" class="mark" />
     }
 
     <p class="headline">{{ headline() }}</p>
@@ -55,8 +49,6 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
         padding: var(--space-4) var(--space-2);
       }
       .mark {
-        width: 40px;
-        height: 40px;
         opacity: 0.75;
         margin-bottom: var(--space-1);
       }
@@ -89,5 +81,5 @@ export class EmptyStateComponent {
   /** One sentence on why it is empty and what fills it. */
   readonly detail = input<string | null>(null);
   /** Drop the mark and tighten the padding, for an empty slot inside a card. */
-  readonly compact = input(false);
+  readonly compact = input(false, { transform: booleanAttribute });
 }

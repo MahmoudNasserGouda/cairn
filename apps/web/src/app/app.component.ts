@@ -1,158 +1,30 @@
-import { Component, inject } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { AI_ENABLED } from './core/features';
-import { AuthService } from './core/auth/auth.service';
 import { SignInDialogComponent } from './core/auth/sign-in-dialog.component';
-import { SignInDialogService } from './core/auth/sign-in-dialog.service';
 import { AiDisclosureDialogComponent } from './core/ai/ai-disclosure-dialog.component';
+import { ShellComponent } from './shell/shell.component';
 
+/**
+ * The root component: the shell, plus the dialogs that must outlive any one page.
+ *
+ * It used to hold the top bar, its markup and a hundred lines of its CSS. The layout
+ * moved to `ShellComponent` (ADR-0032) so the root is only what it says on the tin —
+ * what is mounted for the whole session and cannot live inside a route.
+ */
 @Component({
   selector: 'cn-root',
   standalone: true,
-  imports: [
-    RouterOutlet,
-    RouterLink,
-    RouterLinkActive,
-    SignInDialogComponent,
-    AiDisclosureDialogComponent,
-  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [ShellComponent, SignInDialogComponent, AiDisclosureDialogComponent],
   template: `
-    <header class="topbar">
-      <span class="brand">
-        <img src="favicon.svg" alt="" width="22" height="22" />
-        Rujoom
-      </span>
-      <nav>
-        <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
-        <a routerLink="/discover" routerLinkActive="active">Discover</a>
-        <a routerLink="/repositories" routerLinkActive="active">Repositories</a>
-        <a routerLink="/profile" routerLinkActive="active">Profile</a>
-        <a routerLink="/settings" routerLinkActive="active">Settings</a>
-      </nav>
-
-      <div class="account">
-        @if (auth.isSignedIn()) {
-          @if (auth.primaryIdentity(); as who) {
-            <button type="button" class="who" (click)="dialog.show()">
-              @if (who.avatarUrl) {
-                <img class="avatar" [src]="who.avatarUrl" alt="" width="24" height="24" />
-              }
-              {{ who.displayName }}
-            </button>
-          }
-          <button type="button" class="link-btn" (click)="auth.signOut()">
-            Sign out
-          </button>
-        } @else if (auth.status() === 'authenticating') {
-          <span class="muted">Signing in…</span>
-        } @else if (auth.availableProviders.length > 0) {
-          <button type="button" class="signin" (click)="dialog.show()">Sign in</button>
-        } @else {
-          <span class="muted" title="Set the OAuth client IDs in libs/shared config">
-            Sign-in not configured
-          </span>
-        }
-      </div>
-
-      <a class="support" href="https://github.com/sponsors" rel="noopener noreferrer"
-        >Sponsor</a
-      >
-    </header>
-    <main><router-outlet /></main>
+    <cn-shell />
     <cn-sign-in-dialog />
     @if (aiEnabled) {
       <cn-ai-disclosure-dialog />
     }
   `,
-  styles: [
-    `
-      .topbar {
-        display: flex;
-        align-items: center;
-        gap: 1.5rem;
-        padding: 0.75rem 1.25rem;
-        border-bottom: 1px solid var(--border);
-        background: var(--surface);
-      }
-      .brand {
-        font-weight: 700;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-      }
-      .brand img {
-        display: block;
-      }
-      nav {
-        display: flex;
-        gap: 1rem;
-      }
-      nav a {
-        color: var(--fg-muted);
-        text-decoration: none;
-      }
-      nav a.active {
-        color: var(--fg);
-      }
-      .account {
-        margin-left: auto;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.6rem;
-        font-size: 0.9rem;
-      }
-      .who {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        color: var(--fg);
-        font: inherit;
-        cursor: pointer;
-        border: 0;
-        background: none;
-        padding: 0;
-      }
-      .avatar {
-        border-radius: 50%;
-        display: block;
-      }
-      .muted {
-        color: var(--fg-muted);
-      }
-      .signin {
-        font: inherit;
-        cursor: pointer;
-        padding: 0.4rem 0.8rem;
-        border-radius: 8px;
-        border: 1px solid var(--border);
-        background: var(--bg);
-        color: var(--fg);
-      }
-      .link-btn {
-        font: inherit;
-        cursor: pointer;
-        border: 0;
-        background: none;
-        color: var(--fg-muted);
-        padding: 0;
-      }
-      .link-btn:hover {
-        color: var(--fg);
-      }
-      .support {
-        font-size: 0.85rem;
-      }
-      main {
-        max-width: 960px;
-        margin: 0 auto;
-        padding: 1.5rem 1.25rem 4rem;
-      }
-    `,
-  ],
 })
 export class AppComponent {
-  protected readonly auth = inject(AuthService);
-  protected readonly dialog = inject(SignInDialogService);
   /** Frozen off by default — nothing can open this dialog (ADR-0033). */
   protected readonly aiEnabled = inject(AI_ENABLED);
 }
