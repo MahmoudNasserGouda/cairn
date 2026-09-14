@@ -19,16 +19,28 @@
 # with no access to the app's storage, and `connect-src 'self'` lets it load its own
 # model files and reach nothing else.
 #
-# `X-Frame-Options: SAMEORIGIN` is not decoration — it *overrides* the `DENY` this path
-# inherits from `/*`, and without it the sandbox cannot exist. Cloudflare applies every
-# matching rule rather than the most specific one, and a block only overrides the
-# headers it names, so `/ocr/index.html` was being served `DENY`: unframeable from
-# anywhere, same-origin included. The 2026-09-14 spike reported nothing at all because
-# the frame never loaded, which read exactly like a missing capability and was not one.
-# `frame-ancestors 'self'` above is the modern control and is meant to supersede this
-# header; a browser that honours both wins the argument, and one demonstrably did.
+# Two headers here exist to *undo* something, and the sandbox does not load without
+# either of them. Both were found by running the spike in a real browser.
+#
+# `X-Frame-Options: SAMEORIGIN` overrides the `DENY` this path inherits from `/*`.
+# Cloudflare applies every matching rule rather than the most specific one, and a block
+# only overrides the headers it names, so `/ocr/index.html` was being served `DENY`:
+# unframeable from anywhere, same-origin included. Chromium enforces it; Firefox ignores
+# it in favour of `frame-ancestors` and says so in the console. It has to be right for
+# both.
+#
+# `Cross-Origin-Resource-Policy: cross-origin` — and it cannot be anything stricter.
+# This document runs on an **opaque origin**, which belongs to no site and no origin, so
+# `same-site` and `same-origin` can never match it: the frame loads and is then refused
+# every one of its own assets (`NS_ERROR_DOM_CORP_FAILED` on `sandbox.js`). `cross-origin`
+# is the only value an opaque-origin document can satisfy.
+#
+# What that costs: these files become readable by any origin. They are the OCR engine
+# and its models — public static assets with nothing user-specific in them — so the cost
+# is hotlinking, not disclosure. Framing the sandbox *document* is still restricted by
+# `frame-ancestors 'self'` above, and that is the control that matters.
 /ocr/*
   Content-Security-Policy: default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; img-src blob: data:; style-src 'unsafe-inline'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'
   X-Content-Type-Options: nosniff
-  Cross-Origin-Resource-Policy: same-site
+  Cross-Origin-Resource-Policy: cross-origin
   X-Frame-Options: SAMEORIGIN

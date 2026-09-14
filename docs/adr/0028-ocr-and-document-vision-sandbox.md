@@ -141,27 +141,56 @@ sandbox cannot be used as a pivot back into the app.
 Still open, and the first real-browser attempt did not answer it either. It is worth
 recording why, because the failure looked exactly like the answer.
 
-**The 2026-09-14 real-Chrome run (project owner) reported an empty frame and a silent
-parent — and the cause was a header of ours, not the platform.** `/ocr/index.html` was
-being served `X-Frame-Options: DENY`. Cloudflare `_headers` applies **every** matching
-rule rather than the most specific one, so `/*` matches `/ocr/index.html` as well, and
-a block only overrides the headers it names. The `/ocr/*` block overrode the CSP and
-two others and silently inherited `DENY`, which forbids framing from anywhere,
-same-origin included. The frame could never load, so nothing ran, so nothing was
-reported — indistinguishable, on the page as it then was, from "WebAssembly does not
-work in an opaque origin", which would have sunk this ADR's whole approach.
+**Two real-browser runs (project owner, 2026-09-14) found two separate header bugs of
+ours. Neither was the platform, and both looked exactly like it.**
 
-Fixed by overriding it (`X-Frame-Options: SAMEORIGIN` on `/ocr/*`), and
-`scripts/check-csp.mjs` now fails the build on an `/ocr/*` block that is served `DENY`,
-inherited or otherwise — verified by removing the override and watching it fail.
+*First run, empty frame and a silent parent.* `/ocr/index.html` was being served
+`X-Frame-Options: DENY`. Cloudflare `_headers` applies **every** matching rule rather
+than the most specific one, so `/*` matches `/ocr/index.html` as well, and a block only
+overrides the headers it names — the `/ocr/*` block overrode the CSP and two others and
+silently inherited `DENY`, which forbids framing from anywhere, same-origin included.
+Chromium enforces this; Firefox ignores it in favour of `frame-ancestors` and says so in
+the console, so it is a Chromium-only blocker but a real one. Fixed with
+`X-Frame-Options: SAMEORIGIN` on `/ocr/*`.
 
-The automation browser still cannot check this: it executes no scripts in **any**
-iframe, sandboxed or not, which was confirmed against an un-sandboxed inline control
-rather than inferred. So the question needs a real browser, and
-`apps/web/public/ocr-spike.html` now diagnoses itself — it prints the headers the
-sandbox document was actually served, distinguishes "the frame never loaded" from "the
-frame loaded and its script was refused", and treats silence as a reportable outcome
-instead of leaving "running…" on screen.
+*Second run, and the one that mattered.* With the frame now loading, the sandbox was
+refused its own script:
+
+```
+GET /ocr/sandbox.js   NS_ERROR_DOM_CORP_FAILED
+blocked due to its Cross-Origin-Resource-Policy header
+```
+
+`/ocr/*` carried `Cross-Origin-Resource-Policy: same-site`. **An opaque origin belongs
+to no site and no origin, so `same-site` and `same-origin` can never match it** — the
+document loads and is then refused every asset it owns. `cross-origin` is the only value
+an opaque-origin document can satisfy, and that is now what the path sets. The cost is
+that the engine and its models become readable by any origin: public static files with
+nothing user-specific in them, so the exposure is hotlinking rather than disclosure, and
+framing the sandbox *document* is still governed by `frame-ancestors 'self'`.
+
+**A hypothesis this disproved, worth recording because it was the likely-looking one.**
+`script-src 'self'` was expected to fail in an opaque origin, on the reasoning that
+`'self'` cannot match an origin that matches nothing. It does not fail: Firefox
+*requested* `sandbox.js` and CORP rejected the response afterwards. A CSP refusal would
+have produced no request at all and a violation report instead. `'self'` works.
+
+`scripts/check-csp.mjs` now fails the build on both — an `/ocr/*` block served `DENY`
+(inherited or otherwise), and a CORP value stricter than `cross-origin`. Each was
+verified by reintroducing the bug and watching the guard catch it.
+
+What remains genuinely unknown is one step further in than it was: the frame loads, CSP
+permits its script, and the next run will say whether that script *runs* and can compile
+WebAssembly on an opaque origin. Everything before that is now known to work.
+
+The automation browser cannot check it: it executes no scripts in **any** iframe,
+sandboxed or not, which was confirmed against an un-sandboxed inline control rather than
+inferred. So the question needs a real browser, and `apps/web/public/ocr-spike.html`
+diagnoses itself — it prints the headers the sandbox document was actually served,
+distinguishes "the frame never loaded" from "the frame loaded and its script was
+refused", and treats silence as a reportable outcome instead of leaving "running…" on
+screen. That page is what turned an opaque failure into a one-line console answer, and
+it earned its keep twice.
 
 **That check must still pass before any OCR engine is vendored**, because the fallback
 it would trigger — serving the sandbox from a separate Workers subdomain — changes the

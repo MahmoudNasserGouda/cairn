@@ -113,6 +113,30 @@ if (!existsSync(HEADERS)) {
           `and nothing else may (ADR-0028).`,
       );
     }
+
+    /**
+     * The second header that has to *undo* something, and the one that actually
+     * stopped the spike.
+     *
+     * The sandbox runs on an **opaque origin**, which belongs to no site and no
+     * origin. `Cross-Origin-Resource-Policy: same-site` and `same-origin` therefore
+     * can never match it — the frame loads and is then refused every one of its own
+     * assets, which is `NS_ERROR_DOM_CORP_FAILED` on `sandbox.js` and looks exactly
+     * like "WebAssembly is unavailable here". `cross-origin` is the only value an
+     * opaque-origin document can satisfy.
+     *
+     * It is deliberately not a free pass: these are the engine and its models, public
+     * static files with nothing user-specific in them, and framing the sandbox
+     * *document* is still governed by `frame-ancestors 'self'` above.
+     */
+    const corp = block.headers.get('cross-origin-resource-policy');
+    if (corp && corp.trim().toLowerCase() !== 'cross-origin') {
+      problems.push(
+        `${path} sets Cross-Origin-Resource-Policy: ${corp} — an opaque origin belongs ` +
+          `to no site, so only 'cross-origin' can match it and the sandbox is refused ` +
+          `its own assets (ADR-0028).`,
+      );
+    }
   }
 
   const appBlock = blocks.find((b) => b.path === '/*');
