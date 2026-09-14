@@ -11,6 +11,7 @@ import { AI_ENABLED } from '../core/features';
 import { AiService } from '../core/ai/ai.service';
 import { AiSettingsService } from '../core/ai/ai-settings.service';
 import { CvImportService } from '../core/cv/cv-import.service';
+import { LinkedinImportComponent } from '../core/linkedin/linkedin-import.component';
 import { ProfileService } from '../core/profile/profile.service';
 
 interface SkillChoice {
@@ -73,12 +74,12 @@ function toEntry(role: RoleDraft): ParsedRole {
 @Component({
   selector: 'cn-profile',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, LinkedinImportComponent],
   template: `
     <h1>Your profile</h1>
     <p class="muted">
-      Rujoom builds one profile from your GitHub activity and, optionally, your CV.
-      Everything below is computed on this device.
+      Rujoom builds one profile from your GitHub activity and, optionally, your CV and
+      your LinkedIn archive. Everything below is computed on this device.
     </p>
 
     <section class="panel">
@@ -294,6 +295,8 @@ function toEntry(role: RoleDraft): ParsedRole {
         </div>
       </section>
     }
+
+    <cn-linkedin-import />
 
     <section class="panel">
       <h2>Merged profile</h2>

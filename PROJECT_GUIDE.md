@@ -28,10 +28,15 @@ pdf.js hands it, LinkedIn contributes a display name, and the UI is 33 lines of 
 CSS. So: **AI is frozen behind a flag, and the next stretch of work deepens the four data
 sources, rebuilds CV reading as a document pipeline, gives the profile per-field
 provenance, and gives the app a design system.** Six ADRs (0028–0033) and a research
-document (`docs/data-sources.md`) were written first. Since then: **AI is frozen**,
-the CV fixture corpus and `extractPdfLayout` are in, and **Profile v2 has landed** —
-every field now carries where it came from, a hand edit outranks every import, and the
-merged profile is *stored* rather than rebuilt from its sources on each load.
+document (`docs/data-sources.md`) were written first. Since then, steps 1–6 have landed:
+**AI is frozen**, **Profile v2** gives every field a provenance and a hand edit outranks
+every import, **GitHub** is one GraphQL request instead of sixteen REST calls, **CV
+reading** is a geometry-first pipeline (`libs/doc-layout` + `libs/cv-parse`) rather than a
+keyword scan over flattened text, and **the LinkedIn archive imports** — which finally
+makes all four sources of item 9 real. What remains of step 5 is the OCR *engine*: the
+`/ocr` sandbox question is settled and `apps/web/public/ocr-spike.html` is on `main` for
+the one browser check that must pass first. Next is step 7, the design system and the
+profile hub — which is also where editing a field by hand becomes reachable.
 
 Done:
 
@@ -39,7 +44,7 @@ Done:
   [`docs/ci-cd.md`](docs/ci-cd.md), ADRs 0001–0027.
 - **Monorepo scaffold** — npm workspaces, TS strict, path aliases, ESLint flat config
   with the `libs → apps` import-boundary rule, Prettier, Vitest.
-- **Thirteen `libs/*` implemented** with real logic; **367 passing tests** across
+- **Seventeen `libs/*` implemented** with real logic; **625 passing tests** across
   `libs/`, `apps/web` and the `cairn-auth` Worker:
   deterministic matching + scoring, AI-free repository health, issue difficulty, the
   cached GitHub client (dedup + ETag + rate-limit floor), CV parser + skills taxonomy,
@@ -81,11 +86,24 @@ Done:
   [ADR-0025](docs/adr/0025-multi-provider-identity.md)).
 - **CV upload works end to end** — drop a PDF / .docx / .txt on **/profile** and the
   bytes go to a sandboxed, terminate-on-timeout Web Worker; `libs/cv-extract` pulls out
-  plain text (pdf.js text layer, or our own ZIP reader for `word/document.xml`);
-  `parseCvText` structures it; a **mandatory review form** lets the user edit and
-  confirm before anything is committed; `cvToProfile` merges it onto the GitHub profile
-  and the reviewed fields persist in IndexedDB. No bytes leave the device and no raw CV
-  text is ever stored ([ADR-0011](docs/adr/0011-local-first-cv-processing.md)).
+  positioned text runs, `libs/doc-layout` turns them into columns, blocks and a reading
+  order, and `libs/cv-parse` reads structure off that rather than off a keyword list; a
+  **mandatory review form** lets the user edit and confirm before anything is committed,
+  and the reviewed fields merge into the profile with `cv` provenance. No bytes leave
+  the device and no raw CV text is ever stored
+  ([ADR-0011](docs/adr/0011-local-first-cv-processing.md)).
+- **LinkedIn archive import works end to end** — drop the ZIP LinkedIn emails you on
+  **/profile** and the same shape happens: sandboxed worker, size cap, time budget,
+  **mandatory review**, merge with `linkedin` provenance. The archive is the only path
+  to LinkedIn profile data that reaches a user outside the EEA
+  ([ADR-0029](docs/adr/0029-linkedin-data-export-archive-import.md)). It reads eight
+  career files and **never opens** `Connections.csv`, `messages.csv`, `Invitations.csv`,
+  `Contacts.csv`, `Reactions.csv` or `Comments.csv` — other people's data, in a product
+  that builds a profile of one person. That refusal is structural, not a filter after
+  the fact: `libs/zip` enumerates the central directory, the allowlist picks which names
+  to open, and nothing else is ever passed to `read`. The review screen shows what was
+  opened and what was left shut, by name, so it is a claim the user can check against
+  the file they downloaded.
 - **Contribution readiness on the dashboard** — `contributionReadiness` in
   `libs/profile` scores the merged profile against no target at all: skill depth, skill
   breadth, experience, track record, and profile completeness, through the same
@@ -173,12 +191,21 @@ Next — in order, each phase tests-first ([`docs/testing.md`](docs/testing.md))
    One GraphQL request replaced the sixteen REST calls; scopes are now
    `read:user user:email read:org`. The read-only private-repo PAT is **not built** —
    no UI collects one, so nothing reads a private repository today.
-5. **CV reading rebuilt** — `libs/doc-layout` + `libs/cv-parse` over pdf.js geometry, then
-   the `/ocr` sandbox for scanned files
-   ([ADR-0028](docs/adr/0028-ocr-and-document-vision-sandbox.md)).
-6. **LinkedIn archive import** ([ADR-0029](docs/adr/0029-linkedin-data-export-archive-import.md)).
-7. **Design system + IA redesign**
-   ([ADR-0032](docs/adr/0032-design-system-and-information-architecture.md)).
+5. ~~**CV reading rebuilt**~~ → **done for digital PDFs**: `libs/doc-layout` +
+   `libs/cv-parse` read the geometry pdf.js was already handing over. **Not done:** the
+   OCR engine for scanned files. ADR-0028's open question is settled — per-path CSP
+   works, WASM compiles under `'wasm-unsafe-eval'` on `/ocr/*`, the app origin stays
+   strict — but **script execution inside `sandbox="allow-scripts"` is unverified**: a
+   fully permissive control frame behaved identically, so the automation browser is the
+   confound. `apps/web/public/ocr-spike.html` answers it in ordinary Chrome in seconds,
+   and must pass before an engine is vendored.
+6. ~~**LinkedIn archive import**~~ → **done**
+   ([ADR-0029](docs/adr/0029-linkedin-data-export-archive-import.md)). Drop the ZIP
+   LinkedIn emails you; eight career files are read and the connection graph, messages
+   and contact book are never opened — enforced in the reader, observed by a test.
+7. **Design system + IA redesign** — next
+   ([ADR-0032](docs/adr/0032-design-system-and-information-architecture.md)). Also where
+   `manual` provenance stops being a capability with no UI.
 
 Deferred behind their own mini-ADRs: GitLab (the only provider that supports public-client
 PKCE — it would need no Worker at all), Bitbucket, Stack Exchange, dev.to, and the first
@@ -196,21 +223,23 @@ apps/web/                  Angular 20 SPA — primary MVP                 [built
   src/app/core/targets/    TargetService — repo search → pick repo + issue → scoring snapshots (persisted)
   src/app/core/discovery/  DiscoveryService — profile → search plan → ranked recommendations (preset persisted)
   src/app/core/github-client.ts  one shared GithubClient (token-bound when signed in)
-  src/app/core/cv/         CvImportService + sandboxed extraction worker + Trusted Types worker URL
+  src/app/core/cv/         CvImportService + sandboxed extraction worker + its worker URL
+  src/app/core/linkedin/   LinkedinImportService + sandboxed archive worker + review component
+  src/app/core/worker-policy.ts   the one Trusted Types `default` policy, shared by both workers
   src/app/core/ai/         AiSettingsService (key in `secrets`), AiService (the one call path),
                            disclosure service + dialog — every AI call is gated here (ADR-0010)
-  src/app/pages/           dashboard, discover, repositories, profile (CV import + review form), settings
+  src/app/pages/           dashboard, discover, repositories, profile (CV + LinkedIn import), settings
   src/styles/              design tokens — the one source of visual truth   [planned — ADR-0032]
   src/app/ui/              cn-* component library                          [planned — ADR-0032]
   src/app/features/        per-feature container + presentational split     [planned — ADR-0032]
-  public/ocr/              isolated OCR sandbox: own CSP, opaque origin     [planned — ADR-0028]
+  public/ocr/              isolated OCR sandbox: own CSP, opaque origin — spike only, no engine yet
   public/_headers          security headers + CSP, applied by Cloudflare Workers
   wrangler.toml            Cloudflare Workers static-assets deploy config
 apps/extension/            Manifest V3 extension (esbuild)              [built: content + background]
 apps/desktop/              Tauri local agent                           [future — ADR-0015]
 api/optional-serverless/oauth/  cairn-auth Worker: stateless code→token + LinkedIn identity relay
 libs/shared/               Result, math, redacting logger, KeyValueStore, sanitizer contract, config,
-                           skills taxonomy — the one vocabulary every side speaks (TAXONOMY_VERSION=4)
+                           skills taxonomy — the one vocabulary every side speaks (TAXONOMY_VERSION=5)
 libs/scoring/              weightedScore + explanation, versioned WEIGHTS (WEIGHTS_VERSION=1),
                            incl. DISCOVERY_WEIGHTS + the three presets
 libs/matching/             repositoryMatch / issueMatch / contributionConfidence / skillGap
@@ -224,13 +253,15 @@ libs/github/               GithubClient — REST + GraphQL over one cache/dedupe
                            viewer-graph (whole profile in one query), repo/health, search, issues
 libs/profile/              UnifiedProfile v2 (schemaVersion 2) — provenance.ts (source precedence),
                            merge.ts (idempotent entity merge + forgetSource), migrate.ts,
-                           githubToFragment, cvToFragment, contributionReadiness,
+                           githubToFragment, cvToFragment, linkedinToFragment, contributionReadiness,
                            __fixtures__/build.ts (`@cairn/profile/testing`)
-libs/cv-extract/           PDF/DOCX/text → plain text; own ZIP reader, pdf.js text layer (ADR-0011)
-libs/zip/                  hardened ZIP reader, shared by DOCX + archive    [planned — ADR-0029]
-libs/doc-layout/           pure: positioned runs → columns, blocks, order   [planned — ADR-0028]
-libs/cv-parse/             pure: layout blocks → structured CV              [planned — ADR-0028]
-libs/linkedin-archive/     pure: LinkedIn export ZIP → profile fragment     [planned — ADR-0029]
+libs/cv-extract/           PDF/DOCX/text → plain text + positioned layout runs (ADR-0011)
+libs/zip/                  hardened ZIP reader — openZip / listZipEntries / readZipEntry;
+                           enumerate-then-read, which is what makes an allowlist checkable
+libs/doc-layout/           pure: positioned runs → columns, blocks, reading order, headings
+libs/cv-parse/             pure: layout blocks → structured CV
+libs/linkedin-archive/     pure: export ZIP → LinkedinArchive. Own CSV reader (regex-free scan),
+                           a read allowlist of eight files, and a report of what it left shut
 libs/portfolio/            metrics, static HTML/MD generator, Ed25519 license verify
 libs/targets/              pure: RepoOverview + healthScore + analyzeIssue → Repository/IssueSnapshot
 libs/auth/                 framework-free multi-provider OAuth (provider records, state, exchange, identity)
@@ -303,9 +334,11 @@ Full list: [`SECURITY.md`](SECURITY.md) §8. Enforced by CI (`check-csp.mjs`,
    with no network egress. `check-csp.mjs` keeps it a hard failure everywhere else. No `bypassSecurityTrust*` and no Trusted Types policy
    without a reviewed, marked (`cairn-security-reviewed`) exception — two ratified:
    `SafeHtmlService.trust()` (post-DOMPurify + post-Angular-sanitizer only), and the
-   `default` Trusted Types policy in `core/cv/worker-url.ts`, which admits a script URL
-   only when it is same-origin and arrives inside the one synchronous call that starts
-   the CV extraction worker.
+   `default` Trusted Types policy in `core/worker-policy.ts`, which admits a script URL
+   only when it is same-origin and arrives inside the one synchronous call that
+   constructs a worker. **One** policy for the whole app, not one per worker: a document
+   may hold only one named `default`, so a second copy would silently block its own
+   worker in production.
 2. All external content (GitHub, AI, CV, user free-text) is sanitised before rendering.
 3. OAuth tokens and BYOK keys: never logged, never stored by Cairn, never in URLs.
    The GitHub token transits the stateless `cairn-auth` Worker once during the code
@@ -488,6 +521,71 @@ one — see `api/optional-serverless/oauth/README.md`.
     optional GitHub PAT. "Clear all AI data" must clear only the former.
 
 ## Changelog
+
+### 2026-09-14 — LinkedIn archive import: the fourth source, and a refusal in code
+
+- **`libs/zip`** — the hardened ZIP reader lifted out of `libs/cv-extract` (`git mv`, so
+  the history follows it) and given an **enumerate-then-read** shape: `openZip` parses the
+  central directory once, `listZipEntries` says what an archive claims to hold without
+  inflating any of it, and `readZipEntry` stays for DOCX. The entry cap, declared-size
+  check and streaming byte cap are unchanged; its zip-bomb tests moved with it, and
+  `docx.test.ts` keeps the one assertion that is DOCX's own — that the cap is actually
+  applied on the path a Word file takes.
+- **`libs/linkedin-archive`** — export ZIP → `LinkedinArchive`. Its own CSV reader
+  (ADR-0021: the input is a file a stranger could have handed the user, and a parser for
+  it is smaller than an audit of someone else's): quoted fields, embedded newlines, BOM,
+  CRLF, a preamble note above the header, a row shorter than its header, and a file that
+  ends mid-quote. A single forward scan of `charCodeAt`/`indexOf` with **no regex on the
+  scanning path** — seven `js/polynomial-redos` findings in this repo have every one of
+  them been on untrusted document input, and an archive is untrusted document input.
+- **The refusal is structural, not a filter.** `Connections.csv`, `messages.csv`,
+  `Invitations.csv`, `Contacts.csv`, `Reactions.csv` and `Comments.csv` are never opened,
+  because the allowlist decides which *names* to read before any bytes are inflated —
+  there is no code path from a refused entry to a buffer. The fixture makes that
+  observable rather than asserted: **every refused file in it is a zip bomb**, so a reader
+  that opened one would blow the byte cap and fail the import. The review screen then
+  shows the user which files were opened and which were left shut, by name — a privacy
+  claim they can check against the file they downloaded.
+- **`linkedinToFragment`** (`libs/profile/src/linkedin.ts`) declares the archive's shape
+  locally, exactly as `githubToFragment` does for GitHub, so `libs/profile` has no runtime
+  dependency on the reader and a parser change cannot quietly alter merge behaviour. It
+  deliberately **does not** add a linked identity (a downloaded file is evidence about a
+  career, not proof of an account) and **does not** claim an experience level (the merge
+  derives that from the dated roles the archive already supplies).
+- **One Trusted Types policy for the whole app** (`core/worker-policy.ts`). A document may
+  hold exactly one policy named `default`; with a copy per worker factory, the second
+  factory's `createPolicy` throws, the *first* factory's policy governs the second
+  `new Worker` call, and its module-local "armed" flag is false — so the LinkedIn worker
+  would have been blocked **in production only**, with a CSP violation and a "failed to
+  start". Found by reasoning rather than by shipping it; `worker-policy.test.ts` pins
+  that arming works for every caller. `SECURITY.md` §8.1, ADR-0011 and `docs/testing.md`
+  repointed at the new location.
+- **`docs/testing.md`'s 85% bar is now real.** It had claimed a higher threshold for the
+  four pure libraries since Phase 0; `vitest.config.ts` only ever enforced the global 70%.
+  Added the per-glob threshold and **checked that it binds** by raising it and watching it
+  fail — a glob that matches nothing passes silently. Thirteen edge-case tests took
+  `libs/linkedin-archive` branches from 74% to 92% to clear it honestly rather than by
+  lowering the bar.
+- **The bundle-origin guard caught a real consequence.** Synthesising a link from the
+  archive's bare Twitter handle put a new origin in the bundle. It is an `href`, not a
+  fetch target, so it went in `check-bundle-origins.mjs`'s reviewed IGNORE list with a
+  dated note — **not** into `ALLOWED_CONNECT_ORIGINS` or the CSP, which would have been
+  the exact drift the guard exists to catch. The host is `x.com`, since the archive stores
+  a bare handle and the host is ours to pick.
+- **`npm ci` caught lockfile drift before CI did** — the same failure that broke #45.
+  `npm run verify` cannot see it, because Vitest resolves workspaces through path aliases.
+- Guide sections updated: Current status (steps 1–6 done, step 7 next, 625 → 638 tests),
+  Repo map (four libs no longer "planned", `core/linkedin/`, `core/worker-policy.ts`,
+  TAXONOMY_VERSION=5), Security non-negotiables §1.
+- Also folded in three slices that shipped without their own entry: **`libs/doc-layout`**
+  (#45) and **`libs/cv-parse`** (#46) replaced the flat-text CV parser with a geometry
+  pipeline, and the **OCR spike** (#47) settled ADR-0028's open question.
+- Drift: none introduced. ⚠ Two carried forward, both pre-existing and both now recorded
+  here rather than only in a PR description: **(1)** CodeQL runs only on PRs targeting
+  `main` (`codeql.yml` `pull_request: branches: [main]`) and does not re-trigger on
+  retarget, so every PR in a stack is unscanned until it is rebased — and it found a
+  genuine high-severity ReDoS in three of the four branches the moment it finally looked.
+  **(2)** `npm run typecheck` does not type-check Angular templates; only `ng build` does.
 
 ### 2026-09-13 — One GraphQL request replaces sixteen REST calls
 

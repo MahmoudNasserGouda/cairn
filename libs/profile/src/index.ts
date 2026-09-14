@@ -5,4 +5,5 @@ export * from './merge';
 export * from './migrate';
 export * from './cv';
 export * from './github';
+export * from './linkedin';
 export * from './readiness';

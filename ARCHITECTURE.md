@@ -277,9 +277,16 @@ sequenceDiagram
     A->>A: read ONLY the allowlist (Profile, Positions, Education,<br/>Skills, Certifications, Projects, Languages, Emails)
     Note over A: Connections / messages / Invitations / Contacts<br/>are never opened — other people's data.
     A-->>App: draft fields, each tagged source: 'linkedin'
-    App->>U: editable review form
+    App->>U: review: every field, plus the list of entries left unopened
     U->>App: confirm → merge with provenance (IndexedDB)
 ```
+
+The review shows what was opened and what was not, by name. A privacy claim the user
+can check against the file they just downloaded is worth more than one they have to
+take on faith. Field-level editing of the result arrives with the profile hub
+([ADR-0032](docs/adr/0032-design-system-and-information-architecture.md)); until then
+the choice is confirm or discard, and `manual` provenance already outranks the archive,
+so an edit made later is never overwritten by a re-import.
 
 ## 7. Data classification & storage
 
@@ -366,6 +373,30 @@ you have thrown away the x-coordinate; a bullet detaches from its role only if y
 thrown away the indent. pdf.js hands both over with every text run, and the old
 `itemsToText` discarded them. OCR is the exception path, not the pipeline
 ([ADR-0028](docs/adr/0028-ocr-and-document-vision-sandbox.md)).
+
+### Archive pipeline — `libs/zip` + `libs/linkedin-archive`
+
+Same rules again, and one structural property worth stating on its own:
+
+```
+bytes ──> zip.openZip ──> entry names ──> allowlist ──> zip.read ──> CSV ──> LinkedinArchive
+              (central directory only —      │              (8 files, nothing else)
+               nothing inflated yet)         │
+                                             └─ everything else: never opened
+```
+
+`libs/zip` grew an **enumerate-then-read** shape for exactly this. The refusal in
+[ADR-0029](docs/adr/0029-linkedin-data-export-archive-import.md) — no connection graph,
+no messages, no contact book — is not a filter applied to parsed output; there is no
+code path from a refused entry to an inflated buffer. That distinction is what makes
+"we never read it" checkable rather than asserted, and the tests observe it directly:
+the refused files in the fixture are zip bombs, so a reader that opened one would fail
+the import.
+
+The CSV reader is ours, per
+[ADR-0021](docs/adr/0021-supply-chain-and-dependency-security.md), and is a single
+regex-free forward scan — an archive is untrusted document input, and every
+`js/polynomial-redos` finding this project has shipped was on untrusted document input.
 
 ### Repository Health Engine — `libs/repository-analysis`
 

@@ -168,12 +168,20 @@ LinkedIn / Google `openid profile email` only
    source — currently two:
    - `SafeHtmlService.trust()`, applied only to output already run through DOMPurify
      and the Angular sanitizer;
-   - the `default` Trusted Types policy in `core/cv/worker-url.ts`, which exists only
+   - the `default` Trusted Types policy in `core/worker-policy.ts`, which exists only
      because `require-trusted-types-for 'script'` makes the `Worker` constructor a
      `TrustedScriptURL` sink. It admits a script URL only when it is same-origin
-     *and* arrives during the single synchronous call that starts the CV extraction
-     worker, and rejects every other script URL outright
+     *and* arrives during the single synchronous call that constructs a worker, and
+     rejects every other script URL outright
      ([ADR-0011](docs/adr/0011-local-first-cv-processing.md)).
+
+     It is **one** policy for the whole app, not one per worker, because a document may
+     hold only one policy named `default`. A second copy of that code would find the
+     first copy's policy governing its `new Worker` call, with the first copy's
+     module-local "armed" flag — blocking the second worker in production only. Both
+     the CV worker and the LinkedIn archive worker
+     ([ADR-0029](docs/adr/0029-linkedin-data-export-archive-import.md)) go through it,
+     and `core/worker-policy.test.ts` pins that arming works for every caller.
 2. All external content (GitHub, AI, CV, user free-text) is sanitised before rendering.
 3. OAuth tokens and BYOK keys are never logged, never stored by Rujoom infrastructure,
    never placed in URLs or query strings. The GitHub token transits the stateless
