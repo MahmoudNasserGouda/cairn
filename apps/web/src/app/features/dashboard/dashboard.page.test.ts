@@ -4,12 +4,12 @@ import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import type { UnifiedProfile } from '@cairn/profile';
 import type { RepositorySnapshot, IssueSnapshot } from '@cairn/matching';
-import { DashboardComponent } from './dashboard.component';
-import { ProfileService } from '../core/profile/profile.service';
-import { TargetService } from '../core/targets/target.service';
-import { AI_ENABLED } from '../core/features';
-import { AiService } from '../core/ai/ai.service';
-import { AiSettingsService } from '../core/ai/ai-settings.service';
+import { DashboardPageComponent } from './dashboard.page';
+import { ProfileService } from '../../core/profile/profile.service';
+import { TargetService } from '../../core/targets/target.service';
+import { AI_ENABLED } from '../../core/features';
+import { AiService } from '../../core/ai/ai.service';
+import { AiSettingsService } from '../../core/ai/ai-settings.service';
 import { buildProfile, testRole, testSkill } from '@cairn/profile/testing';
 
 const PROFILE: UnifiedProfile = buildProfile({
@@ -106,7 +106,7 @@ function render(opts: {
       },
     ],
   });
-  const fixture = TestBed.createComponent(DashboardComponent);
+  const fixture = TestBed.createComponent(DashboardPageComponent);
   fixture.detectChanges();
   return fixture;
 }
@@ -127,12 +127,14 @@ describe('scores without a profile', () => {
     const body = text(fixture);
 
     expect(body).not.toMatch(/\d+%/);
-    expect(body).toMatch(/Connect GitHub or import a CV/);
+    expect(body).toMatch(/No profile to score/);
   });
 
   it('prompts for a profile, not for a target, when the target already exists', () => {
     const fixture = render({ profile: null, repo: REPO });
-    expect(text(fixture)).toMatch(/need a real profile/);
+    // Still the *profile* prompt, not the target one, even though a target exists.
+    expect(text(fixture)).toMatch(/No profile to score/);
+    expect(text(fixture)).not.toMatch(/No target chosen/);
   });
 });
 
@@ -158,13 +160,13 @@ describe('scores with a profile', () => {
     const fixture = render({ profile: PROFILE, repo: REPO_NO_TECH });
     const body = text(fixture);
 
-    expect(body).toMatch(/no technologies detected/);
-    expect(body).toMatch(/nothing to\s+compare against/);
+    expect(body).toMatch(/reports no stack for this repository/);
+    expect(body).toMatch(/nothing\s+to compare against/);
   });
 
   it('asks for a target when there is a profile but no repo', () => {
     const fixture = render({ profile: PROFILE, repo: null });
-    expect(text(fixture)).toMatch(/Pick a repository/);
+    expect(text(fixture)).toMatch(/No target chosen/);
   });
 });
 

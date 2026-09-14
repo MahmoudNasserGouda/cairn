@@ -32,6 +32,12 @@ const FOCUSABLE =
  * Two-way bound, so a caller writes `[(open)]="showing"` and the sheet can close
  * itself from Escape or the backdrop without an output the caller has to remember to
  * handle.
+ *
+ * **Guard your content with `@if (open())`.** Projected nodes are created in the
+ * *caller's* view, not this one, so every binding inside them evaluates on each change
+ * detection whether or not the sheet is showing. That is how Angular content
+ * projection works and this component cannot change it — a closed sheet whose content
+ * reads a service will still read it, and in one case still threw.
  */
 @Component({
   selector: 'cn-sheet',

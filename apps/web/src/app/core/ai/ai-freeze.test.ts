@@ -23,9 +23,9 @@ import { TargetService } from '../targets/target.service';
 import { AppComponent } from '../../app.component';
 import { AuthService } from '../auth/auth.service';
 import { SignInDialogService } from '../auth/sign-in-dialog.service';
-import { DashboardComponent } from '../../pages/dashboard.component';
+import { DashboardPageComponent } from '../../features/dashboard/dashboard.page';
 import { CvImportComponent } from '../cv/cv-import.component';
-import { SettingsComponent } from '../../pages/settings.component';
+import { SettingsPageComponent } from '../../features/settings/settings.page';
 import { buildProfile, testLevel, testSkill } from '@cairn/profile/testing';
 
 const PROFILE: UnifiedProfile = buildProfile({
@@ -196,14 +196,14 @@ describe('with AI frozen (the default)', () => {
 
   it('offers no AI issue explanation on the dashboard', () => {
     configure(false);
-    const body = textOf(DashboardComponent);
+    const body = textOf(DashboardPageComponent);
     expect(body).not.toMatch(/explain with ai/i);
     expect(body).not.toMatch(/ai-generated/i);
   });
 
   it('shows no AI configuration on the settings page', () => {
     configure(false, { hasKey: false });
-    const host = hostOf(SettingsComponent);
+    const host = hostOf(SettingsPageComponent);
     expect(host.querySelector(KEY_INPUT)).toBeNull();
     expect(host.querySelector(PROVIDER_SELECT)).toBeNull();
     expect(host.textContent ?? '').not.toMatch(/openrouter/i);
@@ -212,7 +212,7 @@ describe('with AI frozen (the default)', () => {
   /** ADR-0033: a user who already stored a key must still be able to remove it. */
   it('still offers to clear a key that was stored before the freeze', () => {
     configure(false, { hasKey: true });
-    expect(textOf(SettingsComponent)).toMatch(/clear all ai data/i);
+    expect(textOf(SettingsPageComponent)).toMatch(/clear all ai data/i);
   });
 
   it('does not mount the disclosure dialog', () => {
@@ -232,12 +232,12 @@ describe('with AI enabled', () => {
 
   it('offers the AI issue explanation on the dashboard', () => {
     configure(true);
-    expect(textOf(DashboardComponent)).toMatch(/explain with ai/i);
+    expect(textOf(DashboardPageComponent)).toMatch(/explain with ai/i);
   });
 
   it('shows AI configuration on the settings page', () => {
     configure(true, { hasKey: false });
-    const host = hostOf(SettingsComponent);
+    const host = hostOf(SettingsPageComponent);
     expect(host.querySelector(KEY_INPUT)).not.toBeNull();
     expect(host.querySelector(PROVIDER_SELECT)).not.toBeNull();
   });
