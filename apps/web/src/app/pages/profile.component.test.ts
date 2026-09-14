@@ -72,6 +72,8 @@ function render(opts: {
           profile: signal(opts.profile ?? null),
           loading: signal(false),
           error: signal(null),
+          // The page embeds `<cn-linkedin-import />`, which reads this.
+          hasLinkedinArchive: signal(false),
           hasCv: signal(false),
           setCv: async (cv: ParsedCv) => {
             committed.push(cv);

@@ -6,8 +6,10 @@ import {
   forgetSource,
   githubToFragment,
   hasSource,
+  linkedinToFragment,
   mergeProfile,
   readStoredProfile,
+  type LinkedinArchiveInput,
   type ParsedCv,
   type ProfileFragment,
   type UnifiedProfile,
@@ -61,6 +63,18 @@ export class ProfileService {
     return profile !== null && hasSource(profile, 'cv');
   });
 
+  /**
+   * True when the LinkedIn archive is contributing something.
+   *
+   * Distinct from `auth.hasIdentity('linkedin')`, which is about signing in. A user
+   * can have one without the other in both directions, and conflating them would put
+   * "imported" next to an account that was only ever used to log in (ADR-0029).
+   */
+  readonly hasLinkedinArchive = computed(() => {
+    const profile = this._profile();
+    return profile !== null && hasSource(profile, 'linkedin');
+  });
+
   readonly priorContributions = computed(
     () => this._profile()?.contributions?.mergedPullRequests ?? 0,
   );
@@ -109,6 +123,16 @@ export class ProfileService {
    */
   async clearCv(): Promise<void> {
     await this.forget('cv');
+  }
+
+  /** Commit a reviewed LinkedIn archive (ADR-0029). It proposes; the merge decides. */
+  async setLinkedin(archive: LinkedinArchiveInput): Promise<void> {
+    await this.apply(linkedinToFragment(archive, today()));
+  }
+
+  /** Take the archive back out, demoting every field it won. */
+  async clearLinkedin(): Promise<void> {
+    await this.forget('linkedin');
   }
 
   /** Merge a fragment into the profile and persist the result. */

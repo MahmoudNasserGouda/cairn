@@ -121,6 +121,8 @@ function configure(enabled: boolean, opts: { hasKey?: boolean } = {}) {
           error: signal(null),
           priorContributions: signal(3),
           priorContributionsKnown: signal(true),
+          // The page embeds `<cn-linkedin-import />`, which reads this.
+          hasLinkedinArchive: signal(false),
           hasCv: signal(false),
           cv: signal(null),
         },

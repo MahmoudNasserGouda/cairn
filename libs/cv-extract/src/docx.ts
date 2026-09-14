@@ -9,7 +9,7 @@
  * and neither does the Vitest node environment.
  */
 import { normalizeLines } from './text';
-import { readZipEntry, ZipError } from './zip';
+import { readZipEntry, ZipError } from '@cairn/zip';
 
 const DOCUMENT_PART = 'word/document.xml';
 

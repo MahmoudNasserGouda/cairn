@@ -98,10 +98,12 @@ New libraries introduced by the current plan — `libs/doc-layout`, `libs/cv-par
 `libs/linkedin-archive`, `libs/zip` — carry **85%**. They are pure and fixture-driven, so
 there is no excuse, and they are where a silent regression would be least visible.
 
-Coverage is a floor, not a goal. Two files are excluded because they cannot run under
-jsdom (`core/cv/cv-extract.worker.ts`, `core/cv/worker-url.ts`); both are exercised by the
-CV import tests' worker stub, and both are listed with their reason in
-`vitest.config.ts`. Any new exclusion needs the same treatment: a reason, in the config,
+Coverage is a floor, not a goal. Four files are excluded because they cannot run under
+jsdom — each import's `*.worker.ts` and its `worker-url.ts`, which exist to hold the
+`new Worker(new URL(...))` literal the bundler needs. Each is exercised by its import
+tests' worker stub, and the Trusted Types policy they share is covered directly in
+`core/worker-policy.test.ts`. Every exclusion is listed with its reason in
+`vitest.config.ts`, and any new one needs the same treatment: a reason, in the config,
 next to the exclusion.
 
 ## What is not unit-tested, and how it is covered instead

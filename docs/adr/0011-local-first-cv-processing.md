@@ -92,7 +92,7 @@ the choices it left open, recorded because each was constrained by a rule elsewh
   ([ADR-0019](0019-security-first-rendering.md)) makes the `Worker` constructor a
   `TrustedScriptURL` sink, and the build only emits the worker chunk for a literal
   `new Worker(new URL(…, import.meta.url))` — so the URL cannot be hoisted and wrapped.
-  `apps/web/src/app/core/cv/worker-url.ts` installs a `default` policy that admits a
+  `apps/web/src/app/core/worker-policy.ts` installs a `default` policy that admits a
   script URL only when it is same-origin *and* arrives inside that one synchronous call.
 
 ### BYOK refinement pass (added 2026-09-12)

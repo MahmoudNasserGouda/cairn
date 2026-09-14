@@ -56,6 +56,14 @@ const IGNORE = [
   // it does call are the three provider APIs, which are in ALLOWED_CONNECT_ORIGINS.
   'https://platform.openai.com',
   'https://aistudio.google.com',
+  // Reviewed 2026-09-14 (LinkedIn archive slice). `libs/profile/src/linkedin.ts`
+  // builds an href from the bare handle in the archive's "Twitter Handles" column,
+  // and the profile hub renders it as a link the user may click. Rujoom never
+  // fetches it, and it is deliberately *not* in ALLOWED_CONNECT_ORIGINS or the CSP
+  // `connect-src`: an origin we link to is not an origin we talk to, and widening
+  // the policy to quiet this guard would be the exact drift the guard exists to
+  // catch. Same category as `https://github.com`, a few lines up.
+  'https://x.com',
 ];
 
 const ASSET_EXT = new Set(['.js', '.mjs', '.css', '.html', '.json']);

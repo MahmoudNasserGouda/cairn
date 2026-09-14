@@ -143,3 +143,15 @@ export const CACHE_MAX_ENTRIES = 2000;
 /** CV upload safety limits (ADR-0011, SECURITY.md T7). */
 export const CV_MAX_BYTES = 5 * 1024 * 1024;
 export const CV_PARSE_TIMEOUT_MS = 10_000;
+
+/**
+ * LinkedIn data-export archive limits (ADR-0029, SECURITY.md T7).
+ *
+ * Its own cap rather than `CV_MAX_BYTES`: an export is a whole account, not one
+ * document, and a long-standing member's archive runs to tens of megabytes once the
+ * media folders are in it. Only eight small CSVs are ever opened — the reader's
+ * per-entry cap handles that — so this bounds the *file* the browser is asked to
+ * hold in memory, and nothing more.
+ */
+export const LINKEDIN_ARCHIVE_MAX_BYTES = 64 * 1024 * 1024;
+export const LINKEDIN_PARSE_TIMEOUT_MS = 15_000;
