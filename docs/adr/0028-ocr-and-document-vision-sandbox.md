@@ -138,16 +138,63 @@ sandbox cannot be used as a pivot back into the app.
 
 **Not settled — script execution inside `sandbox="allow-scripts"`.**
 
-A sandboxed frame loads, but its script never runs. That is *not* our policy: a control
-frame served under a fully permissive CSP (`default-src * 'unsafe-inline' 'unsafe-eval'`)
-behaves identically. The automation browser used for the spike suppresses script
-execution in sandboxed frames, so it cannot answer this question, and no conclusion
-about the design can be drawn from it either way.
+Still open, and the first real-browser attempt did not answer it either. It is worth
+recording why, because the failure looked exactly like the answer.
 
-`apps/web/public/ocr-spike.html` is kept for exactly this: open it in an ordinary
-browser against a built app and it answers in seconds. **That check must pass before
-any OCR engine is vendored**, because the fallback it would trigger — serving the
-sandbox from a separate Workers subdomain — changes the deploy, not just a header.
+**Two real-browser runs (project owner, 2026-09-14) found two separate header bugs of
+ours. Neither was the platform, and both looked exactly like it.**
+
+*First run, empty frame and a silent parent.* `/ocr/index.html` was being served
+`X-Frame-Options: DENY`. Cloudflare `_headers` applies **every** matching rule rather
+than the most specific one, so `/*` matches `/ocr/index.html` as well, and a block only
+overrides the headers it names — the `/ocr/*` block overrode the CSP and two others and
+silently inherited `DENY`, which forbids framing from anywhere, same-origin included.
+Chromium enforces this; Firefox ignores it in favour of `frame-ancestors` and says so in
+the console, so it is a Chromium-only blocker but a real one. Fixed with
+`X-Frame-Options: SAMEORIGIN` on `/ocr/*`.
+
+*Second run, and the one that mattered.* With the frame now loading, the sandbox was
+refused its own script:
+
+```
+GET /ocr/sandbox.js   NS_ERROR_DOM_CORP_FAILED
+blocked due to its Cross-Origin-Resource-Policy header
+```
+
+`/ocr/*` carried `Cross-Origin-Resource-Policy: same-site`. **An opaque origin belongs
+to no site and no origin, so `same-site` and `same-origin` can never match it** — the
+document loads and is then refused every asset it owns. `cross-origin` is the only value
+an opaque-origin document can satisfy, and that is now what the path sets. The cost is
+that the engine and its models become readable by any origin: public static files with
+nothing user-specific in them, so the exposure is hotlinking rather than disclosure, and
+framing the sandbox *document* is still governed by `frame-ancestors 'self'`.
+
+**A hypothesis this disproved, worth recording because it was the likely-looking one.**
+`script-src 'self'` was expected to fail in an opaque origin, on the reasoning that
+`'self'` cannot match an origin that matches nothing. It does not fail: Firefox
+*requested* `sandbox.js` and CORP rejected the response afterwards. A CSP refusal would
+have produced no request at all and a violation report instead. `'self'` works.
+
+`scripts/check-csp.mjs` now fails the build on both — an `/ocr/*` block served `DENY`
+(inherited or otherwise), and a CORP value stricter than `cross-origin`. Each was
+verified by reintroducing the bug and watching the guard catch it.
+
+What remains genuinely unknown is one step further in than it was: the frame loads, CSP
+permits its script, and the next run will say whether that script *runs* and can compile
+WebAssembly on an opaque origin. Everything before that is now known to work.
+
+The automation browser cannot check it: it executes no scripts in **any** iframe,
+sandboxed or not, which was confirmed against an un-sandboxed inline control rather than
+inferred. So the question needs a real browser, and `apps/web/public/ocr-spike.html`
+diagnoses itself — it prints the headers the sandbox document was actually served,
+distinguishes "the frame never loaded" from "the frame loaded and its script was
+refused", and treats silence as a reportable outcome instead of leaving "running…" on
+screen. That page is what turned an opaque failure into a one-line console answer, and
+it earned its keep twice.
+
+**That check must still pass before any OCR engine is vendored**, because the fallback
+it would trigger — serving the sandbox from a separate Workers subdomain — changes the
+deploy, not just a header.
 
 **Two findings worth keeping, neither of them the thing being looked for.**
 
