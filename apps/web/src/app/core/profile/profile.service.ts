@@ -1,6 +1,7 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { collectViewerGraph } from '@cairn/github';
 import {
+  applyEdit,
   cvToFragment,
   emptyProfile,
   forgetSource,
@@ -10,6 +11,7 @@ import {
   mergeProfile,
   readStoredProfile,
   type LinkedinArchiveInput,
+  type ProfileEdit,
   type ParsedCv,
   type ProfileFragment,
   type UnifiedProfile,
@@ -148,6 +150,26 @@ export class ProfileService {
   async replace(profile: UnifiedProfile): Promise<void> {
     this._profile.set(profile);
     await this.persist(profile);
+  }
+
+  /**
+   * Apply one hand edit (ADR-0031, ADR-0032).
+   *
+   * `manual` is the highest-precedence source in the system and, until the profile
+   * hub, nothing could produce it — the whole top of the precedence ladder was
+   * unreachable. This is the one path that produces it, and every decision about
+   * *what* the edit means lives in `applyEdit`, which is pure and takes the date as
+   * an argument. All this does is supply the clock and persist the result.
+   */
+  async edit(edit: ProfileEdit): Promise<void> {
+    await this.restored;
+    const base = this._profile() ?? emptyProfile();
+    const next = applyEdit(base, edit, {
+      currentYear: currentYear(),
+      capturedAt: today(),
+    });
+    this._profile.set(next);
+    await this.persist(next);
   }
 
   private async forget(source: 'github' | 'cv' | 'linkedin'): Promise<void> {

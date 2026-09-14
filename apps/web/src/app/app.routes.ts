@@ -8,9 +8,13 @@ export const routes: Routes = [
       import('./pages/dashboard.component').then((m) => m.DashboardComponent),
   },
   {
+    // The profile is a hub with its own sections, each a real URL (ADR-0032) — so a
+    // section can be linked, bookmarked and reached with the back button.
     path: 'profile',
     loadComponent: () =>
-      import('./pages/profile.component').then((m) => m.ProfileComponent),
+      import('./features/profile/profile.page').then((m) => m.ProfilePageComponent),
+    loadChildren: () =>
+      import('./features/profile/sections').then((m) => m.PROFILE_ROUTES),
   },
   {
     path: 'discover',

@@ -24,7 +24,7 @@ import { AppComponent } from '../../app.component';
 import { AuthService } from '../auth/auth.service';
 import { SignInDialogService } from '../auth/sign-in-dialog.service';
 import { DashboardComponent } from '../../pages/dashboard.component';
-import { ProfileComponent } from '../../pages/profile.component';
+import { CvImportComponent } from '../cv/cv-import.component';
 import { SettingsComponent } from '../../pages/settings.component';
 import { buildProfile, testLevel, testSkill } from '@cairn/profile/testing';
 
@@ -188,7 +188,7 @@ beforeEach(() => {
 describe('with AI frozen (the default)', () => {
   it('offers no AI re-read on the CV review form', () => {
     configure(false);
-    const body = textOf(ProfileComponent);
+    const body = textOf(CvImportComponent);
     expect(body).not.toMatch(/re-read this cv with ai/i);
     // Nor the "add a key to unlock it" nudge — there is nothing to unlock.
     expect(body).not.toMatch(/api key/i);
@@ -227,7 +227,7 @@ describe('with AI frozen (the default)', () => {
 describe('with AI enabled', () => {
   it('offers the AI re-read on the CV review form', () => {
     configure(true);
-    expect(textOf(ProfileComponent)).toMatch(/re-read this cv with ai/i);
+    expect(textOf(CvImportComponent)).toMatch(/re-read this cv with ai/i);
   });
 
   it('offers the AI issue explanation on the dashboard', () => {

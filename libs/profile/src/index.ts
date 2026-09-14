@@ -2,6 +2,7 @@ export * from './taxonomy';
 export * from './provenance';
 export * from './model';
 export * from './merge';
+export * from './edit';
 export * from './migrate';
 export * from './cv';
 export * from './github';

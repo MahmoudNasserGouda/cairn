@@ -3,13 +3,12 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import type { ParsedCv, UnifiedProfile } from '@cairn/profile';
-import { ProfileComponent } from './profile.component';
-import { AI_ENABLED } from '../core/features';
-import { AiService } from '../core/ai/ai.service';
-import { AiSettingsService } from '../core/ai/ai-settings.service';
-import { CvImportService } from '../core/cv/cv-import.service';
-import { ProfileService } from '../core/profile/profile.service';
-import { buildProfile, testLevel, testSkill } from '@cairn/profile/testing';
+import { CvImportComponent } from './cv-import.component';
+import { AI_ENABLED } from '../features';
+import { AiService } from '../ai/ai.service';
+import { AiSettingsService } from '../ai/ai-settings.service';
+import { CvImportService } from './cv-import.service';
+import { ProfileService } from '../profile/profile.service';
 
 const PARSED: ParsedCv = {
   name: 'Octo Cat',
@@ -25,12 +24,6 @@ const PARSED: ParsedCv = {
   ],
   sections: ['skills', 'experience'],
 };
-
-const MERGED: UnifiedProfile = buildProfile({
-  identities: [{ provider: 'github', displayName: 'Octo' }],
-  skills: [testSkill('typescript', 0.9)],
-  experienceLevel: testLevel('intermediate'),
-});
 
 function render(opts: {
   draft?: ParsedCv | null;
@@ -97,7 +90,7 @@ function render(opts: {
       },
     ],
   });
-  const fixture = TestBed.createComponent(ProfileComponent);
+  const fixture = TestBed.createComponent(CvImportComponent);
   fixture.detectChanges();
   return { fixture, committed, draft };
 }
@@ -171,22 +164,6 @@ describe('CV review is mandatory', () => {
 
     expect(committed).toEqual([]);
     expect(draft()).toBeNull();
-  });
-});
-
-describe('merged profile panel', () => {
-  it('invites a connection when there is no profile', () => {
-    const { fixture } = render({ profile: null });
-    expect(text(fixture)).toMatch(/connect GitHub from the sign-in menu/);
-  });
-
-  it('lists the merged skills with their source', () => {
-    const { fixture } = render({ profile: MERGED });
-    const body = text(fixture);
-
-    expect(body).toMatch(/Merged profile/);
-    expect(body).toMatch(/typescript/);
-    expect(body).toMatch(/github/);
   });
 });
 

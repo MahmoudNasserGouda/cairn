@@ -1,4 +1,11 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
   cvRefinementPrompt,
@@ -6,13 +13,19 @@ import {
   type CvRefinement,
   type CvRefinementRole,
 } from '@cairn/ai';
-import type { ParsedCv, ParsedRole, ProfileSkill } from '@cairn/profile';
-import { AI_ENABLED } from '../core/features';
-import { AiService } from '../core/ai/ai.service';
-import { AiSettingsService } from '../core/ai/ai-settings.service';
-import { CvImportService } from '../core/cv/cv-import.service';
-import { LinkedinImportComponent } from '../core/linkedin/linkedin-import.component';
-import { ProfileService } from '../core/profile/profile.service';
+import type { ParsedCv, ParsedRole } from '@cairn/profile';
+import { AI_ENABLED } from '../features';
+import { AiService } from '../ai/ai.service';
+import { AiSettingsService } from '../ai/ai-settings.service';
+import { ProfileService } from '../profile/profile.service';
+import { CvImportService } from './cv-import.service';
+import {
+  ButtonComponent,
+  CardComponent,
+  FieldComponent,
+  FieldControlDirective,
+  TagComponent,
+} from '../../ui';
 
 interface SkillChoice {
   readonly tag: string;
@@ -66,25 +79,33 @@ function toEntry(role: RoleDraft): ParsedRole {
 }
 
 /**
- * CV import and the mandatory review step (ADR-0011: "nothing is committed to the
- * profile without confirmation"). Everything here is interpolated, never
- * `innerHTML` — extracted CV text is untrusted (SECURITY.md T7) and Angular's
- * escaping is the whole defence.
+ * CV import and its mandatory review step (ADR-0011: "nothing is committed to the
+ * profile without confirmation").
+ *
+ * It used to *be* the profile page, with a summary panel bolted underneath. A CV is
+ * one of four sources, so it now lives under **Sources** in the profile hub
+ * (ADR-0032) alongside the LinkedIn importer it mirrors — and the page that was 773
+ * lines is gone.
+ *
+ * Everything here is interpolated, never `innerHTML`: extracted CV text is untrusted
+ * (SECURITY.md T7) and Angular's escaping is the whole defence.
  */
 @Component({
-  selector: 'cn-profile',
+  selector: 'cn-cv-import',
   standalone: true,
-  imports: [RouterLink, LinkedinImportComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    RouterLink,
+    ButtonComponent,
+    CardComponent,
+    FieldComponent,
+    FieldControlDirective,
+    TagComponent,
+  ],
   template: `
-    <h1>Your profile</h1>
-    <p class="muted">
-      Rujoom builds one profile from your GitHub activity and, optionally, your CV and
-      your LinkedIn archive. Everything below is computed on this device.
-    </p>
-
-    <section class="panel">
+    <cn-card>
       <h2>Import a CV</h2>
-      <p class="muted small">
+      <p class="muted">
         PDF, Word (.docx) or plain text, up to {{ maxMb }} MB. The file is read inside a
         sandboxed worker in this tab — it is never uploaded, and the file itself is never
         stored.
@@ -102,7 +123,7 @@ function toEntry(role: RoleDraft): ParsedRole {
           accept=".pdf,.docx,.txt,.md,.markdown,.text"
           (change)="onPick($event)"
         />
-        <span class="muted small">or drop a file here</span>
+        <span class="muted">or drop a file here</span>
       </div>
 
       @if (cv.busy()) {
@@ -111,55 +132,60 @@ function toEntry(role: RoleDraft): ParsedRole {
       @if (cv.error(); as message) {
         <p class="error" role="alert">{{ message }}</p>
       }
-    </section>
+
+      @if (profileSvc.hasCv() && !review()) {
+        <div class="actions">
+          <button cn-button variant="quiet" size="sm" (click)="removeCv()">
+            Remove imported CV
+          </button>
+        </div>
+      }
+    </cn-card>
 
     @if (review(); as form) {
-      <section class="panel">
+      <cn-card class="stacked">
         <h2>Check what we read</h2>
-        <p class="muted small">
+        <p class="muted">
           Nothing is added to your profile until you confirm. Uncheck anything the parser
           got wrong.
           @if (cv.draft()?.truncated) {
-            <strong> Only the first pages were read.</strong>
+            <strong>Only the first pages were read.</strong>
           }
         </p>
 
         <div class="fields">
-          <label>
-            Name
-            <input type="text" [value]="form.name" (input)="setName($event)" />
-          </label>
-          <label>
-            Email
-            <input type="email" [value]="form.email" (input)="setEmail($event)" />
-          </label>
+          <cn-field label="Name">
+            <input cn-control type="text" [value]="form.name" (input)="setName($event)" />
+          </cn-field>
+          <cn-field label="Email" optional>
+            <input
+              cn-control
+              type="email"
+              [value]="form.email"
+              (input)="setEmail($event)"
+            />
+          </cn-field>
         </div>
 
-        <h3>
-          Skills <span class="muted small">{{ chosenSkills().length }} selected</span>
-        </h3>
-        @if (form.skills.length) {
-          <div class="choices">
-            @for (skill of form.skills; track skill.tag) {
-              <label class="choice">
-                <input
-                  type="checkbox"
-                  [checked]="skill.include"
-                  (change)="toggleSkill(skill.tag)"
-                />
-                {{ skill.tag }}
-              </label>
-            }
-          </div>
-        } @else {
-          <p class="muted small">
-            No known technologies matched. You can still keep the roles below.
-          </p>
-        }
+        <h3>Skills</h3>
+        <div class="choices">
+          @for (skill of form.skills; track skill.tag) {
+            <label class="choice">
+              <input
+                type="checkbox"
+                [checked]="skill.include"
+                (change)="toggleSkill(skill.tag)"
+              />
+              {{ skill.tag }}
+            </label>
+          } @empty {
+            <p class="muted">No skills recognised.</p>
+          }
+        </div>
 
         <h3>Experience</h3>
         @for (role of form.roles; track $index) {
-          <div class="role" [class.excluded]="!role.include">
+          <div class="role">
             <input
               type="checkbox"
               [checked]="role.include"
@@ -167,59 +193,53 @@ function toEntry(role: RoleDraft): ParsedRole {
               (change)="toggleRole($index)"
             />
             <input
-              class="title"
               type="text"
-              placeholder="Title"
               [value]="role.title"
+              aria-label="Title"
+              placeholder="Title"
               (input)="setRole($index, 'title', $event)"
             />
             <input
               type="text"
-              placeholder="Organisation"
               [value]="role.organization"
+              aria-label="Organisation"
+              placeholder="Organisation"
               (input)="setRole($index, 'organization', $event)"
             />
             <input
-              class="year"
               type="text"
-              placeholder="From"
+              class="year"
               [value]="role.startYear"
+              aria-label="From"
+              placeholder="From"
               (input)="setRole($index, 'startYear', $event)"
             />
             <input
-              class="year"
               type="text"
-              placeholder="To / present"
+              class="year"
               [value]="role.endYear"
+              aria-label="To"
+              placeholder="To"
               (input)="setRole($index, 'endYear', $event)"
             />
           </div>
-        } @empty {
-          <p class="muted small">No dated roles were found — add one below.</p>
         }
-        <button type="button" class="ghost" (click)="addRole()">Add a role</button>
-
-        @if (form.sections.length) {
-          <p class="muted small">Sections recognised: {{ form.sections.join(', ') }}</p>
-        }
+        <button cn-button variant="quiet" size="sm" (click)="addRole()">
+          Add a role
+        </button>
 
         @if (aiEnabled) {
-          <div class="refine">
+          <div class="ai">
             @if (aiSettings.hasKey()) {
-              <button
-                type="button"
-                class="ghost"
-                [disabled]="ai.running()"
-                (click)="refine()"
-              >
-                {{ ai.running() ? 'Asking your provider…' : 'Re-read this CV with AI' }}
+              <button cn-button variant="ghost" size="sm" (click)="refine()">
+                Re-read this CV with AI
               </button>
-              <span class="muted small">
+              <span class="muted">
                 Sends the CV text to your own {{ aiSettings.provider() }} key. You'll see
                 exactly what goes, and nothing is applied until you accept it.
               </span>
             } @else {
-              <p class="muted small">
+              <p class="muted">
                 A parser read this, not a model. Add your own API key under
                 <a routerLink="/settings">Settings</a> to have one re-read the CV and
                 suggest what the parser missed.
@@ -229,322 +249,189 @@ function toEntry(role: RoleDraft): ParsedRole {
               <p class="error" role="alert">{{ message }}</p>
             }
           </div>
-        }
 
-        @if (proposal()) {
-          <div class="proposal">
-            <h3>Suggestions <span class="ai-tag">AI-generated · may be wrong</span></h3>
-            @if (newName(); as suggested) {
-              <p class="row">
-                <span>Name: {{ suggested }}</span>
-                <button type="button" class="tiny" (click)="acceptName(suggested)">
-                  Use this
-                </button>
-              </p>
-            }
-            @if (newEmail(); as suggested) {
-              <p class="row">
-                <span>Email: {{ suggested }}</span>
-                <button type="button" class="tiny" (click)="acceptEmail(suggested)">
-                  Use this
-                </button>
-              </p>
-            }
-            @if (newSkills().length) {
-              <p class="muted small">Skills the parser missed — tap to add:</p>
-              <div class="choices">
-                @for (tag of newSkills(); track tag) {
-                  <button type="button" class="tiny" (click)="acceptSkill(tag)">
-                    + {{ tag }}
-                  </button>
-                }
-              </div>
-            }
-            @if (newRoles().length) {
-              <p class="muted small">Roles the parser missed:</p>
-              @for (role of newRoles(); track $index) {
+          @if (proposal()) {
+            <div class="proposal">
+              <h3>
+                Suggestions
+                <cn-tag tone="warn">AI-generated · may be wrong</cn-tag>
+              </h3>
+              @if (newName(); as suggested) {
                 <p class="row">
-                  <span>
-                    {{ role.title }}
-                    @if (role.organization) {
-                      · {{ role.organization }}
-                    }
-                    @if (role.startYear) {
-                      <span class="muted">
-                        {{ role.startYear }}–{{ role.endYear ?? '' }}</span
-                      >
-                    }
-                  </span>
-                  <button type="button" class="tiny" (click)="acceptRole(role)">
-                    Add
+                  <span>Name: {{ suggested }}</span>
+                  <button
+                    cn-button
+                    variant="quiet"
+                    size="sm"
+                    (click)="acceptName(suggested)"
+                  >
+                    Use this
                   </button>
                 </p>
               }
-            }
-            @if (nothingNew()) {
-              <p class="muted small">
-                Nothing new — the model found the same things the parser did.
-              </p>
-            }
-          </div>
+              @if (newEmail(); as suggested) {
+                <p class="row">
+                  <span>Email: {{ suggested }}</span>
+                  <button
+                    cn-button
+                    variant="quiet"
+                    size="sm"
+                    (click)="acceptEmail(suggested)"
+                  >
+                    Use this
+                  </button>
+                </p>
+              }
+              @if (newSkills().length) {
+                <p class="muted">Skills the parser missed — tap to add:</p>
+                <div class="choices">
+                  @for (tag of newSkills(); track tag) {
+                    <button
+                      cn-button
+                      variant="quiet"
+                      size="sm"
+                      (click)="acceptSkill(tag)"
+                    >
+                      + {{ tag }}
+                    </button>
+                  }
+                </div>
+              }
+              @if (newRoles().length) {
+                <p class="muted">Roles the parser missed:</p>
+                @for (role of newRoles(); track $index) {
+                  <p class="row">
+                    <span>
+                      {{ role.title }}
+                      @if (role.organization) {
+                        · {{ role.organization }}
+                      }
+                    </span>
+                    <button
+                      cn-button
+                      variant="quiet"
+                      size="sm"
+                      (click)="acceptRole(role)"
+                    >
+                      Add
+                    </button>
+                  </p>
+                }
+              }
+              @if (nothingNew()) {
+                <p class="muted">
+                  Nothing new — the model found the same things the parser did.
+                </p>
+              }
+            </div>
+          }
         }
 
         <div class="actions">
-          <button type="button" (click)="confirm()">Add to my profile</button>
-          <button type="button" class="ghost" (click)="cancel()">Discard</button>
+          <button cn-button (click)="confirm()">Add to my profile</button>
+          <button cn-button variant="quiet" (click)="cancel()">Discard</button>
         </div>
-      </section>
+      </cn-card>
     }
-
-    <cn-linkedin-import />
-
-    <section class="panel">
-      <h2>Merged profile</h2>
-      @if (profileSvc.loading()) {
-        <p class="muted">Loading your GitHub profile…</p>
-      }
-      @if (profileSvc.error(); as err) {
-        <p class="error">Couldn't load your GitHub profile: {{ err }}</p>
-      }
-
-      @if (profileSvc.profile(); as p) {
-        <p class="sub">
-          {{ p.experienceLevel.value }} · ~{{ p.totalYears }} yrs ·
-          {{ p.skills.length }} skills
-        </p>
-        <div class="tags">
-          @for (skill of sortedSkills(); track skill.tag) {
-            <span class="tag" [class]="'src-' + skill.from.source">
-              {{ skill.tag }}
-              <span class="src">{{ skill.from.source }}</span>
-            </span>
-          } @empty {
-            <span class="muted">No skills yet.</span>
-          }
-        </div>
-        @if (p.experience.length) {
-          <ul class="roles">
-            @for (entry of p.experience; track $index) {
-              <li>
-                {{ entry.title }}
-                @if (entry.organization) {
-                  · {{ entry.organization }}
-                }
-                @if (entry.startYear) {
-                  <span class="muted">
-                    {{ entry.startYear }}–{{ entry.endYear ?? '' }}</span
-                  >
-                }
-              </li>
-            }
-          </ul>
-        }
-        @if (profileSvc.hasCv()) {
-          <button type="button" class="ghost" (click)="removeCv()">
-            Remove imported CV
-          </button>
-        }
-      } @else {
-        <p class="muted">
-          Nothing yet — connect GitHub from the sign-in menu, or import a CV above.
-        </p>
-      }
-    </section>
   `,
   styles: [
     `
-      .muted {
-        color: var(--fg-muted);
+      :host {
+        display: block;
       }
-      .small {
-        font-size: 0.85rem;
-      }
-      .panel {
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 1rem 1.15rem;
-        background: var(--surface);
-        margin-bottom: 1.25rem;
+      .stacked {
+        margin-top: var(--space-4);
       }
       h2 {
-        margin: 0 0 0.35rem;
-        font-size: 1.05rem;
+        margin: 0 0 var(--space-2);
+        font-size: var(--text-lg);
       }
       h3 {
-        margin: 1.2rem 0 0.5rem;
-        font-size: 0.95rem;
+        margin: var(--space-5) 0 var(--space-2);
+        font-size: var(--text-sm);
+        color: var(--fg-muted);
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+      }
+      .muted {
+        color: var(--fg-muted);
+        font-size: var(--text-sm);
+      }
+      .error {
+        color: var(--bad);
+        font-size: var(--text-sm);
       }
       .drop {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
+        gap: var(--space-3);
         flex-wrap: wrap;
-        border: 1px dashed var(--border);
-        border-radius: 10px;
-        padding: 1rem;
-        margin-top: 0.75rem;
+        border: 1px dashed var(--border-strong);
+        border-radius: var(--radius-md);
+        padding: var(--space-4);
+        margin-top: var(--space-3);
       }
       .drop.over {
         border-color: var(--accent);
-      }
-      .error {
-        color: #f87171;
+        background: var(--accent-soft);
       }
       .fields {
-        display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-      }
-      label {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-        font-size: 0.85rem;
-        color: var(--fg-muted);
-        flex: 1 1 12rem;
-      }
-      input[type='text'],
-      input[type='email'] {
-        padding: 0.4rem 0.6rem;
-        background: var(--bg);
-        color: var(--fg);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        font: inherit;
-        min-width: 0;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+        gap: var(--space-3);
       }
       .choices {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.4rem 0.9rem;
+        gap: var(--space-2) var(--space-4);
       }
       .choice {
-        flex: 0 0 auto;
-        flex-direction: row;
+        display: inline-flex;
         align-items: center;
-        gap: 0.35rem;
-        color: var(--fg);
-        font-size: 0.9rem;
+        gap: var(--space-2);
+        font-size: var(--text-sm);
       }
       .role {
+        display: grid;
+        grid-template-columns: auto 2fr 2fr 1fr 1fr;
+        align-items: center;
+        gap: var(--space-2);
+        margin-bottom: var(--space-2);
+      }
+      .role input[type='checkbox'] {
+        width: auto;
+      }
+      .ai,
+      .proposal {
+        margin-top: var(--space-5);
+        padding-top: var(--space-4);
+        border-top: 1px solid var(--border);
+      }
+      .row {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 0.5rem;
-        flex-wrap: wrap;
-      }
-      .role input[type='text'] {
-        flex: 1 1 8rem;
-      }
-      .role .title {
-        flex: 3 1 14rem;
-      }
-      .role .year {
-        flex: 0 0 6.5rem;
-      }
-      .role.excluded {
-        opacity: 0.45;
+        justify-content: space-between;
+        gap: var(--space-3);
+        margin: var(--space-2) 0;
+        font-size: var(--text-sm);
       }
       .actions {
         display: flex;
-        gap: 0.6rem;
-        margin-top: 1.1rem;
-      }
-      button {
-        padding: 0.45rem 0.9rem;
-        border-radius: 8px;
-        border: 1px solid var(--border);
-        background: var(--accent);
-        color: #06131f;
-        font: inherit;
-        font-weight: 600;
-        cursor: pointer;
-      }
-      button.ghost {
-        background: none;
-        color: var(--fg);
-        font-weight: 400;
-      }
-      .tags {
-        display: flex;
+        gap: var(--space-2);
+        margin-top: var(--space-5);
         flex-wrap: wrap;
-        gap: 0.35rem;
       }
-      .tag {
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        padding: 0.1rem 0.55rem;
-        font-size: 0.8rem;
-      }
-      .tag .src {
-        color: var(--fg-muted);
-        font-size: 0.7rem;
-        margin-left: 0.3rem;
-      }
-      .tag.src-cv {
-        border-color: var(--accent);
-      }
-      .refine {
-        display: flex;
-        align-items: center;
-        gap: 0.6rem;
-        flex-wrap: wrap;
-        margin-top: 1.2rem;
-      }
-      .proposal {
-        border: 1px dashed var(--accent);
-        border-radius: 10px;
-        padding: 0.75rem 1rem;
-        margin-top: 0.9rem;
-      }
-      .proposal h3 {
-        margin-top: 0;
-      }
-      .ai-tag {
-        font-size: 0.7rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--fg-muted);
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        padding: 0.05rem 0.45rem;
-        vertical-align: middle;
-      }
-      .proposal .row {
-        display: flex;
-        align-items: center;
-        gap: 0.6rem;
-        margin: 0.35rem 0;
-        font-size: 0.9rem;
-      }
-      .proposal .row button {
-        margin-left: auto;
-      }
-      .tiny {
-        padding: 0.15rem 0.55rem;
-        border-radius: 999px;
-        border: 1px solid var(--border);
-        background: none;
-        color: var(--fg);
-        font: inherit;
-        font-size: 0.8rem;
-        cursor: pointer;
-      }
-      .tiny:hover {
-        border-color: var(--accent);
-      }
-      .sub {
-        color: var(--fg-muted);
-        margin: 0.25rem 0 0.75rem;
-      }
-      .roles {
-        margin: 0.9rem 0 0;
-        padding-left: 1.1rem;
+
+      @media (max-width: 40rem) {
+        .role {
+          grid-template-columns: auto 1fr;
+        }
       }
     `,
   ],
 })
-export class ProfileComponent {
+export class CvImportComponent {
   protected readonly cv = inject(CvImportService);
   protected readonly profileSvc = inject(ProfileService);
   protected readonly ai = inject(AiService);
@@ -588,11 +475,6 @@ export class ProfileComponent {
   protected readonly chosenSkills = computed(() =>
     this.skills().filter((s) => s.include),
   );
-
-  protected readonly sortedSkills = computed<readonly ProfileSkill[]>(() => {
-    const profile = this.profileSvc.profile();
-    return profile ? [...profile.skills].sort((a, b) => b.level - a.level) : [];
-  });
 
   protected onPick(event: Event): void {
     const input = event.target as HTMLInputElement;
