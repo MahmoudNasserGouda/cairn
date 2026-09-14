@@ -15,7 +15,7 @@
  *   node scripts/serve-static.mjs [root] [port]
  */
 import { createServer } from 'node:http';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join, extname, normalize } from 'node:path';
 
 const root = process.argv[2] ?? 'apps/web/dist/browser';
@@ -84,27 +84,32 @@ const server = createServer(async (req, res) => {
   const safe = normalize(pathname).replace(/^(\.\.[/\\])+/, '');
   let file = join(root, safe);
 
-  try {
-    const info = await stat(file);
-    if (info.isDirectory()) {
-      file = join(file, 'index.html');
-      pathname = join(pathname, 'index.html');
-    }
-  } catch {
-    // Unlike the dev server, an unknown path is a 404 rather than the SPA. A silent
-    // rewrite is exactly what hid `/ocr/spike.html` behind the application shell.
-    res.writeHead(404, { 'content-type': 'text/plain' });
-    res.end(`404 ${pathname}`);
-    return;
-  }
-
+  // Read first and let the failure classify the path, rather than `stat`-then-read.
+  // CodeQL flagged the two-step as `js/file-system-race` (high): the file can change
+  // between the check and the use. Low stakes in a local tool, but the one-step version
+  // is both correct and shorter, so there is nothing to trade off.
   let body;
   try {
     body = await readFile(file);
-  } catch {
-    res.writeHead(404, { 'content-type': 'text/plain' });
-    res.end(`404 ${pathname}`);
-    return;
+  } catch (error) {
+    // EISDIR is a directory, which means try its index.html. Anything else is a 404 —
+    // and unlike the dev server, an unknown path stays a 404 rather than silently
+    // becoming the SPA. That rewrite is exactly what hid the spike harness behind the
+    // application shell for three attempts.
+    if (error?.code !== 'EISDIR') {
+      res.writeHead(404, { 'content-type': 'text/plain' });
+      res.end(`404 ${pathname}`);
+      return;
+    }
+    file = join(file, 'index.html');
+    pathname = `${pathname.replace(/\/$/, '')}/index.html`;
+    try {
+      body = await readFile(file);
+    } catch {
+      res.writeHead(404, { 'content-type': 'text/plain' });
+      res.end(`404 ${pathname}`);
+      return;
+    }
   }
 
   const headers = { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream' };
