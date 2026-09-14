@@ -100,7 +100,7 @@ import { AiDisclosureService } from './ai-disclosure.service';
         max-width: 36rem;
         max-height: calc(100vh - 2rem);
         overflow-y: auto;
-        background: var(--panel);
+        background: var(--surface);
         color: var(--fg);
         border: 1px solid var(--border);
         border-radius: 14px;
@@ -117,12 +117,12 @@ import { AiDisclosureService } from './ai-disclosure.service';
       h4 {
         margin: 0.8rem 0 0.25rem;
         font-size: 0.8rem;
-        color: var(--muted);
+        color: var(--fg-muted);
         text-transform: uppercase;
         letter-spacing: 0.04em;
       }
       .muted {
-        color: var(--muted);
+        color: var(--fg-muted);
       }
       .small {
         font-size: 0.8rem;
@@ -146,7 +146,7 @@ import { AiDisclosureService } from './ai-disclosure.service';
       }
       summary {
         cursor: pointer;
-        color: var(--muted);
+        color: var(--fg-muted);
         font-size: 0.9rem;
       }
       pre {

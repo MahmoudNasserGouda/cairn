@@ -1,36 +1,179 @@
-:root {
-  color-scheme: light dark;
-  --bg: #0e0e10;
-  --panel: #17171b;
-  --fg: #e8e8ea;
-  --muted: #9a9aa2;
-  --border: #2a2a31;
-  --accent: #6ea8fe;
-  --good: #4ade80;
-}
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg: #fafafa;
-    --panel: #fff;
-    --fg: #1a1a1a;
-    --muted: #666;
-    --border: #e3e3e6;
-  }
-}
-* {
+/**
+ * Global base. Everything visual comes from `styles/tokens.css`; this file only
+ * establishes the ground, the type ramp and the things a component cannot own —
+ * focus, selection, reduced motion, scrollbars.
+ *
+ * Component styling lives in `app/ui/` (ADR-0032). If you are about to add a class
+ * here, it probably wants to be a `cn-*` component instead.
+ */
+@import './styles/tokens.css';
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
+
+html {
+  /* Both themes exist, so let the form controls and scrollbars know. */
+  color-scheme: light dark;
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font:
-    15px/1.55 system-ui,
-    -apple-system,
-    Segoe UI,
-    Roboto,
-    sans-serif;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  /* Scores, counts and dates sit in columns that must not shimmer as values change. */
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
 }
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: var(--leading-tight);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.011em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--text-2xl);
+}
+h2 {
+  font-size: var(--text-xl);
+}
+h3 {
+  font-size: var(--text-lg);
+}
+
+p {
+  margin: 0 0 var(--space-3);
+  text-wrap: pretty;
+}
+
 a {
   color: var(--accent);
+  text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  text-underline-offset: 0.15em;
+}
+
+a:hover {
+  text-decoration-color: currentColor;
+}
+
+/**
+ * One focus ring, everywhere, visible on both themes.
+ *
+ * `:focus-visible` rather than `:focus` so a mouse click does not ring a button, and
+ * never `outline: none` without a replacement — `docs/design-system.md` makes visible
+ * focus a gate, and a keyboard user with no ring is simply lost.
+ */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--fg);
+}
+
+/**
+ * Form controls, once, globally.
+ *
+ * Deliberately *not* scoped inside `cn-field`: an input should look the same wherever
+ * it is, and scoping it there would mean either `::ng-deep` (deprecated) or a second
+ * appearance for every control that has not been migrated yet. `cn-field` owns the
+ * label, the hint and the association; this owns the look.
+ */
+input:where(
+  [type='text'],
+  [type='email'],
+  [type='url'],
+  [type='number'],
+  [type='search'],
+  [type='password']
+),
+textarea,
+select {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  min-width: 0;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 4.5rem;
+  line-height: var(--leading-base);
+}
+
+input[aria-invalid='true'],
+textarea[aria-invalid='true'],
+select[aria-invalid='true'] {
+  border-color: var(--bad);
+}
+
+::placeholder {
+  color: var(--fg-subtle);
+}
+
+/* The accent drives checkboxes, radios, ranges and progress without extra CSS. */
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'] {
+  accent-color: var(--accent);
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+/**
+ * Motion is opt-in, not opt-out.
+ *
+ * Components declare transitions inside this query rather than declaring them
+ * globally and cancelling them for people who asked for less. The difference matters:
+ * the cancelling version leaves anything the override missed still moving.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/** Skip link — the first thing a keyboard user meets, and invisible to everyone else. */
+.skip-link {
+  position: absolute;
+  left: var(--space-2);
+  top: var(--space-2);
+  z-index: 100;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--accent-fg);
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
 }

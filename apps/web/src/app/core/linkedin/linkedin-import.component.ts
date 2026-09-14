@@ -258,7 +258,7 @@ const DOWNLOAD_URL = 'https://www.linkedin.com/mypreferences/d/download-my-data'
       /* Phase 7's design system replaces these; until then they match the rest of
          the app rather than inventing a second look. */
       .muted {
-        color: var(--muted);
+        color: var(--fg-muted);
       }
       .small {
         font-size: 0.85rem;
@@ -267,7 +267,7 @@ const DOWNLOAD_URL = 'https://www.linkedin.com/mypreferences/d/download-my-data'
         border: 1px solid var(--border);
         border-radius: 12px;
         padding: 1rem 1.15rem;
-        background: var(--panel);
+        background: var(--surface);
         margin-bottom: 1.25rem;
       }
       h2 {
@@ -329,7 +329,7 @@ const DOWNLOAD_URL = 'https://www.linkedin.com/mypreferences/d/download-my-data'
       .key {
         display: inline-block;
         min-width: 5.5rem;
-        color: var(--muted);
+        color: var(--fg-muted);
         font-size: 0.85rem;
       }
       .tags {

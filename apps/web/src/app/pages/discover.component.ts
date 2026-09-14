@@ -190,7 +190,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
       }
       .muted,
       small {
-        color: var(--muted);
+        color: var(--fg-muted);
       }
       .small {
         font-size: 0.8rem;
@@ -199,7 +199,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
         border: 1px solid var(--border);
         border-radius: 12px;
         padding: 1rem;
-        background: var(--panel);
+        background: var(--surface);
       }
       .notice {
         margin: 1rem 0 0;
@@ -224,7 +224,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
       legend {
         padding: 0;
         margin-bottom: 0.5rem;
-        color: var(--muted);
+        color: var(--fg-muted);
       }
       .presets {
         display: flex;
@@ -275,7 +275,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
       }
       .plan summary {
         cursor: pointer;
-        color: var(--muted);
+        color: var(--fg-muted);
       }
       .plan ul {
         list-style: none;
@@ -290,7 +290,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
       }
       .plan code {
         font-size: 0.8rem;
-        color: var(--muted);
+        color: var(--fg-muted);
         overflow-wrap: anywhere;
       }
       .results {
@@ -345,12 +345,12 @@ const PART_LABELS: Readonly<Record<string, string>> = {
         border-color: var(--good);
       }
       .tag.ghost {
-        color: var(--muted);
+        color: var(--fg-muted);
       }
       .reasons {
         margin: 0.75rem 0 0;
         padding-left: 1.1rem;
-        color: var(--muted);
+        color: var(--fg-muted);
         font-size: 0.9rem;
       }
       .actions {

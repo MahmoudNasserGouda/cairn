@@ -114,7 +114,7 @@ import { SignInDialogService } from './sign-in-dialog.service';
         max-width: 24rem;
         max-height: calc(100vh - 2rem);
         overflow-y: auto;
-        background: var(--panel);
+        background: var(--surface);
         color: var(--fg);
         border: 1px solid var(--border);
         border-radius: 14px;
@@ -129,7 +129,7 @@ import { SignInDialogService } from './sign-in-dialog.service';
         line-height: 1;
         background: none;
         border: 0;
-        color: var(--muted);
+        color: var(--fg-muted);
         cursor: pointer;
       }
       .close:hover {
@@ -154,7 +154,7 @@ import { SignInDialogService } from './sign-in-dialog.service';
         margin-top: 0;
       }
       .muted {
-        color: var(--muted);
+        color: var(--fg-muted);
         font-size: 0.85rem;
         margin: 0 0 0.75rem;
       }
@@ -162,7 +162,7 @@ import { SignInDialogService } from './sign-in-dialog.service';
         font-size: 0.7rem;
         text-transform: uppercase;
         letter-spacing: 0.04em;
-        color: var(--muted);
+        color: var(--fg-muted);
         border: 1px solid var(--border);
         border-radius: 6px;
         padding: 0 0.3rem;
@@ -207,7 +207,7 @@ import { SignInDialogService } from './sign-in-dialog.service';
         font-size: 0.8rem;
         background: none;
         border: 0;
-        color: var(--muted);
+        color: var(--fg-muted);
         cursor: pointer;
         padding: 0;
         text-decoration: underline;

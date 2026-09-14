@@ -106,9 +106,32 @@ tests' worker stub, and the Trusted Types policy they share is covered directly 
 `vitest.config.ts`, and any new one needs the same treatment: a reason, in the config,
 next to the exclusion.
 
+## The Angular compiler is part of the harness
+
+`vitest.config.ts` runs `@analogjs/vite-plugin-angular` over **both** projects. Without
+it, Vitest runs Angular in pure JIT, which learns a component's inputs from decorator
+metadata — so **signal inputs (`input()`, `model()`) do not bind at all**, by template
+attribute or by `componentRef.setInput`. There is no error and no warning: the input
+keeps its default and the component renders as if the caller had passed nothing.
+
+Three things keep it working, and each is easy to undo by accident:
+
+- `tsconfig.vitest.json` sets **`noEmit: false`**. Our base config sets `noEmit: true`,
+  which is right for a typecheck and leaves the Angular compiler with nothing to emit.
+- The TestBed setup lives at `apps/web/src/test-setup.ts`, **inside** that program. It
+  used to be in `scripts/`, where the compiler could not see its `@NgModule` and emitted
+  broken output that failed every test file in the project.
+- The plugin is declared at the **root**, not on the `app` project, because both
+  projects transform `libs/*`. One plugin and one esbuild meant the same file was
+  instrumented two different ways and the merged coverage report could not align them.
+
+`apps/web/src/test-harness.test.ts` asserts all of this directly. If it fails, that is
+the cause.
+
 ## What is not unit-tested, and how it is covered instead
 
 - **The CSP itself** — `scripts/check-csp.mjs`, run by `npm run verify` and CI.
+- **The design-token contract** — `scripts/check-tokens.mjs`, also in `npm run verify`.
 - **Bundle origins** — `scripts/check-bundle-origins.mjs`.
 - **Dependency licences** — `scripts/check-licenses.mjs`.
 - **The OCR sandbox's real isolation** — asserted by hand in a browser (the opaque frame

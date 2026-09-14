@@ -1,0 +1,25 @@
+{
+  // The TypeScript program the Angular compiler uses inside Vitest.
+  //
+  // Separate from `tsconfig.test.json`, which is the *typecheck* program and stays
+  // strict. This one only has to describe which files the Angular plugin may compile:
+  // the app sources, their tests, and the TestBed setup. Nothing here is a gate.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    // The Angular compiler has to *emit* — `noEmit: true` (inherited from the base
+    // config, and correct for a typecheck) leaves it with nothing to hand Vite, and
+    // the transform silently produces no component definitions. `declaration` is off
+    // for the same reason: this program exists to compile, not to describe.
+    "noEmit": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": true,
+    "types": ["node", "vitest/globals"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "experimentalDecorators": true,
+    "verbatimModuleSyntax": false,
+    "moduleResolution": "bundler",
+    "module": "ES2022"
+  },
+  "include": ["apps/web/src/**/*.ts", "api/**/*.ts"]
+}

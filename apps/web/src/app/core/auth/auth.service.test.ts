@@ -53,20 +53,20 @@ function makeService(): AuthService {
   return TestBed.inject(AuthService);
 }
 
-/** Put the page on an OAuth callback URL with a matching pending record. */
+/**
+ * Put the page on an OAuth callback URL with a matching pending record.
+ *
+ * Through `history.replaceState`, which is how a page's URL actually changes, rather
+ * than by redefining `globalThis.location`. The redefinition worked only while
+ * `location` happened to be a configurable data property on the test global — an
+ * accident of the environment, not a guarantee — and it stopped working the moment
+ * the Angular compiler joined the Vitest pipeline (ADR-0032), with
+ * `TypeError: Cannot redefine property: location`. `replaceState` sets `search`,
+ * `pathname` and `hash` for real, which is all `AuthService` reads.
+ */
 function arriveOnCallback(state: string, code = 'the-code'): void {
   sessionStorage.setItem(PENDING_KEY, JSON.stringify({ provider: 'google', state }));
-  Object.defineProperty(globalThis, 'location', {
-    configurable: true,
-    value: {
-      search: `?code=${code}&state=${state}`,
-      pathname: '/',
-      hash: '#/dashboard',
-      origin: 'https://app.example',
-      href: 'https://app.example/',
-      assign: vi.fn(),
-    },
-  });
+  globalThis.history.replaceState({}, '', `/?code=${code}&state=${state}#/dashboard`);
 }
 
 beforeEach(() => {
