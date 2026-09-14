@@ -27,7 +27,18 @@ feel like guidance on a path, not a dashboard of metrics.
 ## Tokens
 
 All in `apps/web/src/styles/tokens.css`. Components consume tokens and never hard-code a
-value. A token-contract test fails the build when a referenced variable disappears.
+value.
+
+The contract is enforced by **`scripts/check-tokens.mjs`**, in `npm run verify` and CI.
+A guard script rather than a Vitest case, for the same reason `check-csp.mjs` is one: it
+is static analysis over source files, not a behaviour anyone can render. It fails on a
+`var(--x)` that resolves to nothing, on a missing semantic alias, and on a colour the
+dark block forgets to restate.
+
+That last one matters because custom properties fail **quietly**. `color: var(--fg-mutedd)`
+does not throw, does not warn and does not show up in a typecheck — the declaration is
+dropped and the text inherits whatever was above it. On a page with a lot of muted text
+that reads as a styling choice rather than a bug, and it survives review.
 
 ### Colour
 
@@ -62,6 +73,13 @@ GitHub · LinkedIn · CV · **manual** (manual is the accent — it outranks the
 
 One self-hosted variable font, Latin-subset, preloaded, with a real system fallback
 (`font-src 'self'` — no font CDN is reachable, and none is being added).
+
+**Not yet vendored.** `--font-sans` is currently the system stack, which the fallback
+was always going to be. Adding the typeface means committing a binary and taking on its
+licence, which is a supply-chain decision under
+[ADR-0021](adr/0021-supply-chain-and-dependency-security.md) rather than a styling one —
+so it is a deliberate open item, not an oversight. Swapping it in is one `@font-face`
+block, one `<link rel="preload">` and one token; nothing else in the system moves.
 
 ```
 --text-xs   0.75rem      metadata, timestamps

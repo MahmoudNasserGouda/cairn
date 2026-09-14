@@ -26,10 +26,12 @@
     "build": "npm run build:libs && npm run build:web && npm run build:extension",
     "guard:csp": "node scripts/check-csp.mjs",
     "guard:bundle-origins": "node scripts/check-bundle-origins.mjs",
-    "guard": "npm run guard:csp && npm run guard:bundle-origins",
-    "verify": "npm run format && npm run lint && npm run typecheck && npm run test && npm run guard:csp"
+    "guard": "npm run guard:csp && npm run guard:tokens && npm run guard:bundle-origins",
+    "verify": "npm run format && npm run lint && npm run typecheck && npm run test && npm run guard:csp && npm run guard:tokens",
+    "guard:tokens": "node scripts/check-tokens.mjs"
   },
   "devDependencies": {
+    "@analogjs/vite-plugin-angular": "^2.7.2",
     "@eslint/js": "^9.13.0",
     "@types/node": "^22.20.1",
     "@vitest/coverage-v8": "^4.1.11",
@@ -42,5 +44,10 @@
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.44.0",
     "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "@angular/build": {
+      "vitest": "$vitest"
+    }
   }
 }

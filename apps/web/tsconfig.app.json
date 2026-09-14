@@ -5,5 +5,11 @@
     "types": []
   },
   "files": ["src/main.ts"],
-  "include": ["src/**/*.d.ts", "src/**/*.ts"]
+  "include": ["src/**/*.d.ts", "src/**/*.ts"],
+  // Tests are not part of the application program. They were, which put every
+  // `*.test.ts` and its `vitest` imports into the production Angular compilation —
+  // and, because this config sets `types: []`, left `node:fs` unresolvable in the
+  // one test that reads source files. Excluding them sends the linter to
+  // `tsconfig.test.json`, where the node and vitest types actually live.
+  "exclude": ["src/**/*.test.ts", "src/test-setup.ts"]
 }

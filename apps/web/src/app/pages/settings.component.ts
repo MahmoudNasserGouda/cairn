@@ -168,7 +168,7 @@ function value(event: Event): string {
   styles: [
     `
       .muted {
-        color: var(--muted);
+        color: var(--fg-muted);
       }
       .small {
         font-size: 0.85rem;
@@ -177,7 +177,7 @@ function value(event: Event): string {
         border: 1px solid var(--border);
         border-radius: 12px;
         padding: 1rem 1.15rem;
-        background: var(--panel);
+        background: var(--surface);
         margin-bottom: 1.25rem;
       }
       h2 {
@@ -188,7 +188,7 @@ function value(event: Event): string {
         font-size: 0.7rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: var(--muted);
+        color: var(--fg-muted);
         border: 1px solid var(--border);
         border-radius: 999px;
         padding: 0.05rem 0.45rem;
@@ -205,7 +205,7 @@ function value(event: Event): string {
         flex-direction: column;
         gap: 0.25rem;
         font-size: 0.85rem;
-        color: var(--muted);
+        color: var(--fg-muted);
         flex: 1 1 12rem;
       }
       label.key {
@@ -237,7 +237,7 @@ function value(event: Event): string {
         margin-top: 0.75rem;
       }
       .saved {
-        color: var(--muted);
+        color: var(--fg-muted);
         font-size: 0.85rem;
       }
       .dot {

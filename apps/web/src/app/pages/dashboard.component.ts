@@ -320,7 +320,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
       }
       .muted,
       small {
-        color: var(--muted);
+        color: var(--fg-muted);
       }
       .metrics {
         display: grid;
@@ -335,7 +335,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
         border: 1px solid var(--border);
         border-radius: 12px;
         padding: 1rem;
-        background: var(--panel);
+        background: var(--surface);
         display: flex;
         flex-direction: column;
         gap: 0.25rem;
@@ -353,7 +353,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
         border: 1px solid var(--border);
         border-radius: 12px;
         padding: 1rem;
-        background: var(--panel);
+        background: var(--surface);
       }
       pre {
         white-space: pre-wrap;
@@ -376,7 +376,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
         font-size: 0.7rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: var(--muted);
+        color: var(--fg-muted);
         border: 1px solid var(--border);
         border-radius: 999px;
         padding: 0.05rem 0.45rem;
@@ -394,7 +394,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
         font-size: 0.85rem;
       }
       .sub {
-        color: var(--muted);
+        color: var(--fg-muted);
         margin: 0.75rem 0 0.35rem;
       }
       .tags {
@@ -409,7 +409,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
         font-size: 0.8rem;
       }
       .tag.ghost {
-        color: var(--muted);
+        color: var(--fg-muted);
       }
       .readiness {
         margin-top: 1.5rem;
@@ -424,7 +424,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
         margin: 0;
       }
       .band {
-        color: var(--muted);
+        color: var(--fg-muted);
         font-weight: 600;
       }
       .band[data-band='High'] {
@@ -485,7 +485,7 @@ const PART_LABELS: Readonly<Record<string, string>> = {
       .target input {
         flex: 1;
         padding: 0.5rem 0.75rem;
-        background: var(--panel);
+        background: var(--surface);
         color: var(--fg);
         border: 1px solid var(--border);
         border-radius: 8px;
@@ -529,14 +529,14 @@ const PART_LABELS: Readonly<Record<string, string>> = {
       .issue-pick {
         display: block;
         margin-top: 0.5rem;
-        color: var(--muted);
+        color: var(--fg-muted);
       }
       .issue-pick select {
         display: block;
         margin-top: 0.25rem;
         max-width: 100%;
         padding: 0.4rem 0.6rem;
-        background: var(--panel);
+        background: var(--surface);
         color: var(--fg);
         border: 1px solid var(--border);
         border-radius: 8px;

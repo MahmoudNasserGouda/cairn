@@ -30,11 +30,7 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: [
-            'vitest.config.ts',
-            'eslint.config.js',
-            'scripts/test-setup.ts',
-          ],
+          allowDefaultProject: ['vitest.config.ts', 'eslint.config.js'],
         },
         tsconfigRootDir: import.meta.dirname,
       },

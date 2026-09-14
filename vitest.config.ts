@@ -1,9 +1,32 @@
 import { defineConfig } from 'vitest/config';
+import angular from '@analogjs/vite-plugin-angular';
 import { fileURLToPath } from 'node:url';
 
 const r = (p: string): string => fileURLToPath(new URL(p, import.meta.url));
 
 export default defineConfig({
+  /**
+   * The Angular compiler, in the test pipeline — for **both** projects.
+   *
+   * Without it, Vitest runs Angular in pure JIT, which learns a component's inputs
+   * from decorator metadata. **Signal inputs (`input()`, `model()`) then do not bind
+   * at all**, by template attribute or by `componentRef.setInput` — no error, no
+   * warning: the input keeps its default and the component renders as if the caller
+   * had passed nothing. That was invisible until ADR-0032's `cn-*` library, because
+   * no component in this app had ever taken an input from a parent template.
+   *
+   * It sits at the root rather than on the `app` project, even though only that
+   * project has Angular in it, because **both projects transform `libs/*`** — the app
+   * imports them. One plugin here and one esbuild there meant the same `zip.ts` was
+   * instrumented two different ways, and the merged coverage report could not align
+   * the two: 68% function coverage against 97% of its own statements. The numbers
+   * were an artefact of the mismatch, not a gap in the tests. One transform, one
+   * report.
+   *
+   * Dev-only; it never reaches the bundle
+   * ([ADR-0021](docs/adr/0021-supply-chain-and-dependency-security.md)).
+   */
+  plugins: [angular({ tsconfig: r('./tsconfig.vitest.json') })],
   resolve: {
     alias: {
       '@cairn/shared': r('./libs/shared/src/index.ts'),
@@ -60,7 +83,7 @@ export default defineConfig({
           name: 'app',
           environment: 'jsdom',
           include: ['apps/**/*.test.ts', 'api/**/*.test.ts'],
-          setupFiles: ['./scripts/test-setup.ts'],
+          setupFiles: ['./apps/web/src/test-setup.ts'],
         },
       },
     ],

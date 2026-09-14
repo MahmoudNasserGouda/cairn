@@ -354,7 +354,7 @@ function toEntry(role: RoleDraft): ParsedRole {
   styles: [
     `
       .muted {
-        color: var(--muted);
+        color: var(--fg-muted);
       }
       .small {
         font-size: 0.85rem;
@@ -363,7 +363,7 @@ function toEntry(role: RoleDraft): ParsedRole {
         border: 1px solid var(--border);
         border-radius: 12px;
         padding: 1rem 1.15rem;
-        background: var(--panel);
+        background: var(--surface);
         margin-bottom: 1.25rem;
       }
       h2 {
@@ -400,7 +400,7 @@ function toEntry(role: RoleDraft): ParsedRole {
         flex-direction: column;
         gap: 0.25rem;
         font-size: 0.85rem;
-        color: var(--muted);
+        color: var(--fg-muted);
         flex: 1 1 12rem;
       }
       input[type='text'],
@@ -477,7 +477,7 @@ function toEntry(role: RoleDraft): ParsedRole {
         font-size: 0.8rem;
       }
       .tag .src {
-        color: var(--muted);
+        color: var(--fg-muted);
         font-size: 0.7rem;
         margin-left: 0.3rem;
       }
@@ -504,7 +504,7 @@ function toEntry(role: RoleDraft): ParsedRole {
         font-size: 0.7rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: var(--muted);
+        color: var(--fg-muted);
         border: 1px solid var(--border);
         border-radius: 999px;
         padding: 0.05rem 0.45rem;
@@ -534,7 +534,7 @@ function toEntry(role: RoleDraft): ParsedRole {
         border-color: var(--accent);
       }
       .sub {
-        color: var(--muted);
+        color: var(--fg-muted);
         margin: 0.25rem 0 0.75rem;
       }
       .roles {

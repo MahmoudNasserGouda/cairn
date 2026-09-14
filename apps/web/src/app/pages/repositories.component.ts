@@ -63,7 +63,7 @@ interface RepoResult {
   styles: [
     `
       .muted {
-        color: var(--muted);
+        color: var(--fg-muted);
       }
       form {
         display: flex;
@@ -73,7 +73,7 @@ interface RepoResult {
       input {
         flex: 1;
         padding: 0.5rem 0.75rem;
-        background: var(--panel);
+        background: var(--surface);
         color: var(--fg);
         border: 1px solid var(--border);
         border-radius: 8px;
@@ -94,7 +94,7 @@ interface RepoResult {
         border: 1px solid var(--border);
         border-radius: 12px;
         padding: 1rem;
-        background: var(--panel);
+        background: var(--surface);
       }
       .tags {
         display: flex;
@@ -112,7 +112,7 @@ interface RepoResult {
         flex-wrap: wrap;
         gap: 1rem;
         margin-top: 0.75rem;
-        color: var(--muted);
+        color: var(--fg-muted);
       }
       .scoreline strong {
         color: var(--fg);

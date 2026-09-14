@@ -72,7 +72,7 @@ import { AiDisclosureDialogComponent } from './core/ai/ai-disclosure-dialog.comp
         gap: 1.5rem;
         padding: 0.75rem 1.25rem;
         border-bottom: 1px solid var(--border);
-        background: var(--panel);
+        background: var(--surface);
       }
       .brand {
         font-weight: 700;
@@ -88,7 +88,7 @@ import { AiDisclosureDialogComponent } from './core/ai/ai-disclosure-dialog.comp
         gap: 1rem;
       }
       nav a {
-        color: var(--muted);
+        color: var(--fg-muted);
         text-decoration: none;
       }
       nav a.active {
@@ -117,7 +117,7 @@ import { AiDisclosureDialogComponent } from './core/ai/ai-disclosure-dialog.comp
         display: block;
       }
       .muted {
-        color: var(--muted);
+        color: var(--fg-muted);
       }
       .signin {
         font: inherit;
@@ -133,7 +133,7 @@ import { AiDisclosureDialogComponent } from './core/ai/ai-disclosure-dialog.comp
         cursor: pointer;
         border: 0;
         background: none;
-        color: var(--muted);
+        color: var(--fg-muted);
         padding: 0;
       }
       .link-btn:hover {
