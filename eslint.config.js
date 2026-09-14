@@ -14,6 +14,10 @@ export default tseslint.config(
       '.claude/**',
       'apps/web/.angular/**',
       'apps/extension/dist/**',
+      // Static assets, shipped to the browser byte for byte. They are not part of any
+      // tsconfig, so the typed rules cannot parse them — and the CSP guard, not the
+      // linter, is what actually governs what may run there.
+      'apps/web/public/**',
       '**/*.d.ts',
     ],
   },

@@ -18,13 +18,69 @@ if (!existsSync(HEADERS)) {
   );
 } else {
   const headers = readFileSync(HEADERS, 'utf8');
-  const cspLine = headers
-    .split('\n')
-    .find((l) => l.toLowerCase().includes('content-security-policy'));
-  if (!cspLine) {
-    problems.push(`${HEADERS} has no Content-Security-Policy header.`);
+
+  /**
+   * `_headers` read per path block, not as "the first CSP line in the file".
+   *
+   * The old reading stopped at the first match, so every later block was invisible —
+   * which is exactly what happened when the `/ocr/*` sandbox was added: a block
+   * carrying `'wasm-unsafe-eval'` appeared and this guard passed. The point of
+   * ADR-0028 is that the exception is confined to one path, and a guard that cannot
+   * see the other blocks cannot enforce that confinement.
+   */
+  const blocks = [];
+  let current = null;
+  for (const raw of headers.split('\n')) {
+    if (raw.trim() === '' || raw.trimStart().startsWith('#')) continue;
+    if (!/^\s/.test(raw)) {
+      current = { path: raw.trim(), csp: null };
+      blocks.push(current);
+      continue;
+    }
+    if (current && raw.toLowerCase().includes('content-security-policy')) {
+      current.csp = raw.split(':').slice(1).join(':').trim();
+    }
+  }
+
+  /**
+   * The only path ADR-0028 permits `'wasm-unsafe-eval'` on. An allowlist of exactly
+   * one entry, on purpose: adding a second is a decision, and a decision should have
+   * to edit this line.
+   */
+  const WASM_EXEMPT = new Set(['/ocr/*']);
+
+  for (const block of blocks) {
+    if (block.csp === null || WASM_EXEMPT.has(block.path)) continue;
+    if (block.csp.includes("'wasm-unsafe-eval'")) {
+      problems.push(
+        `CSP for ${block.path} contains 'wasm-unsafe-eval' — permitted only on ` +
+          `${[...WASM_EXEMPT].join(', ')} (ADR-0028, non-negotiable 1).`,
+      );
+    }
+  }
+
+  // The sandbox is a boundary only while it stays one: no network beyond its own
+  // assets, and nothing inherited from the application's policy.
+  for (const path of WASM_EXEMPT) {
+    const block = blocks.find((b) => b.path === path);
+    if (!block || block.csp === null) continue;
+    if (!/default-src\s+'none'/.test(block.csp)) {
+      problems.push(`CSP for ${path} must set default-src 'none' (ADR-0028).`);
+    }
+    const connect = /connect-src([^;]*)/.exec(block.csp);
+    if (connect && /https?:\/\//.test(connect[1])) {
+      problems.push(
+        `CSP for ${path} names an outbound origin in connect-src — the sandbox has ` +
+          `no network egress beyond its own assets (ADR-0028).`,
+      );
+    }
+  }
+
+  const appBlock = blocks.find((b) => b.path === '/*');
+  if (!appBlock || appBlock.csp === null) {
+    problems.push(`${HEADERS} has no Content-Security-Policy header for /*.`);
   } else {
-    const csp = cspLine.split(':').slice(1).join(':').trim();
+    const csp = appBlock.csp;
     const directive = (name) => {
       const m = csp.match(new RegExp(`(?:^|;)\\s*${name}([^;]*)`));
       return m ? m[1].trim() : null;

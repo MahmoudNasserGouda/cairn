@@ -114,16 +114,56 @@ uploads an image, so the ~8–16 MB never touches a user whose CV has a text lay
 - WebGPU is used when available with a silent WASM fallback, so the sandbox works on
   browsers without it.
 
-### Known unknown, to be settled before the pipeline is built
+### The spike: what was settled, and what was not (2026-09-13)
 
-An opaque-origin document loads its subresources cross-origin. Whether Cloudflare Workers
-static assets will serve the `/ocr/*` WASM and model files to that opaque origin under the
-required `Access-Control-Allow-Origin` header **has not been verified**. This is spiked
-first. If it does not work, the fallback is to serve the sandbox from a separate Workers
-subdomain — still $0, one more deploy target, and a genuinely cross-origin boundary rather
-than a same-site one, which is if anything stronger.
+This ADR named one unknown and made it the thing to settle first. It was spiked with a
+41-byte hand-written WebAssembly module rather than a 16 MB engine, so the answer cost
+nothing to get and nothing to throw away.
 
-## Alternatives considered
+**Settled — the capability question, and it is a yes.**
+
+Serving the built app with the real `_headers` applied (`scripts/serve-static.mjs`,
+added for this), a document under `/ocr/*`:
+
+- gets **its own CSP**, distinct from the application's — per-path `_headers` works;
+- loads a **same-origin script** under `script-src 'self'`;
+- **compiles WebAssembly** under `'wasm-unsafe-eval'`;
+- **fetches a `.wasm` asset** from our origin under `connect-src 'self'`;
+- **streaming-instantiates** it — `WebAssembly.instantiateStreaming(fetch(...))`, which
+  is the exact path ONNX Runtime takes.
+
+The application's `/*` policy is untouched and carries no `'wasm-unsafe-eval'`. A
+document under `/ocr/*` cannot frame anything at all (`default-src 'none'`), so the
+sandbox cannot be used as a pivot back into the app.
+
+**Not settled — script execution inside `sandbox="allow-scripts"`.**
+
+A sandboxed frame loads, but its script never runs. That is *not* our policy: a control
+frame served under a fully permissive CSP (`default-src * 'unsafe-inline' 'unsafe-eval'`)
+behaves identically. The automation browser used for the spike suppresses script
+execution in sandboxed frames, so it cannot answer this question, and no conclusion
+about the design can be drawn from it either way.
+
+`apps/web/public/ocr-spike.html` is kept for exactly this: open it in an ordinary
+browser against a built app and it answers in seconds. **That check must pass before
+any OCR engine is vendored**, because the fallback it would trigger — serving the
+sandbox from a separate Workers subdomain — changes the deploy, not just a header.
+
+**Two findings worth keeping, neither of them the thing being looked for.**
+
+- **A `<meta>` CSP and a header CSP are both enforced, and the stricter wins.** The
+  sandbox first declared `connect-src 'none'` in a `<meta>` while its header said
+  `'self'`; the intersection silently blocked the model fetch. Anything that must load
+  its own assets has to agree in both places, so the sandbox document now repeats its
+  header policy exactly.
+- **`check-csp.mjs` could not have caught a violation here.** It read only the *first*
+  CSP line in `_headers`, so the `/ocr/*` block — the one carrying the exception this
+  ADR exists to contain — was invisible to it, and it passed the moment that block was
+  added. It now parses every block, keeps `'wasm-unsafe-eval'` a hard failure outside a
+  one-entry allowlist, and additionally asserts the sandbox keeps `default-src 'none'`
+  and names no outbound origin. Both rules were verified by making them fail on purpose.
+
+## Alternatives considered## Alternatives considered
 
 - **Add `'wasm-unsafe-eval'` to the application CSP.** Rejected: it grants WebAssembly
   compilation to the one origin holding the GitHub token and the BYOK key, to serve a

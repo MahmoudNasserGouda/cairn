@@ -9,3 +9,16 @@
 
 /.well-known/security.txt
   Content-Type: text/plain
+
+# The OCR sandbox (ADR-0028). Its own policy, deliberately different from the
+# application's above — and the only place `'wasm-unsafe-eval'` is permitted.
+#
+# The application origin must never have it: that origin holds the GitHub token and
+# the BYOK AI key. This document holds nothing. It is embedded with
+# `sandbox="allow-scripts"` and no `allow-same-origin`, so it runs on an opaque origin
+# with no access to the app's storage, and `connect-src 'self'` lets it load its own
+# model files and reach nothing else.
+/ocr/*
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; img-src blob: data:; style-src 'unsafe-inline'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'
+  X-Content-Type-Options: nosniff
+  Cross-Origin-Resource-Policy: same-site
