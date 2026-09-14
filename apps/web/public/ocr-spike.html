@@ -42,15 +42,38 @@
       <code>default-src 'none'</code>, which forbids framing anything at all — a fair
       result, and the wrong test.
     </p>
+    <h2>What the sandbox document is served</h2>
+    <p>
+      Read back with <code>fetch</code>, because the bug that produced this page's first
+      empty result was an <em>inherited</em> header: Cloudflare applies every matching
+      rule rather than the most specific one, so <code>/ocr/*</code> was silently keeping
+      <code>X-Frame-Options: DENY</code> from <code>/*</code> and the frame could not load
+      at all.
+    </p>
+    <div id="diagnosis"></div>
+
     <h2>What the parent heard</h2>
     <ul id="results">
-      <li>running…</li>
+      <li>running… (this page waits 6s before calling silence a result)</li>
     </ul>
     <h2>What the sandbox rendered for itself</h2>
     <p>
-      Read from the frame's own DOM rather than through <code>postMessage</code>. If the
-      two disagree, the channel is the problem and not the capability.
+      Read with your eyes from the frame's own DOM rather than through
+      <code>postMessage</code>. Three outcomes, and they mean different things:
     </p>
+    <ul>
+      <li>
+        <strong>Box has PASS/FAIL lines</strong> — the script ran. This is the answer.
+      </li>
+      <li>
+        <strong>Box is blank and the list above says the frame loaded</strong> — the
+        document was served but its script was refused. That is the real negative.
+      </li>
+      <li>
+        <strong>Box is blank and the list says the frame never loaded</strong> — a header
+        stopped it. Nothing here is about WebAssembly; fix the header and re-run.
+      </li>
+    </ul>
 
     <iframe
       src="ocr/index.html"

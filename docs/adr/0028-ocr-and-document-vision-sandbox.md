@@ -138,16 +138,34 @@ sandbox cannot be used as a pivot back into the app.
 
 **Not settled — script execution inside `sandbox="allow-scripts"`.**
 
-A sandboxed frame loads, but its script never runs. That is *not* our policy: a control
-frame served under a fully permissive CSP (`default-src * 'unsafe-inline' 'unsafe-eval'`)
-behaves identically. The automation browser used for the spike suppresses script
-execution in sandboxed frames, so it cannot answer this question, and no conclusion
-about the design can be drawn from it either way.
+Still open, and the first real-browser attempt did not answer it either. It is worth
+recording why, because the failure looked exactly like the answer.
 
-`apps/web/public/ocr-spike.html` is kept for exactly this: open it in an ordinary
-browser against a built app and it answers in seconds. **That check must pass before
-any OCR engine is vendored**, because the fallback it would trigger — serving the
-sandbox from a separate Workers subdomain — changes the deploy, not just a header.
+**The 2026-09-14 real-Chrome run (project owner) reported an empty frame and a silent
+parent — and the cause was a header of ours, not the platform.** `/ocr/index.html` was
+being served `X-Frame-Options: DENY`. Cloudflare `_headers` applies **every** matching
+rule rather than the most specific one, so `/*` matches `/ocr/index.html` as well, and
+a block only overrides the headers it names. The `/ocr/*` block overrode the CSP and
+two others and silently inherited `DENY`, which forbids framing from anywhere,
+same-origin included. The frame could never load, so nothing ran, so nothing was
+reported — indistinguishable, on the page as it then was, from "WebAssembly does not
+work in an opaque origin", which would have sunk this ADR's whole approach.
+
+Fixed by overriding it (`X-Frame-Options: SAMEORIGIN` on `/ocr/*`), and
+`scripts/check-csp.mjs` now fails the build on an `/ocr/*` block that is served `DENY`,
+inherited or otherwise — verified by removing the override and watching it fail.
+
+The automation browser still cannot check this: it executes no scripts in **any**
+iframe, sandboxed or not, which was confirmed against an un-sandboxed inline control
+rather than inferred. So the question needs a real browser, and
+`apps/web/public/ocr-spike.html` now diagnoses itself — it prints the headers the
+sandbox document was actually served, distinguishes "the frame never loaded" from "the
+frame loaded and its script was refused", and treats silence as a reportable outcome
+instead of leaving "running…" on screen.
+
+**That check must still pass before any OCR engine is vendored**, because the fallback
+it would trigger — serving the sandbox from a separate Workers subdomain — changes the
+deploy, not just a header.
 
 **Two findings worth keeping, neither of them the thing being looked for.**
 

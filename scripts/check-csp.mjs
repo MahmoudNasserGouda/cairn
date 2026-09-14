@@ -33,11 +33,19 @@ if (!existsSync(HEADERS)) {
   for (const raw of headers.split('\n')) {
     if (raw.trim() === '' || raw.trimStart().startsWith('#')) continue;
     if (!/^\s/.test(raw)) {
-      current = { path: raw.trim(), csp: null };
+      current = { path: raw.trim(), csp: null, headers: new Map() };
       blocks.push(current);
       continue;
     }
-    if (current && raw.toLowerCase().includes('content-security-policy')) {
+    if (!current) continue;
+    const at = raw.indexOf(':');
+    if (at > 0) {
+      current.headers.set(
+        raw.slice(0, at).trim().toLowerCase(),
+        raw.slice(at + 1).trim(),
+      );
+    }
+    if (raw.toLowerCase().includes('content-security-policy')) {
       current.csp = raw.split(':').slice(1).join(':').trim();
     }
   }
@@ -72,6 +80,37 @@ if (!existsSync(HEADERS)) {
       problems.push(
         `CSP for ${path} names an outbound origin in connect-src — the sandbox has ` +
           `no network egress beyond its own assets (ADR-0028).`,
+      );
+    }
+
+    /**
+     * The sandbox has to be *frameable*, and one header quietly decides that.
+     *
+     * Cloudflare applies **every** matching rule rather than the most specific one, so
+     * `/*` matches `/ocr/index.html` too and a block only overrides the headers it
+     * names. `/*` sets `X-Frame-Options: DENY`, which forbids framing from anywhere —
+     * same-origin included — so unless this block overrides it, the sandbox document
+     * cannot load and the whole path is dead.
+     *
+     * That shipped, and the 2026-09-14 spike in a real browser reported an empty frame
+     * and a silent parent. It reads exactly like "WebAssembly is not available in an
+     * opaque origin", which would have sunk ADR-0028's whole approach, and it was a
+     * header. This guard exists so that cannot be discovered by a person again.
+     */
+    const inherited = blocks.find((b) => b.path === '/*')?.headers.get('x-frame-options');
+    const own = block.headers.get('x-frame-options');
+    const effective = own ?? inherited;
+    if (effective && effective.toUpperCase() === 'DENY') {
+      problems.push(
+        `${path} is served X-Frame-Options: DENY${own ? '' : ' (inherited from /*)'} — ` +
+          `the sandbox document cannot be framed at all, so the path is unreachable. ` +
+          `Override it in the ${path} block (ADR-0028).`,
+      );
+    }
+    if (!/frame-ancestors\s+'self'/.test(block.csp)) {
+      problems.push(
+        `CSP for ${path} must set frame-ancestors 'self' — the app origin embeds it, ` +
+          `and nothing else may (ADR-0028).`,
       );
     }
   }
