@@ -164,6 +164,18 @@ Every panel that can be empty, slow or wrong gets all four designed:
   in the CV import panel.
 - Motion respects `prefers-reduced-motion`; colour is never the only signal.
 
+## Two things that will bite you
+
+- **A component's `template` and `styles` are template literals, so a backtick in
+  prose terminates them.** Writing `` `<ng-content>` `` inside an HTML comment, or a
+  token in backticks inside a CSS comment, produces a parse error somewhere far from
+  the comment. It has happened twice. `npm run typecheck` (which now runs `ngc`) and
+  the dev server both catch it immediately, so it costs minutes rather than hours —
+  but the error never points at the backtick.
+- **`cn-sheet` content is evaluated while the sheet is closed.** Projected nodes are
+  created in the caller's view, so guard them with `@if (open())` unless they are
+  already inside an `@if` of their own.
+
 ## Constraints worth remembering
 
 - `style-src 'unsafe-inline'` is the **single** ratified CSP exception, for Angular

@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { REFUSED_FILES } from '@cairn/linkedin-archive';
 import { LinkedinImportService } from './linkedin-import.service';
+import { ButtonComponent, CardComponent, TagComponent } from '../../ui';
 import { ProfileService } from '../profile/profile.service';
 
 /** Where LinkedIn puts the export button, so the instructions can be one click. */
@@ -25,8 +26,9 @@ const DOWNLOAD_URL = 'https://www.linkedin.com/mypreferences/d/download-my-data'
 @Component({
   selector: 'cn-linkedin-import',
   standalone: true,
+  imports: [ButtonComponent, CardComponent, TagComponent],
   template: `
-    <section class="panel">
+    <cn-card>
       <h2>Import your LinkedIn archive</h2>
 
       @if (profileSvc.hasLinkedinArchive() && !draft()) {
@@ -79,15 +81,15 @@ const DOWNLOAD_URL = 'https://www.linkedin.com/mypreferences/d/download-my-data'
 
       @if (profileSvc.hasLinkedinArchive() && !draft()) {
         <div class="actions">
-          <button type="button" class="ghost" (click)="remove()">
+          <button cn-button variant="quiet" size="sm" (click)="remove()">
             Remove LinkedIn data
           </button>
         </div>
       }
-    </section>
+    </cn-card>
 
     @if (draft(); as archive) {
-      <section class="panel">
+      <cn-card>
         <h2>Check what we read</h2>
         <p class="muted small">
           Nothing is added to your profile until you confirm. Anything you have already
@@ -191,7 +193,7 @@ const DOWNLOAD_URL = 'https://www.linkedin.com/mypreferences/d/download-my-data'
           <h3>Skills ({{ archive.skills.length }})</h3>
           <div class="tags">
             @for (skill of archive.skills; track skill) {
-              <span class="tag">{{ skill }}</span>
+              <cn-tag>{{ skill }}</cn-tag>
             }
           </div>
           <p class="muted small">
@@ -245,12 +247,12 @@ const DOWNLOAD_URL = 'https://www.linkedin.com/mypreferences/d/download-my-data'
         }
 
         <div class="actions">
-          <button type="button" [disabled]="saving()" (click)="confirm()">
+          <button cn-button [disabled]="saving()" (click)="confirm()">
             Add to my profile
           </button>
-          <button type="button" class="ghost" (click)="cancel()">Discard</button>
+          <button cn-button variant="quiet" (click)="cancel()">Discard</button>
         </div>
-      </section>
+      </cn-card>
     }
   `,
   styles: [
@@ -262,13 +264,6 @@ const DOWNLOAD_URL = 'https://www.linkedin.com/mypreferences/d/download-my-data'
       }
       .small {
         font-size: 0.85rem;
-      }
-      .panel {
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 1rem 1.15rem;
-        background: var(--surface);
-        margin-bottom: 1.25rem;
       }
       h2 {
         margin: 0 0 0.35rem;
@@ -337,35 +332,11 @@ const DOWNLOAD_URL = 'https://www.linkedin.com/mypreferences/d/download-my-data'
         flex-wrap: wrap;
         gap: 0.35rem;
       }
-      .tag {
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        padding: 0.1rem 0.55rem;
-        font-size: 0.8rem;
-      }
       .actions {
         display: flex;
         gap: 0.5rem;
         margin-top: 1rem;
         flex-wrap: wrap;
-      }
-      button {
-        padding: 0.45rem 0.9rem;
-        border-radius: 8px;
-        border: 1px solid var(--accent);
-        background: var(--accent);
-        color: #0e0e10;
-        font: inherit;
-        cursor: pointer;
-      }
-      button.ghost {
-        background: transparent;
-        color: var(--fg);
-        border-color: var(--border);
-      }
-      button[disabled] {
-        opacity: 0.6;
-        cursor: default;
       }
     `,
   ],

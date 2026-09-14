@@ -55,7 +55,7 @@ import {
             <li>
               <cn-card padding="sm">
                 <div class="head">
-                  <span class="tag">{{ skill.tag }}</span>
+                  <span class="name">{{ skill.tag }}</span>
                   <cn-tag [source]="skill.from.source">from</cn-tag>
                   <span class="level">{{ percent(skill) }}%</span>
                 </div>
@@ -149,7 +149,7 @@ import {
         gap: var(--space-2);
         flex-wrap: wrap;
       }
-      .tag {
+      .name {
         font-weight: var(--weight-medium);
         margin-right: auto;
       }

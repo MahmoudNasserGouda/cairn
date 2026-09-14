@@ -5,7 +5,7 @@ export const routes: Routes = [
   {
     path: 'dashboard',
     loadComponent: () =>
-      import('./pages/dashboard.component').then((m) => m.DashboardComponent),
+      import('./features/dashboard/dashboard.page').then((m) => m.DashboardPageComponent),
   },
   {
     // The profile is a hub with its own sections, each a real URL (ADR-0032) — so a
@@ -19,17 +19,19 @@ export const routes: Routes = [
   {
     path: 'discover',
     loadComponent: () =>
-      import('./pages/discover.component').then((m) => m.DiscoverComponent),
+      import('./features/discover/discover.page').then((m) => m.DiscoverPageComponent),
   },
   {
     path: 'repositories',
     loadComponent: () =>
-      import('./pages/repositories.component').then((m) => m.RepositoriesComponent),
+      import('./features/repositories/repositories.page').then(
+        (m) => m.RepositoriesPageComponent,
+      ),
   },
   {
     path: 'settings',
     loadComponent: () =>
-      import('./pages/settings.component').then((m) => m.SettingsComponent),
+      import('./features/settings/settings.page').then((m) => m.SettingsPageComponent),
   },
   { path: '**', redirectTo: 'dashboard' },
 ];
