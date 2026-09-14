@@ -128,6 +128,30 @@ Three things keep it working, and each is easy to undo by accident:
 `apps/web/src/test-harness.test.ts` asserts all of this directly. If it fails, that is
 the cause.
 
+### The `@angular/build` → `vitest` override
+
+`package.json` carries one `overrides` entry, and it needs an explanation JSON cannot
+hold:
+
+```json
+"overrides": { "@angular/build": { "vitest": "$vitest" } }
+```
+
+Adding the Analog plugin brings `@angular/build` into the peer graph — the plugin
+declares an optional peer on it. `@angular/build@20` in turn declares an **optional**
+peer on `vitest@^3.1.1`, for its own experimental `unit-test` builder, which this
+project does not use. We are on Vitest 4, so `npm ci` failed with `ERESOLVE` even though
+nothing was actually incompatible. The override resolves that peer to the root's Vitest
+instead of a second copy.
+
+It is narrow on purpose: one package, one peer, pointed at the version already in the
+tree. If Rujoom ever adopts `@angular/build`'s unit-test builder, delete this and let
+the real constraint apply.
+
+**`npm run verify` cannot catch a break like this**, because it never installs — it runs
+against whatever is already in `node_modules`. Run `npm ci` after any dependency change;
+it is the only thing that exercises the resolution CI does.
+
 ## What is not unit-tested, and how it is covered instead
 
 - **The CSP itself** — `scripts/check-csp.mjs`, run by `npm run verify` and CI.
