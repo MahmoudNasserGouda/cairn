@@ -147,6 +147,22 @@ export interface UnifiedProfile {
   readonly technologies: readonly SkillTag[];
   /** A union of tag sets. No slot, so no conflict, so no provenance. */
   readonly interests: readonly SkillTag[];
+  /**
+   * Which sources claimed each interest.
+   *
+   * `interests` has no provenance by design — it is a union of tag sets with no slot
+   * for two sources to disagree over (ADR-0031), so nothing ever needed ranking. That
+   * held until a source had to be *removed*: `forgetSource` rebuilt every other field
+   * and left this one untouched, so a disconnected GitHub kept its repository topics
+   * in the profile permanently.
+   *
+   * Kept beside the list rather than folded into it, so every consumer — discovery,
+   * matching, readiness, the dashboard — still reads `interests` as a flat array.
+   *
+   * Optional because a profile stored before this existed has none. Those tags are
+   * unattributable and are kept on a forget rather than guessed at (ADR-0036).
+   */
+  readonly interestSources?: Readonly<Record<string, readonly ProfileSource[]>>;
   readonly experienceLevel: Sourced<ExperienceLevel>;
   readonly experience: readonly ExperienceEntry[];
   readonly education: readonly EducationEntry[];

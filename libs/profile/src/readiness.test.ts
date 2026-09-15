@@ -24,7 +24,7 @@ function profile(over: ProfileFragment = {}): UnifiedProfile {
         { tag: 'git', level: 0.5, from: cv },
         { tag: 'css', level: 0.4, from: gh },
       ],
-      interests: ['web'],
+      interests: [{ tag: 'web', from: cv }],
       experience: [
         {
           title: 'Junior developer',
@@ -55,7 +55,7 @@ const maxed: ReadinessInput = {
         level: 1,
         from: gh,
       })),
-      interests: ['web'],
+      interests: [{ tag: 'web', from: cv }],
       experience: [
         {
           title: 'Staff engineer',

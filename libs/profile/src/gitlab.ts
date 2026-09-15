@@ -181,7 +181,9 @@ export function gitlabToFragment(
       ...new Set(
         input.projects.flatMap((p) => p.topics).map((t) => canonicalizeSkill(t)),
       ),
-    ].sort(),
+    ]
+      .sort()
+      .map((tag) => ({ tag, from: measured })),
     projects: projects(input, measured),
   };
 }

@@ -48,6 +48,17 @@ import {
  * context, the same discipline the scoring engines keep.
  */
 
+/**
+ * One source's claim on one interest.
+ *
+ * Interests never conflict — they are a union, not a slot — so this provenance is not
+ * for ranking. It exists so the claim can be withdrawn when the source is disconnected.
+ */
+export interface IncomingInterest {
+  readonly tag: SkillTag;
+  readonly from: Provenance;
+}
+
 /** One source's claim about one skill, before reconciliation. */
 export interface IncomingSkill {
   readonly tag: SkillTag;
@@ -73,7 +84,7 @@ export interface ProfileFragment {
   readonly contact?: Partial<ProfileContact>;
   readonly links?: readonly ProfileLink[];
   readonly skills?: readonly IncomingSkill[];
-  readonly interests?: readonly SkillTag[];
+  readonly interests?: readonly IncomingInterest[];
   readonly experienceLevel?: Sourced<ExperienceLevel>;
   readonly experience?: readonly ExperienceEntry[];
   readonly education?: readonly EducationEntry[];
@@ -182,6 +193,43 @@ function mergeSkills(
   }
 
   return [...byTag.values()].sort((a, b) => a.tag.localeCompare(b.tag));
+}
+
+/**
+ * Union the incoming tags into the interest list, and record who claimed each.
+ *
+ * Returns both fields together because they have to stay in step: a tag in the list
+ * with nobody recorded against it can never be removed, and a source recorded against a
+ * tag that is not in the list is a claim on nothing.
+ */
+function mergeInterests(
+  base: UnifiedProfile,
+  incoming: readonly IncomingInterest[],
+): Pick<UnifiedProfile, 'interests' | 'interestSources'> {
+  const claims = new Map<string, Set<ProfileSource>>(
+    Object.entries(base.interestSources ?? {}).map(([tag, sources]) => [
+      tag,
+      new Set(sources),
+    ]),
+  );
+  for (const claim of incoming) {
+    const held = claims.get(claim.tag) ?? new Set<ProfileSource>();
+    held.add(claim.from.source);
+    claims.set(claim.tag, held);
+  }
+
+  const interests = [
+    ...new Set([...base.interests, ...incoming.map((i) => i.tag)]),
+  ].sort();
+
+  return {
+    interests,
+    interestSources: Object.fromEntries(
+      [...claims.entries()]
+        .map(([tag, sources]) => [tag, [...sources].sort()] as const)
+        .sort(([a], [b]) => a.localeCompare(b)),
+    ),
+  };
 }
 
 /** A used language never scores below this, so it still counts toward matches. */
@@ -360,7 +408,7 @@ export function mergeProfile(
     links: mergeEntities(base.links, fragment.links ?? [], linkKey, dismissed),
     skills,
     technologies: skills.map((s) => s.tag).sort(),
-    interests: [...new Set([...base.interests, ...(fragment.interests ?? [])])].sort(),
+    ...mergeInterests(base, fragment.interests ?? []),
     experienceLevel,
     experience,
     education: mergeEntities(
@@ -461,6 +509,7 @@ export function forgetSource(
       emails: profile.contact.emails.filter((e) => e.from.source !== source),
     },
     links: profile.links.filter(survives),
+    ...forgetInterests(profile, source),
     skills,
     technologies: skills.map((s) => s.tag).sort(),
     experience,
@@ -477,6 +526,36 @@ export function forgetSource(
     delete (next as { contributions?: ContributionStats }).contributions;
   }
   return next;
+}
+
+/**
+ * Withdraw one source's interest claims.
+ *
+ * A tag survives while any other source still names it — two sources naming the same
+ * interest is ordinary, and one leaving does not unmake the other's claim. A tag with
+ * **no** recorded source is unattributable, from a profile stored before claims were
+ * kept, and is left alone: deleting something we cannot account for is the worse
+ * failure, since the user would watch interests vanish on an unrelated action. Those
+ * correct themselves on the next import.
+ */
+function forgetInterests(
+  profile: UnifiedProfile,
+  source: ProfileSource,
+): Pick<UnifiedProfile, 'interests' | 'interestSources'> {
+  const claims = profile.interestSources ?? {};
+  const remaining = Object.fromEntries(
+    Object.entries(claims)
+      .map(([tag, sources]) => [tag, sources.filter((s) => s !== source)] as const)
+      .filter(([, sources]) => sources.length > 0),
+  );
+
+  return {
+    interests: profile.interests.filter((tag) => {
+      const claimed = claims[tag];
+      return claimed === undefined || remaining[tag] !== undefined;
+    }),
+    interestSources: remaining,
+  };
 }
 
 /**

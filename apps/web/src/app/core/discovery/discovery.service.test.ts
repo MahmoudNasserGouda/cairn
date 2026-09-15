@@ -32,7 +32,12 @@ class FakeStore {
 function profile(skills: readonly { tag: string; level: number }[]): UnifiedProfile {
   return buildProfile({
     skills: skills.map((s) => testSkill(s.tag, s.level)),
-    interests: ['react'],
+    interests: [
+      {
+        tag: 'react',
+        from: { source: 'github', confidence: 1, capturedAt: '2026-09-15' },
+      },
+    ],
     experienceLevel: testLevel('intermediate'),
   });
 }

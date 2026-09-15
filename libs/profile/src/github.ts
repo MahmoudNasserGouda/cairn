@@ -247,9 +247,13 @@ export function githubToFragment(
     },
     links: links(input, measured),
     skills: languageSkills(input, measured),
+    // Topics carry provenance now, not to rank them — interests never conflict — but so
+    // they can be withdrawn when GitHub is disconnected (ADR-0036).
     interests: [
       ...new Set(input.repos.flatMap((r) => r.topics).map((t) => canonicalizeSkill(t))),
-    ].sort(),
+    ]
+      .sort()
+      .map((tag) => ({ tag, from: measured })),
     experience: activitySpan(input, capturedAt),
     projects: pinnedProjects(input, measured),
     contributions: {
