@@ -60,6 +60,27 @@ own CSP refusing itself:
 | `GET /api/v4/projects/278964/languages` | `200` — `{Ruby: 68.24, JavaScript: 20.17, Vue: 7.41, …}` |
 | `GET /api/v4/groups/gitlab-org/projects` | `200`, list returned |
 | `GET /.well-known/openid-configuration` | `200`, `S256` present |
+| `POST /oauth/token` (form-encoded, bogus client) | `200`-path CORS: `response.type === "cors"`, JSON error body **readable** |
+| `GET /api/v4/user` with an `Authorization` header | `401`, `response.type === "cors"` — the preflight was answered |
+
+The last two were added after the first draft of this ADR, and they are the ones the
+decision actually rests on. The original table verified the *data* endpoints and the
+discovery document, which is not the same claim: PKCE in a browser lives or dies on
+whether the **token endpoint** answers a cross-origin POST, and every authenticated read
+carries an `Authorization` header, which is not CORS-safelisted and therefore triggers a
+preflight the API has to answer separately. Both hold.
+
+Two details worth keeping, because they are the difference between this working and
+this nearly working:
+
+- **Form-encoded means no preflight on the exchange.** `application/x-www-form-urlencoded`
+  is a safelisted content type, so the token POST is a simple request. Sending it as JSON
+  would add an OPTIONS round trip for no benefit.
+- **The OAuth application must be registered as non-confidential.** The probe returned
+  `invalid_client` — correct for a made-up client id, and the same error a *confidential*
+  app would return when the browser omits the secret it cannot hold. That is a
+  registration setting, not something a probe can confirm from outside, and it is the one
+  remaining way this can be got wrong at deploy time.
 
 The language endpoint is worth noting: GitLab returns **percentages already normalised**,
 where GitHub returns raw byte counts that `githubToFragment` has to normalise itself. The

@@ -141,3 +141,129 @@ describe('exchangeCodeForToken', () => {
     ).rejects.toBeInstanceOf(AuthError);
   });
 });
+
+const GITLAB: OAuthProvider = {
+  id: 'gitlab',
+  label: 'GitLab',
+  role: 'data',
+  kind: 'gitlab',
+  pkce: true,
+  clientId: 'gl-real',
+  authorizeUrl: 'https://gitlab.com/oauth/authorize',
+  // Not a `cairn-auth` route: with PKCE this is the provider's own endpoint.
+  tokenExchangeUrl: 'https://gitlab.com/oauth/token',
+  userInfoUrl: 'https://gitlab.com/api/v4/user',
+  redirectUri: 'https://app.example.test/',
+  scopes: ['read_user', 'read_api'],
+};
+
+/**
+ * The PKCE path (ADR-0034). Everything here is about one property: **no secret, and
+ * therefore no server**. The tests that matter are the ones that would still pass if
+ * the flow quietly fell back to the Worker, so each states the negative too.
+ */
+describe('PKCE providers', () => {
+  it('sends the challenge and the method, never the verifier', () => {
+    const url = new URL(buildAuthorizeUrl(GITLAB, 'st4te', 'chall3nge'));
+    expect(url.searchParams.get('code_challenge')).toBe('chall3nge');
+    expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+    // The verifier is the secret. If it ever reaches the URL, PKCE has bought nothing.
+    expect(url.toString()).not.toContain('code_verifier');
+  });
+
+  it('leaves non-PKCE providers exactly as they were', () => {
+    const url = new URL(buildAuthorizeUrl(GITHUB, 'st4te', 'chall3nge'));
+    expect(url.searchParams.get('code_challenge')).toBeNull();
+    expect(url.searchParams.get('code_challenge_method')).toBeNull();
+  });
+
+  it('posts form-encoded, straight to the provider, with no worker in the path', async () => {
+    let seenUrl = '';
+    let seenBody = '';
+    let seenContentType: string | null = null;
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      seenUrl = url;
+      seenBody = init.body as string;
+      seenContentType = new Headers(init.headers).get('content-type');
+      return json({
+        access_token: 'glpat-x',
+        token_type: 'bearer',
+        scope: 'read_user read_api',
+      });
+    }) as unknown as typeof fetch;
+
+    const token = await exchangeCodeForToken({
+      provider: GITLAB,
+      code: 'the-code',
+      verifier: 'the-verifier',
+      fetchImpl,
+    });
+
+    expect(seenUrl).toBe('https://gitlab.com/oauth/token');
+    // Form encoding is not a style choice: it is CORS-safelisted, so the exchange is a
+    // simple request and costs no preflight. JSON would add a round trip.
+    expect(seenContentType).toBe('application/x-www-form-urlencoded');
+
+    const body = new URLSearchParams(seenBody);
+    expect(body.get('grant_type')).toBe('authorization_code');
+    expect(body.get('code_verifier')).toBe('the-verifier');
+    expect(body.get('client_id')).toBe('gl-real');
+    expect(body.get('redirect_uri')).toBe('https://app.example.test/');
+    // The whole point. A secret in a static bundle is a published secret.
+    expect(body.get('client_secret')).toBeNull();
+
+    expect(token.accessToken).toBe('glpat-x');
+    expect(token.scopes).toEqual(['read_user', 'read_api']);
+  });
+
+  it('refuses to exchange without a verifier rather than sending a weaker request', async () => {
+    let called = false;
+    const fetchImpl = (async () => {
+      called = true;
+      return json({ access_token: 'x' });
+    }) as unknown as typeof fetch;
+
+    await expect(
+      exchangeCodeForToken({ provider: GITLAB, code: 'c', fetchImpl }),
+    ).rejects.toThrow(AuthError);
+    // A downgrade to a plain code exchange would very likely succeed at the provider,
+    // which is exactly why this has to fail here instead.
+    expect(called).toBe(false);
+  });
+
+  it('still keeps the code out of the error message', async () => {
+    const fetchImpl = (async () =>
+      json(
+        { error: 'invalid_grant', error_description: 'bad verifier' },
+        { status: 400 },
+      )) as unknown as typeof fetch;
+
+    await expect(
+      exchangeCodeForToken({
+        provider: GITLAB,
+        code: 'secret-code',
+        verifier: 'v',
+        fetchImpl,
+      }),
+    ).rejects.toThrow(/bad verifier/);
+    await expect(
+      exchangeCodeForToken({
+        provider: GITLAB,
+        code: 'secret-code',
+        verifier: 'v',
+        fetchImpl,
+      }),
+    ).rejects.not.toThrow(/secret-code/);
+  });
+
+  it('sends JSON to the worker for providers that need one, unchanged', async () => {
+    let seenContentType: string | null = null;
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      seenContentType = new Headers(init.headers).get('content-type');
+      return json({ access_token: 'gho_x' });
+    }) as unknown as typeof fetch;
+
+    await exchangeCodeForToken({ provider: GITHUB, code: 'c', fetchImpl });
+    expect(seenContentType).toBe('application/json');
+  });
+});

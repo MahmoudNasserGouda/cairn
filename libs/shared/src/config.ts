@@ -30,6 +30,9 @@ export const ALLOWED_CONNECT_ORIGINS: readonly string[] = [
   'https://www.linkedin.com',
   'https://accounts.google.com',
   'https://oauth2.googleapis.com',
+  // GitLab: authorize, token exchange and every API read all live on this one origin
+  // (ADR-0034). No Worker route accompanies it, which is the point.
+  'https://gitlab.com',
 ];
 
 /**
@@ -39,8 +42,12 @@ export const ALLOWED_CONNECT_ORIGINS: readonly string[] = [
  * Worker — none offer a usable public-client PKCE flow from a static origin.
  * `redirectUri` must exactly match each OAuth app's registered callback URL.
  *
- * Only `github` is a data connection; `linkedin` and `google` are identity only
+ * `github` and `gitlab` are data connections; `linkedin` and `google` are identity only
  * (ADR-0025 — LinkedIn has no profile-data API, ADR-0012).
+ *
+ * `pkce`: GitLab is the one provider whose `code -> token` step does **not** run in the
+ * Worker (ADR-0034). Its `tokenExchangeUrl` is GitLab's own endpoint, and there is no
+ * client secret anywhere in the flow.
  *
  * `identityViaWorker`: LinkedIn's `userinfo` endpoint has no CORS headers, so the
  * browser cannot call it directly — the identity fetch is relayed through
@@ -120,6 +127,37 @@ export const OAUTH_PROVIDERS = {
     userInfoUrl: 'https://openidconnect.googleapis.com/v1/userinfo',
     redirectUri: OAUTH_REDIRECT_URI,
     scopes: ['openid', 'profile', 'email'],
+  },
+  gitlab: {
+    id: 'gitlab',
+    label: 'GitLab',
+    role: 'data',
+    kind: 'gitlab',
+    /**
+     * The whole reason GitLab is first in Phase 8. `S256` for public clients means the
+     * browser finishes the exchange itself: no secret, no `cairn-auth`, no server in
+     * the path at all (ADR-0034). Verified 2026-09-15 against the live token endpoint
+     * from a foreign origin — CORS, readable body, no preflight.
+     */
+    pkce: true,
+    /**
+     * Placeholder, so `isProviderConfigured` hides GitLab until a real application is
+     * registered. Two settings on that application are not optional: the redirect URI
+     * must match exactly, and it must be registered **non-confidential** — a
+     * confidential app demands a secret the browser cannot hold, and fails with the
+     * same `invalid_client` an unknown id gives.
+     */
+    clientId: 'set-a-gitlab-application-id',
+    authorizeUrl: 'https://gitlab.com/oauth/authorize',
+    // Not a cairn-auth route. The provider's own endpoint, called from the browser.
+    tokenExchangeUrl: 'https://gitlab.com/oauth/token',
+    userInfoUrl: 'https://gitlab.com/api/v4/user',
+    redirectUri: OAUTH_REDIRECT_URI,
+    /**
+     * The narrowest pair that reads a profile and its projects. Not `api`, which is
+     * read *and write* — the same refusal ADR-0030 makes for GitHub's classic `repo`.
+     */
+    scopes: ['read_user', 'read_api'],
   },
 } as const;
 

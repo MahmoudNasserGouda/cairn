@@ -8,6 +8,17 @@ interface GithubUserBody {
   readonly email: string | null;
 }
 
+interface GitlabUserBody {
+  /** A number, where every other provider's subject is already a string. */
+  readonly id: number;
+  readonly username: string;
+  readonly name?: string;
+  readonly avatar_url?: string;
+  readonly web_url?: string;
+  /** Present only with `read_user`; GitLab omits it rather than sending null. */
+  readonly email?: string;
+}
+
 interface OidcUserinfoBody {
   readonly sub: string;
   readonly name?: string;
@@ -65,6 +76,20 @@ export async function fetchIdentity(opts: FetchIdentityOptions): Promise<Identit
     throw new AuthError(
       `could not load your ${opts.provider.label} profile (${res.status})`,
     );
+  }
+
+  if (opts.provider.kind === 'gitlab') {
+    const u = (await res.json()) as GitlabUserBody;
+    return {
+      provider: 'gitlab',
+      subject: String(u.id),
+      // A GitLab account can have a blank display name, unlike a GitHub one, so this
+      // falls back rather than rendering an empty heading.
+      displayName: u.name !== undefined && u.name.length > 0 ? u.name : u.username,
+      email: u.email ?? null,
+      avatarUrl: u.avatar_url ?? null,
+      profileUrl: u.web_url ?? null,
+    };
   }
 
   if (opts.provider.kind === 'github') {
