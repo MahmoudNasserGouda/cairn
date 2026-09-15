@@ -103,6 +103,45 @@ important.
   ([ADR-0017](0017-sponsorship-must-not-distort-scores.md) settled the equivalent
   question for sponsorship). They are shown beside the article links and go no further.
 
+## What building it found
+
+**The yield is lower than this ADR assumed, and in the right direction.** Read against a
+real, high-volume account, thirty articles produced these tags:
+
+```
+discuss  jokes  watercooler  meta  community  devjournal
+webdev  architecture  webperf  rails  …
+```
+
+Exactly one — `rails` — survived the taxonomy. The prediction that "the taxonomy already
+refuses them, which is why no new filtering is needed" held, and then some: it also
+refuses `webdev`, `architecture`, `webperf` and `community`, which are arguably real
+interests rather than noise. That is the taxonomy's decision and it is consistent with
+every other source, so nothing was changed for this one — but it means the realistic
+contribution of this source is **one or two interests per profile**, not a handful. The
+ADR called it the weakest of the three; that was right, and this is how weak.
+
+**It could not have shipped honestly without fixing something older.** Interests were the
+one field `forgetSource` did not rebuild, because interests have no provenance by design
+— a union of tag sets with no slot for conflict
+([ADR-0031](0031-profile-v2-provenance.md)). That reasoning covered ranking and said
+nothing about *withdrawal*, so a disconnected GitHub kept its repository topics
+permanently. Nothing made that visible while GitHub also contributed skills, links and
+experience.
+
+Here it would have been unmissable: interests are the **only** thing this source
+contributes, so "Remove dev.to" would have visibly done nothing, against a Sources
+section that promises every source can be taken back out. Fragments now carry the
+interest claim and the profile records which sources named each tag, so a claim can be
+withdrawn without giving interests a precedence they do not need. Two cases a naive
+version gets wrong — two sources naming the same tag, and tags stored before any of this
+existed — are covered in
+[`interests.test.ts`](../../libs/profile/src/interests.test.ts).
+
+This is the second time a Phase 8 source has been worth more for what it exposed than for
+what it contributes. GitLab proved the Worker was a provider limitation rather than a
+design necessity; this one found a removal path that had never worked.
+
 ## Alternatives considered
 
 - **Skip it.** The honest alternative, and close to the right answer. Kept because the

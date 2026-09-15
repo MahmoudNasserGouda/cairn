@@ -35,6 +35,10 @@ export const ALLOWED_CONNECT_ORIGINS: readonly string[] = [
   'https://gitlab.com',
   // Stack Exchange: read anonymously, no key, 300 requests a day per IP (ADR-0035).
   'https://api.stackexchange.com',
+  // dev.to (Forem): public, key-free, one request. The weakest cost/benefit of the
+  // three accepted sources, and ADR-0036 says so — first entry to go if this list ever
+  // needs trimming.
+  'https://dev.to',
 ];
 
 /**

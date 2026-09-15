@@ -177,7 +177,7 @@ describe('the rest of the fragment', () => {
       }),
       DAY,
     );
-    expect(fragment.interests).toContain('rust');
+    expect(fragment.interests?.map((i) => i.tag)).toContain('rust');
     expect(skill(fragment, 'rust')).toBeUndefined();
   });
 

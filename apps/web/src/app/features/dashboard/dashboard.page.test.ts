@@ -15,7 +15,9 @@ import { buildProfile, testRole, testSkill } from '@cairn/profile/testing';
 const PROFILE: UnifiedProfile = buildProfile({
   identities: [{ provider: 'github', displayName: 'Octo' }],
   skills: [testSkill('typescript', 0.9), testSkill('react', 0.6)],
-  interests: ['web'],
+  interests: [
+    { tag: 'web', from: { source: 'cv', confidence: 1, capturedAt: '2026-09-15' } },
+  ],
   experience: [
     testRole(
       'Public GitHub activity',

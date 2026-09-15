@@ -6,7 +6,6 @@
  * than a duplication, and every value can say where it came from.
  */
 import { describe, expect, it } from 'vitest';
-import type { SkillTag } from '@cairn/shared';
 import {
   dismissEntry,
   forgetSource,
@@ -24,6 +23,11 @@ import { provenance, sourced, type ProfileSource } from './provenance';
 
 const YEAR = 2026;
 const ctx = { currentYear: YEAR };
+
+/** Interest claims from one source — interests carry provenance so they can be withdrawn. */
+function interestsFrom(source: ProfileSource, ...tags: string[]) {
+  return tags.map((tag) => ({ tag, from: at(source) }));
+}
 
 function at(source: ProfileSource, day = '2026-09-13', confidence = 1) {
   return provenance(source, day, confidence);
@@ -156,7 +160,7 @@ describe('re-import is idempotent', () => {
       },
     ],
     skills: [skill('python', 0.7, 'cv')],
-    interests: ['web'],
+    interests: [{ tag: 'web', from: at('cv') }],
   };
 
   it('does not duplicate entries when the same source is imported twice', () => {
@@ -294,8 +298,8 @@ describe('derived fields', () => {
   it('unions interests without caring which source supplied them', () => {
     const merged = merge(
       emptyProfile(),
-      { interests: ['web', 'cli'] as SkillTag[] },
-      { interests: ['web', 'devops'] as SkillTag[] },
+      { interests: interestsFrom('github', 'web', 'cli') },
+      { interests: interestsFrom('cv', 'web', 'devops') },
     );
     expect(merged.interests).toEqual(['cli', 'devops', 'web']);
   });
@@ -378,7 +382,7 @@ describe('forgetting a source', () => {
           endYear: 2024,
         }),
       ],
-      interests: ['web'],
+      interests: [{ tag: 'web', from: at('cv') }],
     },
     {
       contact: {

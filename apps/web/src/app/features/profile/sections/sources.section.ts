@@ -7,6 +7,7 @@ import { SignInDialogService } from '../../../core/auth/sign-in-dialog.service';
 import { CvImportComponent } from '../../../core/cv/cv-import.component';
 import { LinkedinImportComponent } from '../../../core/linkedin/linkedin-import.component';
 import { StackexchangeImportComponent } from '../../../core/stackexchange/stackexchange-import.component';
+import { DevtoImportComponent } from '../../../core/devto/devto-import.component';
 import {
   ButtonComponent,
   CardComponent,
@@ -37,6 +38,7 @@ import {
     CvImportComponent,
     LinkedinImportComponent,
     StackexchangeImportComponent,
+    DevtoImportComponent,
   ],
   template: `
     <cn-section
@@ -80,6 +82,7 @@ import {
       <cn-cv-import />
       <cn-linkedin-import />
       <cn-stackexchange-import />
+      <cn-devto-import />
     </div>
   `,
   styles: [
@@ -172,6 +175,13 @@ export class SourcesSectionComponent {
         state: this.connected()
           ? 'Connected. Languages, contributions and pinned repositories.'
           : 'Not connected. It measures your code rather than asking you about it.',
+      },
+      {
+        key: 'devto' as const,
+        name: 'dev.to',
+        state: contributing('devto')
+          ? 'Connected. Interests only — what you write about.'
+          : 'Not connected. Adds interests, never skills.',
       },
       {
         key: 'stackexchange' as const,
