@@ -83,6 +83,10 @@ function makeService(opts: {
         useValue: {
           hasIdentity: (p: string) => signedIn && p === 'github',
           githubToken: signedIn ? 'tok' : null,
+          // Per-provider since GitLab arrived (ADR-0034). GitLab is never connected in
+          // these tests, so its watcher demotes a source that was never there and does
+          // nothing — which is itself worth having covered by every test in this file.
+          tokenFor: (p: string) => (signedIn && p === 'github' ? 'tok' : null),
         },
       },
     ],

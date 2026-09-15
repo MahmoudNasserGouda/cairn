@@ -1,6 +1,6 @@
 import { clamp01, roundTo, toKnownSkills, type SkillTag } from '@cairn/shared';
 import { canonicalizeSkill } from './taxonomy';
-import type { IncomingSkill, ProfileFragment } from './merge';
+import { SKILL_LEVEL_FLOOR, type IncomingSkill, type ProfileFragment } from './merge';
 import type { ExperienceEntry, ProfileLink, ProjectEntry } from './model';
 import { provenance, sourced, type Provenance } from './provenance';
 
@@ -55,8 +55,13 @@ export interface GithubProfileInput {
   };
 }
 
-/** A used language never scores below this, so it still counts toward matches. */
-const LEVEL_FLOOR = 0.3;
+/**
+ * A used language never scores below this, so it still counts toward matches. Shared
+ * with the merge, which rebuilds these levels when a second source also measures
+ * (ADR-0034) — two different floors would make that rebuild visibly change numbers it
+ * is supposed to leave alone.
+ */
+const LEVEL_FLOOR = SKILL_LEVEL_FLOOR;
 
 /**
  * How far to trust GitHub about *who someone is*, as opposed to what they wrote.
@@ -134,6 +139,10 @@ function languageSkills(input: GithubProfileInput, from: Provenance): IncomingSk
   return [...bytes.entries()].map(([tag, count]) => ({
     tag,
     level: roundTo(Math.max(LEVEL_FLOOR, clamp01(count / maxBytes)), 2),
+    // The raw byte count travels with the claim so the merge can add it to another
+    // measured source's volume instead of choosing between two within-account shares
+    // that were never on the same scale (ADR-0034).
+    weight: count,
     // Evidence a user can check, rather than a bare percentage: the share is of
     // their *own* pushed code, which is the only thing GitHub actually measured.
     note:

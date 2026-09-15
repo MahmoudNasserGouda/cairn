@@ -67,7 +67,7 @@ export interface SpokenLanguage {
 }
 
 export type LinkKind =
-  'website' | 'github' | 'linkedin' | 'twitter' | 'mastodon' | 'other';
+  'website' | 'github' | 'gitlab' | 'linkedin' | 'twitter' | 'mastodon' | 'other';
 
 export interface ProfileLink {
   readonly kind: LinkKind;
@@ -87,6 +87,12 @@ export interface SkillEvidence {
   readonly level: number;
   /** Plain-language reason, e.g. "38% of your GitHub language bytes". */
   readonly note?: string;
+  /**
+   * Raw volume behind a measured claim, kept so two measured sources can be combined
+   * on a later merge rather than only at the moment both happen to arrive (ADR-0034).
+   * Absent for sources that assert rather than measure.
+   */
+  readonly weight?: number;
   readonly capturedAt: string;
 }
 
