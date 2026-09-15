@@ -29,7 +29,7 @@ const CTX = { currentYear: 2026 };
 const skill = (
   tag: IncomingSkill['tag'],
   level: number,
-  source: 'github' | 'gitlab' | 'cv' | 'manual',
+  source: 'github' | 'gitlab' | 'cv' | 'manual' | 'stackexchange',
   weight?: number,
 ): IncomingSkill => ({
   tag,
@@ -130,6 +130,37 @@ describe('what combining must not disturb', () => {
     );
     expect(levelOf(profile, 'ruby')?.from.source).toBe('cv');
     expect(levelOf(profile, 'ruby')?.level).toBe(0.7);
+  });
+
+  /**
+   * Not every measured source measures the same thing. Stack Exchange counts
+   * peer-assessed answers ([ADR-0035](../../../docs/adr/0035-stack-exchange-as-evidence-of-expertise.md)),
+   * which is not a volume of code and carries no weight — adding an answer score to a
+   * byte count would be arithmetic on two different units.
+   *
+   * So a weightless source that wins a tag must keep its level. Rebuilding on the
+   * strength of *another* source's weight would hand the tag back to the one that lost,
+   * silently, and the only visible symptom would be a number that looks plausible.
+   */
+  it('leaves a weightless measured winner alone, even beside a weighed source', () => {
+    // Same rung, so confidence decides — which is exactly how ADR-0035 says
+    // peer-assessed depth gets to outrank a byte count without being given a rung of
+    // its own.
+    const byteCount: IncomingSkill = {
+      tag: 'ruby',
+      level: 0.4,
+      weight: 10_000,
+      from: provenance('github', DAY, 0.6),
+    };
+    const peerAssessed: IncomingSkill = {
+      tag: 'ruby',
+      level: 0.95,
+      from: provenance('stackexchange', DAY, 0.9),
+    };
+    const profile = merge({ skills: [byteCount] }, { skills: [peerAssessed] });
+
+    expect(levelOf(profile, 'ruby')?.from.source).toBe('stackexchange');
+    expect(levelOf(profile, 'ruby')?.level).toBe(0.95);
   });
 
   it('is idempotent — re-importing a source does not inflate it', () => {

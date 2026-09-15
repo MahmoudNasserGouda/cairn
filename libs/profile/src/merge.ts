@@ -232,11 +232,19 @@ function combineMeasured(skills: readonly ProfileSkill[]): ProfileSkill[] {
     const weighed = skill.evidence.filter(
       (e) => isMeasured(e.source) && typeof e.weight === 'number',
     );
-    // Every measured-held tag is rebuilt, not only the contested ones. Combining two
+    // Every *weighed-held* tag is rebuilt, not only the contested ones. Combining two
     // accounts' Ruby moves the peak the whole ladder is measured against, so a tag only
     // GitHub weighed would otherwise keep a level computed against a scale that no
     // longer exists — reported as half the user's work when it is now a tenth.
-    if (weighed.length === 0 || !isMeasured(skill.from.source)) return skill;
+    //
+    // The holder's *own* weight is what qualifies it, not merely being measured. Not
+    // every measured source measures the same thing: Stack Exchange counts
+    // peer-assessed answers (ADR-0035), which is not a volume of code and carries no
+    // weight. Rebuilding its level from another source's byte count would be arithmetic
+    // across two different units, and would quietly hand the tag back to the source that
+    // lost it — leaving a plausible-looking number as the only symptom.
+    const holdsWeight = weighed.some((e) => e.source === skill.from.source);
+    if (!holdsWeight || !isMeasured(skill.from.source)) return skill;
 
     const total = totals.get(skill.tag) ?? 0;
     // Deterministic: by weight, then by name, so no tie depends on evidence order.
