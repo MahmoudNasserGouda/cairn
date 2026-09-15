@@ -71,3 +71,7 @@ supersedes it and update the old record's Status line to point at the new one.
 | 0031 | Profile v2: one editable profile with per-field provenance      | Accepted            |
 | 0032 | Design system and information architecture                      | Accepted            |
 | 0033 | The AI capability is frozen behind a flag                       | Accepted            |
+| 0034 | GitLab as a second data connection — the first with no Worker   | Accepted            |
+| 0035 | Stack Exchange as evidence of expertise                         | Accepted            |
+| 0036 | dev.to reads as interests, not as skills                        | Accepted            |
+| 0037 | Declined sources: Bitbucket, and the personal-site URL          | Accepted            |
