@@ -103,6 +103,26 @@ import {
         flex: 1 1 auto;
         min-width: 0;
       }
+      .sources li > button {
+        margin-inline-start: auto;
+      }
+      /* At 375px the row is 294px wide and a provenance tag takes 105-135px depending
+         on its label, so three columns leave the state text about 90px — two words a
+         line. Wrapping instead was worse: whether the tag stayed beside the text
+         depended on how long its label happened to be, so LinkedIn stacked and CV did
+         not, and the list read as broken rather than responsive.
+
+         Stacking every row deliberately is predictable, and matches what the rest of
+         the hub does below 36rem. */
+      @media (max-width: 36rem) {
+        .sources li {
+          flex-direction: column;
+          gap: var(--space-2);
+        }
+        .sources li > button {
+          margin-inline-start: 0;
+        }
+      }
       .name {
         margin: 0;
         font-weight: var(--weight-medium);
@@ -181,14 +201,14 @@ export class SourcesSectionComponent {
         name: 'dev.to',
         state: contributing('devto')
           ? 'Connected. Interests only — what you write about.'
-          : 'Not connected. Adds interests, never skills.',
+          : 'Not connected. Adds interests, never skills — paste your username below.',
       },
       {
         key: 'stackexchange' as const,
         name: 'Stack Exchange',
         state: contributing('stackexchange')
           ? 'Connected. What other developers made of your answers.'
-          : 'Not connected. The only source that is judged by other people.',
+          : 'Not connected. The only source judged by other people — paste your profile below.',
       },
       ...(this.gitlabOffered
         ? [

@@ -28,15 +28,40 @@ pdf.js hands it, LinkedIn contributes a display name, and the UI is 33 lines of 
 CSS. So: **AI is frozen behind a flag, and the next stretch of work deepens the four data
 sources, rebuilds CV reading as a document pipeline, gives the profile per-field
 provenance, and gives the app a design system.** Six ADRs (0028–0033) and a research
-document (`docs/data-sources.md`) were written first. Since then, steps 1–6 have landed:
-**AI is frozen**, **Profile v2** gives every field a provenance and a hand edit outranks
-every import, **GitHub** is one GraphQL request instead of sixteen REST calls, **CV
-reading** is a geometry-first pipeline (`libs/doc-layout` + `libs/cv-parse`) rather than a
-keyword scan over flattened text, and **the LinkedIn archive imports** — which finally
-makes all four sources of item 9 real. What remains of step 5 is the OCR *engine*: the
-`/ocr` sandbox question is settled and `apps/web/public/ocr-spike.html` is on `main` for
-the one browser check that must pass first. Next is step 7, the design system and the
-profile hub — which is also where editing a field by hand becomes reachable.
+document (`docs/data-sources.md`) were written first.
+
+**All eight steps have now landed.** AI is frozen; the profile carries per-field
+provenance and a hand edit outranks every import; GitHub is one GraphQL request instead
+of sixteen REST calls; CV reading is a geometry-first pipeline (`libs/doc-layout` +
+`libs/cv-parse`) rather than a keyword scan over flattened text; the LinkedIn archive
+imports; there is a token layer and a `cn-*` component library, a sidebar shell, and a
+profile hub where every field is editable — which is what finally made `manual`, the
+top of the precedence ladder, reachable at all.
+
+Phase 8 then added three more sources behind their own mini-ADRs (0034–0036), with two
+declined in writing (0037). Two of the three were worth more for what they exposed than
+for what they contribute:
+
+- **GitLab** completes its OAuth exchange in the browser with PKCE, so it is the first
+  provider with **no `cairn-auth` Worker in the path** — the first evidence that the
+  Worker is a provider limitation rather than a design necessity
+  ([ADR-0034](docs/adr/0034-gitlab-as-a-second-data-connection.md)).
+- **Stack Exchange** is the only externally-judged signal in the product: peer-assessed
+  answer scores per tag, read anonymously with no key
+  ([ADR-0035](docs/adr/0035-stack-exchange-as-evidence-of-expertise.md)).
+- **dev.to** contributes interests only — writing about a technology is evidence of
+  interest, not competence — and building it found that `forgetSource` had never removed
+  interests at all, so no source's interests had ever been withdrawable
+  ([ADR-0036](docs/adr/0036-dev-to-as-interests-not-skills.md)).
+
+**One item is still open, and it needs a browser rather than code:** the OCR *engine* for
+scanned PDFs. The `/ocr` sandbox question is settled, two header bugs that stopped it
+loading are fixed ([ADR-0028](docs/adr/0028-ocr-and-document-vision-sandbox.md)), and
+`apps/web/public/ocr-spike.html` is deployed — but the spike has not been re-run since
+the fixes, so item 3 is complete for digital PDFs and unverified for scanned ones. Two
+deployment decisions are also outstanding: a registered GitLab OAuth application (which
+must be **non-confidential**, or it fails with the same error an unknown id gives), and
+the self-hosted variable typeface `--font-sans` still defers to the system stack.
 
 Done:
 
@@ -44,14 +69,16 @@ Done:
   [`docs/ci-cd.md`](docs/ci-cd.md), ADRs 0001–0027.
 - **Monorepo scaffold** — npm workspaces, TS strict, path aliases, ESLint flat config
   with the `libs → apps` import-boundary rule, Prettier, Vitest.
-- **Seventeen `libs/*` implemented** with real logic; **625 passing tests** across
+- **Twenty `libs/*` implemented** with real logic; **864 passing tests** across
   `libs/`, `apps/web` and the `cairn-auth` Worker:
   deterministic matching + scoring, AI-free repository health, issue difficulty, the
   cached GitHub client (dedup + ETag + rate-limit floor), CV parser + skills taxonomy,
   BYOK AI provider abstraction + non-AI fallbacks + prompt-injection fencing,
   client-side portfolio generator + offline Ed25519 license verification, framework-free
-  multi-provider OAuth (`libs/auth`), `libs/targets` (analysis outputs → matching
-  snapshots), and `libs/discovery` (profile → search plan → ranked recommendations).
+  multi-provider OAuth (`libs/auth`, including PKCE), `libs/targets` (analysis outputs →
+  matching snapshots), `libs/discovery` (profile → search plan → ranked recommendations),
+  and the three Phase 8 source readers — `libs/gitlab`, `libs/stackexchange`,
+  `libs/devto`.
 - **`apps/web`** — Angular 20 standalone + zoneless, hash routing, DOMPurify sanitiser
   service, IndexedDB store, dashboard + discover + repositories pages, multi-provider
   sign-in modal, profile page with CV import. Production build ≈ 71 kB transfer initial
@@ -349,11 +376,20 @@ Full list: [`SECURITY.md`](SECURITY.md) §8. Enforced by CI (`check-csp.mjs`,
 4. No secret is committed to the repo. OAuth client secrets live only in the
    `cairn-auth` Worker env.
 5. OAuth is Authorization Code + single-use `state` + exact redirect-URI allowlist.
-   **No provider we use offers workable public-client PKCE**, so every `code → token`
-   step runs in the `cairn-auth` Worker. The Worker **requires** an `Origin` on its
-   (comma-separated) `ALLOWED_ORIGIN` list and validates `redirect_uri` against the
-   same list — a *missing* `Origin` is a 403, not a pass. CORS constrains only
-   browsers; this is an origin allowlist, and the distinction is load-bearing.
+   For providers that demand a client secret — GitHub, LinkedIn, Google — the
+   `code → token` step runs in the `cairn-auth` Worker. The Worker **requires** an
+   `Origin` on its (comma-separated) `ALLOWED_ORIGIN` list and validates `redirect_uri`
+   against the same list — a *missing* `Origin` is a 403, not a pass. CORS constrains
+   only browsers; this is an origin allowlist, and the distinction is load-bearing.
+
+   **PKCE where the provider allows it, and then no Worker at all.** GitLab advertises
+   `S256` for public clients, so its exchange happens in the browser with no secret
+   anywhere ([ADR-0034](docs/adr/0034-gitlab-as-a-second-data-connection.md)). This
+   line used to say no provider offered workable PKCE; that was true when written, and
+   the correction matters more than the fact — the Worker is a provider limitation, not
+   a design necessity. A `pkce` provider must never fall back to a plain code exchange:
+   the provider would accept it, which is what makes the fallback dangerous rather than
+   merely broken.
 6. New runtime dependencies and new outbound origins need explicit review; origins go in
    `libs/shared/src/config.ts` **and** `apps/web/public/_headers`.
 7. The core product stays functional and safe with no backend and no AI key.
