@@ -2,7 +2,7 @@ import type { ExperienceLevel, SkillTag } from '@cairn/shared';
 import type { ProfileSource, Provenance, Sourced } from './provenance';
 import { provenance, sourced } from './provenance';
 
-export type IdentityProvider = 'github' | 'linkedin' | 'google';
+export type IdentityProvider = 'github' | 'gitlab' | 'linkedin' | 'google';
 
 export interface LinkedIdentity {
   readonly provider: IdentityProvider;
@@ -154,7 +154,13 @@ export interface UnifiedProfile {
   readonly dismissed: readonly string[];
 }
 
-export const PROFILE_SCHEMA_VERSION = 2;
+/**
+ * Bumped to 3 in Phase 8, when `ProfileSource` widened to carry GitLab, Stack Exchange
+ * and dev.to (ADR-0034/0035/0036). No stored *shape* changed — a v2 profile is a valid
+ * v3 one — but a v3 profile can hold sources a v2 build would not recognise, so the
+ * version is what stops an older build from half-reading a newer profile.
+ */
+export const PROFILE_SCHEMA_VERSION = 3;
 
 export function emptyProfile(): UnifiedProfile {
   return {

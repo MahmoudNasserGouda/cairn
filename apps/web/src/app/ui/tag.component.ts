@@ -1,13 +1,24 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import type { ProfileSource } from '@cairn/profile';
 
-/** The four sources a profile field can come from (ADR-0031). */
-export type TagSource = 'github' | 'linkedin' | 'cv' | 'manual';
+/**
+ * The sources a profile field can come from (ADR-0031).
+ *
+ * Derived from `ProfileSource` rather than re-declared. It was a hand-written copy of
+ * the same union, which is one more place to forget — Phase 8 added three sources, and
+ * a copy would have gone on rendering them as unlabelled chips with no colour and no
+ * type error to say so.
+ */
+export type TagSource = ProfileSource;
 export type TagTone = 'neutral' | 'accent' | 'good' | 'warn' | 'bad';
 
 /** How each source is written when it appears as a label. */
 const SOURCE_LABEL: Readonly<Record<TagSource, string>> = {
   github: 'GitHub',
+  gitlab: 'GitLab',
   linkedin: 'LinkedIn',
+  stackexchange: 'Stack Exchange',
+  devto: 'dev.to',
   cv: 'CV',
   manual: 'you',
 };
@@ -77,6 +88,15 @@ const SOURCE_LABEL: Readonly<Record<TagSource, string>> = {
       }
       :host(.src-manual) {
         --chip: var(--src-manual);
+      }
+      :host(.src-gitlab) {
+        --chip: var(--src-gitlab);
+      }
+      :host(.src-stackexchange) {
+        --chip: var(--src-stackexchange);
+      }
+      :host(.src-devto) {
+        --chip: var(--src-devto);
       }
 
       :host(.tone-accent) {

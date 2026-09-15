@@ -7,7 +7,19 @@
  * safely" and "edit anything" compatible instead of mutually exclusive.
  */
 
-export type ProfileSource = 'github' | 'linkedin' | 'cv' | 'manual';
+/**
+ * The source vocabulary is defined once, in `libs/shared`, beside the skills taxonomy —
+ * it had been hand-written in three places and Phase 8 added three members. Re-exported
+ * here because `provenance` is where callers expect to find it, and because this file
+ * owns the thing that vocabulary is *for*: the precedence below.
+ */
+export {
+  MEASURED_SOURCES,
+  PROFILE_SOURCES,
+  REPORTED_SOURCES,
+  type ProfileSource,
+} from '@cairn/shared';
+import type { ProfileSource } from '@cairn/shared';
 
 export interface Provenance {
   readonly source: ProfileSource;
@@ -44,24 +56,43 @@ export interface Sourced<T> extends Claim<T> {
 }
 
 /**
- * Precedence, highest first: **manual > linkedin > cv > github**.
+ * Precedence, as a ladder of **tiers**: manual > linkedin > cv > everything measured.
  *
  * `manual` is absolute because it is the only source that is *stated* rather than
  * *inferred* — everything else is a guess, however good. LinkedIn's archive and a CV
  * are both the user's own account of their career, but the archive is structured data
- * and the CV is parsed prose, so the archive is trusted first on the fields both
- * carry. GitHub is last **on biography**, because everything it offers there is
- * inference from account age and repository metadata.
+ * and the CV is parsed prose, so the archive is trusted first on the fields both carry.
  *
- * GitHub being last does not make it weak. It is the *only* source for the things it
- * observes directly — language bytes, contribution history, repositories contributed
- * to — and no other source claims those, so precedence never comes up for them.
+ * ## Why the bottom rung is shared
+ *
+ * It used to hold one source. Phase 8 added three more that observe rather than ask
+ * (ADR-0034, ADR-0035, ADR-0036), and that raised a question the four-source ladder
+ * never had to answer: **what happens when two sources both measure?** GitHub counts
+ * pushed bytes and so does GitLab. Neither has a claim to outrank the other, and
+ * inventing an order between them would be a number with no argument behind it.
+ *
+ * So they share a rung, and `compareProvenance` falls through to **confidence** — which
+ * each source sets for itself. That is where "peer-assessed depth is a stronger claim
+ * than raw volume" gets said, and it is a claim a source can make about its own data
+ * without asserting anything about a different tier.
+ *
+ * It is also what keeps [ADR-0035](../../../docs/adr/0035-stack-exchange-as-evidence-of-expertise.md)
+ * honest. That ADR recorded the Stack-Exchange-versus-CV question as **undecided**, and
+ * a shared measured rung does not decide it: a CV still wins, because nothing has
+ * established that it should not.
+ *
+ * Being on the bottom rung does not make a source weak. Each is the *only* source for
+ * what it observes — language bytes, contribution history, answer scores — and no other
+ * source claims those, so precedence never comes up for them at all.
  */
 export const SOURCE_PRECEDENCE: Readonly<Record<ProfileSource, number>> = {
   manual: 3,
   linkedin: 2,
   cv: 1,
   github: 0,
+  gitlab: 0,
+  stackexchange: 0,
+  devto: 0,
 };
 
 export function precedenceOf(source: ProfileSource): number {

@@ -11,7 +11,8 @@
 import { describe, expect, it } from 'vitest';
 import { parsedCvToFragment, readStoredProfile, type LegacyParsedCv } from './migrate';
 import { mergeProfile } from './merge';
-import { emptyProfile } from './model';
+import { emptyProfile, PROFILE_SCHEMA_VERSION } from './model';
+import { buildProfile, testSkill } from './__fixtures__/build';
 
 const ctx = { currentYear: 2026 };
 const DAY = '2026-09-13';
@@ -118,6 +119,35 @@ describe('readStoredProfile', () => {
     ['a v1 profile that never existed on disk', { schemaVersion: 1, skills: [] }],
   ])('returns null for %s', (_label, value) => {
     expect(readStoredProfile(value)).toBeNull();
+  });
+
+  /**
+   * Phase 8 widened `ProfileSource` and bumped the schema (ADR-0034/0035/0036). Nothing
+   * about a stored profile's *shape* changed — a v2 profile is a valid v3 one — so the
+   * migration is a version stamp and nothing else.
+   *
+   * It still has to exist. `readStoredProfile` accepts only the current version, so
+   * without this every profile written before Phase 8 would read as unreadable and the
+   * user would be told their profile could not be loaded. A no-op migration is still a
+   * migration.
+   */
+  it('upgrades a profile written before the new sources existed', () => {
+    const v2 = {
+      ...buildProfile({ skills: [testSkill('typescript', 0.9)] }),
+      schemaVersion: 2,
+    };
+
+    const loaded = readStoredProfile(v2);
+
+    expect(loaded).not.toBeNull();
+    expect(loaded?.schemaVersion).toBe(PROFILE_SCHEMA_VERSION);
+    expect(loaded?.skills[0]?.tag).toBe('typescript');
+  });
+
+  it('refuses a version from the future rather than guessing at it', () => {
+    const later = { ...buildProfile({}), schemaVersion: PROFILE_SCHEMA_VERSION + 1 };
+
+    expect(readStoredProfile(later)).toBeNull();
   });
 
   it('rejects a v2 profile whose collections are the wrong type', () => {

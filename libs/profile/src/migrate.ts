@@ -92,7 +92,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 export function readStoredProfile(value: unknown): UnifiedProfile | null {
   if (!isRecord(value)) return null;
-  if (value['schemaVersion'] !== PROFILE_SCHEMA_VERSION) return null;
+
+  /**
+   * Versions this build knows how to read, oldest first.
+   *
+   * v2 → v3 (Phase 8) changed no stored shape at all: `ProfileSource` widened to carry
+   * GitLab, Stack Exchange and dev.to, and every v2 profile is already a valid v3 one.
+   * The upgrade is a version stamp — but skipping it was never an option, because this
+   * function accepts only the current version and every profile written before Phase 8
+   * would otherwise have read as unreadable.
+   *
+   * A version *above* the current one is still refused. An older build cannot know what
+   * a newer one added, and half-reading a profile is worse than declining it.
+   */
+  const stored = value['schemaVersion'];
+  if (stored !== PROFILE_SCHEMA_VERSION && stored !== 2) return null;
 
   const collections = [
     'identities',
@@ -112,5 +126,6 @@ export function readStoredProfile(value: unknown): UnifiedProfile | null {
   if (!isRecord(value['experienceLevel'])) return null;
   if (typeof value['totalYears'] !== 'number') return null;
 
-  return value as unknown as UnifiedProfile;
+  // Stamped rather than returned as-is, so what the caller persists next is current.
+  return { ...value, schemaVersion: PROFILE_SCHEMA_VERSION } as unknown as UnifiedProfile;
 }

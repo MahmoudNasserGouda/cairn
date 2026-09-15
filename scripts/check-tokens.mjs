@@ -63,6 +63,9 @@ const REQUIRED = [
   '--src-linkedin',
   '--src-cv',
   '--src-manual',
+  '--src-gitlab',
+  '--src-stackexchange',
+  '--src-devto',
   '--font-sans',
   '--text-xs',
   '--text-base',
@@ -101,6 +104,9 @@ const MUST_DIFFER_IN_DARK = [
   '--bad',
   '--src-linkedin',
   '--src-cv',
+  '--src-gitlab',
+  '--src-stackexchange',
+  '--src-devto',
 ];
 
 function walk(dir) {

@@ -99,6 +99,12 @@
   --src-linkedin: #0b6e6e; /* 6.1:1 */
   --src-cv: #6d3baf; /* 7.3:1 */
   --src-github: var(--ink-600); /* 6.5:1 */
+  /* Phase 8 (ADR-0034/0035/0036). Deliberately four distinct hues rather than each
+     service's brand colour: GitLab and Stack Overflow are both orange, and two sources
+     a user cannot tell apart is worse than neither matching its logo. */
+  --src-gitlab: #9a4a12; /* 6.3:1 */
+  --src-stackexchange: #a32359; /* 7.1:1 */
+  --src-devto: #3f5b73; /* 7.1:1 */
 
   /* ---------------------------------------------------------------------
    * Type. One stack today; see `--font-sans` below.
@@ -183,6 +189,9 @@
     --src-linkedin: #4fd1c5; /* 9.3:1 */
     --src-cv: #c4a6f5; /* 8.3:1 */
     --src-github: var(--fg-muted);
+    --src-gitlab: #f0a06a; /* 8.2:1 */
+    --src-stackexchange: #f49ac1; /* 8.5:1 */
+    --src-devto: #9dbdd6; /* 8.8:1 */
 
     /* Shadow reads as dirt on a dark ground; the border does the lifting instead. */
     --shadow-sm: none;
