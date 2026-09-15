@@ -145,11 +145,14 @@ export class EditableTextComponent {
   protected readonly draft = signal('');
 
   protected readonly sourceHint = computed(() => (from: ProfileSource) => {
-    const where = {
+    const where: Readonly<Record<ProfileSource, string>> = {
       manual: 'You typed this. No import will overwrite it.',
       linkedin: 'From your LinkedIn archive.',
       cv: 'Read from your CV.',
       github: 'Inferred from your GitHub account.',
+      gitlab: 'Inferred from your GitLab account.',
+      stackexchange: 'Measured from your Stack Exchange answers.',
+      devto: 'From what you have published on dev.to.',
     };
     return where[from];
   })();

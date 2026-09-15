@@ -12,6 +12,7 @@ import {
   readStoredProfile,
   type LinkedinArchiveInput,
   type ProfileEdit,
+  type ProfileSource,
   type ParsedCv,
   type ProfileFragment,
   type UnifiedProfile,
@@ -172,7 +173,7 @@ export class ProfileService {
     await this.persist(next);
   }
 
-  private async forget(source: 'github' | 'cv' | 'linkedin'): Promise<void> {
+  private async forget(source: ProfileSource): Promise<void> {
     await this.restored;
     const current = this._profile();
     if (!current || !hasSource(current, source)) {
