@@ -33,6 +33,8 @@ export const ALLOWED_CONNECT_ORIGINS: readonly string[] = [
   // GitLab: authorize, token exchange and every API read all live on this one origin
   // (ADR-0034). No Worker route accompanies it, which is the point.
   'https://gitlab.com',
+  // Stack Exchange: read anonymously, no key, 300 requests a day per IP (ADR-0035).
+  'https://api.stackexchange.com',
 ];
 
 /**

@@ -116,17 +116,58 @@ does not ship** — attribution is not a nicety we get to weigh against layout.
 
 ## Open questions, recorded rather than guessed
 
-- **Does it outrank a CV?** A CV is a stated claim; this is a measured one. That argues
-  for placing it above `cv`. Against: a CV describes professional work, while Stack
-  Exchange rewards the kind of problem that fits in a question box, and those are not the
-  same competence. Undecided, and it needs a test over real shapes before it needs a
-  number.
-- **How does a score become a level in [0, 1]?** `answer_score` is unbounded and its
-  distribution is extremely long-tailed, so any linear mapping makes almost everyone a
-  beginner. A rank-based or logarithmic mapping is likely right. Whatever is chosen must
-  be explainable in one sentence, per
-  [ADR-0007](0007-deterministic-explainable-matching-engine.md) — a number no one can
-  interrogate is indistinguishable from one we made up.
+- **Does it outrank a CV?** **Still no, and still undecided** — which is the point of
+  recording it. The tier model ([ADR-0034](0034-gitlab-as-a-second-data-connection.md))
+  puts every measured source below `cv`, so the current answer is "no" by inheritance
+  rather than by a decision taken here. Nothing has established that it should, so
+  nothing was changed to make it.
+
+  What **was** settled is the narrower question this ADR implied without asking: does it
+  outrank a *byte count*? **Yes, when it is substantial.** A byte count says what someone
+  wrote, not how well — it is a proxy, and a proxy should not carry maximum confidence.
+  So `github` and `gitlab` language levels now carry `MEASURED_VOLUME_CONFIDENCE` (0.7)
+  rather than 1, and a tag with roughly thirty points of peer-assessed answers clears it.
+  Neither source gets a rung of its own: that would assert an order between two kinds of
+  measurement, where the confidence tiebreak *within* the measured tier says the same
+  thing without the assertion.
+
+- **How does a score become a level in [0, 1]?** **Answered 2026-09-15**, by splitting
+  the question in two — which is what made both halves explainable in one sentence each,
+  as [ADR-0007](0007-deterministic-explainable-matching-engine.md) requires.
+
+  - **Level: how this tag ranks among your own answers.** `score / maxScore` across the
+    person's own tags — the same shape GitHub's `bytes / maxBytes` already has. The
+    objection recorded above was against an *absolute* scale, and it was right: mapped
+    against the site, a strong working developer sits indistinguishably close to zero
+    beside a 269,885.
+  - **Confidence: how much peer-assessed evidence is behind it**, logarithmic, reaching
+    its ceiling near a hundred points. Logarithmic because the interesting differences
+    are at the bottom — 5 points against 50 separates "asked once" from "relied on",
+    while 5,000 against 50,000 separates two people who are both plainly expert.
+
+  Splitting them is what stops one upvoted answer becoming a `1.0` that outranks a decade
+  of pushed code: it ranks first among that person's tags, and says so with a confidence
+  of 0.2.
+
+## What building it changed
+
+- **No weight, and therefore no combining.** ADR-0034 gave measured claims a `weight` so
+  two of them could be added. An answer score is not a volume of code, so this source
+  emits none — adding the two would be arithmetic across different units. That in turn
+  exposed a latent bug in the combining pass, which rebuilt the level of *any* tag a
+  measured source held: a tag Stack Exchange won would have been silently rebuilt from
+  GitHub's byte count, handing it back to the source that lost. Fixed before this source
+  existed to trigger it.
+- **Aliased tags collided, and only a real profile showed it.** `c#` and `.net` both
+  canonicalise to `c#`, and the top C# answerer carries 269,885 on one and 93,603 on the
+  other. Emitting one claim per raw tag meant the second replaced the first, so the
+  profile reported the smaller number — and looked entirely plausible doing it. The
+  strongest tag wins now, rather than the sum, because the same answer usually carries
+  both and adding them would count it twice. Found by reading a live profile in a
+  browser; every fixture until then used tags that happened not to overlap.
+- **Two requests per import, not one.** The tags endpoint carries neither the display
+  name nor the profile URL, and attribution is a condition of shipping rather than a
+  label. Against 300 a day, two is not the constraint.
 
 ## Alternatives considered
 

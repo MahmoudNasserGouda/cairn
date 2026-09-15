@@ -33,6 +33,7 @@ export default defineConfig({
       '@cairn/auth': r('./libs/auth/src/index.ts'),
       '@cairn/github': r('./libs/github/src/index.ts'),
       '@cairn/gitlab': r('./libs/gitlab/src/index.ts'),
+      '@cairn/stackexchange': r('./libs/stackexchange/src/index.ts'),
       // Before the bare specifier, or the prefix match would swallow it.
       '@cairn/profile/testing': r('./libs/profile/src/__fixtures__/build.ts'),
       '@cairn/profile': r('./libs/profile/src/index.ts'),

@@ -1,6 +1,11 @@
 import { clamp01, roundTo, toKnownSkills, type SkillTag } from '@cairn/shared';
 import { canonicalizeSkill } from './taxonomy';
-import { SKILL_LEVEL_FLOOR, type IncomingSkill, type ProfileFragment } from './merge';
+import {
+  MEASURED_VOLUME_CONFIDENCE,
+  SKILL_LEVEL_FLOOR,
+  type IncomingSkill,
+  type ProfileFragment,
+} from './merge';
 import type { ProfileLink, ProjectEntry } from './model';
 import { provenance, sourced, type Provenance } from './provenance';
 
@@ -59,6 +64,8 @@ const PROJECT_ENTRIES = 6;
  * which is the exact failure this function exists to prevent.
  */
 function languageSkills(input: GitlabProfileInput, from: Provenance): IncomingSkill[] {
+  // Same reasoning as GitHub's: counted code is a proxy, not a certainty.
+  const counted = provenance('gitlab', from.capturedAt, MEASURED_VOLUME_CONFIDENCE);
   const weighed = new Map<SkillTag, number>();
   const unweighed = new Map<SkillTag, number>();
 
@@ -89,7 +96,7 @@ function languageSkills(input: GitlabProfileInput, from: Provenance): IncomingSk
           ? `about ${Math.round((weight / total) * 100)}% of the code in your GitLab projects`
           : 'used in your GitLab projects',
       weight: Math.round(weight),
-      from,
+      from: counted,
     });
   }
 
@@ -104,7 +111,7 @@ function languageSkills(input: GitlabProfileInput, from: Provenance): IncomingSk
         projects === 1
           ? 'used in a GitLab project we cannot size'
           : `used in ${projects} GitLab projects we cannot size`,
-      from,
+      from: counted,
     });
   }
 

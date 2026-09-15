@@ -7,5 +7,6 @@ export * from './migrate';
 export * from './cv';
 export * from './github';
 export * from './gitlab';
+export * from './stackexchange';
 export * from './linkedin';
 export * from './readiness';
