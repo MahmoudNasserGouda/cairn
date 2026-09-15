@@ -6,6 +6,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { SignInDialogService } from '../../../core/auth/sign-in-dialog.service';
 import { CvImportComponent } from '../../../core/cv/cv-import.component';
 import { LinkedinImportComponent } from '../../../core/linkedin/linkedin-import.component';
+import { StackexchangeImportComponent } from '../../../core/stackexchange/stackexchange-import.component';
 import {
   ButtonComponent,
   CardComponent,
@@ -35,6 +36,7 @@ import {
     TagComponent,
     CvImportComponent,
     LinkedinImportComponent,
+    StackexchangeImportComponent,
   ],
   template: `
     <cn-section
@@ -77,6 +79,7 @@ import {
     <div class="importers">
       <cn-cv-import />
       <cn-linkedin-import />
+      <cn-stackexchange-import />
     </div>
   `,
   styles: [
@@ -169,6 +172,13 @@ export class SourcesSectionComponent {
         state: this.connected()
           ? 'Connected. Languages, contributions and pinned repositories.'
           : 'Not connected. It measures your code rather than asking you about it.',
+      },
+      {
+        key: 'stackexchange' as const,
+        name: 'Stack Exchange',
+        state: contributing('stackexchange')
+          ? 'Connected. What other developers made of your answers.'
+          : 'Not connected. The only source that is judged by other people.',
       },
       ...(this.gitlabOffered
         ? [

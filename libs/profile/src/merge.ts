@@ -188,6 +188,22 @@ function mergeSkills(
 export const SKILL_LEVEL_FLOOR = 0.3;
 
 /**
+ * Confidence carried by a language level derived from counting code — GitHub's bytes,
+ * GitLab's share of a repository.
+ *
+ * Below 1 deliberately, and this is the number that makes the measured tier's tiebreak
+ * mean something. **A byte count says what someone wrote, not how well.** It is a proxy,
+ * and a proxy should not carry certainty — which is what 1 would say, leaving no room
+ * for a source that measures the same underlying thing better to ever be preferred.
+ *
+ * In practice it is the threshold Stack Exchange has to clear: a tag with roughly thirty
+ * points of peer-assessed answers outranks a byte count, and a thinner one stays as
+ * evidence (ADR-0035). Nothing else changes, because two volume-counting sources both
+ * carry this value and therefore still tie — which is what `combineMeasured` is for.
+ */
+export const MEASURED_VOLUME_CONFIDENCE = 0.7;
+
+/**
  * Recompute levels for tags that **more than one measured source** weighed (ADR-0034).
  *
  * Every measured source normalises within its own account: GitHub divides a language's

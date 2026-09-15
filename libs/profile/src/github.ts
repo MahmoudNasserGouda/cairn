@@ -1,6 +1,11 @@
 import { clamp01, roundTo, toKnownSkills, type SkillTag } from '@cairn/shared';
 import { canonicalizeSkill } from './taxonomy';
-import { SKILL_LEVEL_FLOOR, type IncomingSkill, type ProfileFragment } from './merge';
+import {
+  MEASURED_VOLUME_CONFIDENCE,
+  SKILL_LEVEL_FLOOR,
+  type IncomingSkill,
+  type ProfileFragment,
+} from './merge';
 import type { ExperienceEntry, ProfileLink, ProjectEntry } from './model';
 import { provenance, sourced, type Provenance } from './provenance';
 
@@ -136,6 +141,8 @@ function languageSkills(input: GithubProfileInput, from: Provenance): IncomingSk
   const total = [...bytes.values()].reduce((sum, n) => sum + n, 0);
   const maxBytes = Math.max(1, ...bytes.values());
 
+  const counted = provenance('github', from.capturedAt, MEASURED_VOLUME_CONFIDENCE);
+
   return [...bytes.entries()].map(([tag, count]) => ({
     tag,
     level: roundTo(Math.max(LEVEL_FLOOR, clamp01(count / maxBytes)), 2),
@@ -149,7 +156,10 @@ function languageSkills(input: GithubProfileInput, from: Provenance): IncomingSk
       total > 0
         ? `${Math.round((count / total) * 100)}% of your pushed code`
         : 'used in your repositories',
-    from,
+    // Lower than the rest of GitHub's measured claims: a byte count is a proxy for
+    // skill, and leaving it at certainty would mean no better measurement of the same
+    // thing could ever be preferred (ADR-0035).
+    from: counted,
   }));
 }
 

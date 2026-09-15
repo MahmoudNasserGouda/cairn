@@ -67,7 +67,14 @@ export interface SpokenLanguage {
 }
 
 export type LinkKind =
-  'website' | 'github' | 'gitlab' | 'linkedin' | 'twitter' | 'mastodon' | 'other';
+  | 'website'
+  | 'github'
+  | 'gitlab'
+  | 'stackexchange'
+  | 'linkedin'
+  | 'twitter'
+  | 'mastodon'
+  | 'other';
 
 export interface ProfileLink {
   readonly kind: LinkKind;
