@@ -104,11 +104,11 @@ document.addEventListener('securitypolicyviolation', (event) => {
  */
 async function showServedHeaders() {
   try {
-    const response = await fetch('ocr/index.html', { cache: 'no-store' });
+    const response = await fetch('ocr/', { cache: 'no-store' });
     const xfo = response.headers.get('x-frame-options');
     const csp = response.headers.get('content-security-policy');
 
-    note(`GET ocr/index.html → ${response.status}`);
+    note(`GET ocr/ → ${response.status}`);
     note(
       `X-Frame-Options: ${xfo ?? '(none)'}`,
       xfo && xfo.toUpperCase() === 'DENY' ? 'no' : 'ok',

@@ -13,6 +13,9 @@ export default tseslint.config(
       'node_modules/**',
       '.claude/**',
       'apps/web/.angular/**',
+      // `wrangler dev` scratch — the only way to exercise the real `_headers` locally
+      // (ADR-0028), and it writes generated middleware into the workspace.
+      'apps/web/.wrangler/**',
       'apps/extension/dist/**',
       // Static assets, shipped to the browser byte for byte. They are not part of any
       // tsconfig, so the typed rules cannot parse them — and the CSP guard, not the
