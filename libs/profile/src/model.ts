@@ -71,6 +71,7 @@ export type LinkKind =
   | 'github'
   | 'gitlab'
   | 'stackexchange'
+  | 'devto'
   | 'linkedin'
   | 'twitter'
   | 'mastodon'
