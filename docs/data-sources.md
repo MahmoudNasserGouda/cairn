@@ -263,24 +263,43 @@ Data is comparable to GitHub's: projects, languages, merge requests, events, gro
 Audience overlap with GitHub is high but not total, and GitLab is common inside
 employers' internal estates.
 
+**Verified 2026-09-15**: `/.well-known/openid-configuration` returns
+`code_challenge_methods_supported: ["plain", "S256"]`, and `/api/v4/projects/:id`,
+`/languages` and `/groups/:id/projects` all answer with CORS anonymously. Languages come
+back as **normalised percentages** rather than GitHub's raw byte counts. Accepted in
+[ADR-0034](adr/0034-gitlab-as-a-second-data-connection.md).
+
 ### Bitbucket
 
-REST 2.0 with OAuth 2.0. Weaker language data than either GitHub or GitLab, and a smaller
-share of open-source work. **Low value; last in line.**
+REST 2.0 with OAuth 2.0. **Verified 2026-09-15**: `api.bitbucket.org` is CORS-enabled and
+readable anonymously, and `auth.atlassian.com` advertises `S256` — so an earlier claim
+here that it would need the Worker was wrong and is withdrawn. It is declined anyway, on
+value: it reports one primary language per repository where GitHub and GitLab give a
+breakdown, and its remaining share sits in private estates Rujoom cannot read.
+**Declined in [ADR-0037](adr/0037-declined-sources.md).**
 
 ### Stack Exchange / Stack Overflow
 
 `api.stackexchange.com` returns reputation, top tags by score, badges and answer counts —
 a direct, independent signal of *what someone actually knows*, which is exactly the gap
-the skills taxonomy struggles with. Key-free access exists at a reduced daily quota.
+the skills taxonomy struggles with.
 
-**Unverified: CORS headers and the anonymous quota have not been probed.** Both must be
-checked from a running browser before this is planned, per ADR-0026.
+**Verified 2026-09-15**, from a real browser on a foreign origin: CORS present
+(`response.type === "cors"`), **no key at all**, anonymous quota **300 requests/day per
+IP**. `/2.3/users/{id}/top-answer-tags` returns `tag_name`, `answer_count`,
+`answer_score`, `question_count`, `question_score` — peer-assessed depth, per tag.
+Accepted in [ADR-0035](adr/0035-stack-exchange-as-evidence-of-expertise.md), with
+attribution (CC BY-SA) as a shipping condition.
 
 ### dev.to / Forem
 
 `dev.to/api/articles?username=…` lists published articles — evidence of communication
-skill and topic interest. Public, no key for reads. **Unverified: CORS.**
+and topic interest, not of competence.
+
+**Verified 2026-09-15**: CORS present, key-free, the `username` filter works anonymously,
+and `tag_list` arrives as a plain array. Accepted in
+[ADR-0036](adr/0036-dev-to-as-interests-not-skills.md) — mapped to `interests` **only**,
+never to skills.
 
 ### Personal site / portfolio URL
 
@@ -290,6 +309,8 @@ contain "anything the user types" without abandoning
 [SECURITY.md non-negotiable 6](../SECURITY.md). Two honest paths exist — the browser
 extension's `activeTab` capture (the pattern ADR-0026 already sanctions), or the user
 pasting the *text* rather than the URL. Neither is a fetch.
+**Declined in [ADR-0037](adr/0037-declined-sources.md)**, as a boundary rather than a
+backlog item.
 
 ### Job boards
 
@@ -310,11 +331,11 @@ one mini-ADR per source, none authorised yet.
 | CV: OCR | worldwide | none | no, but needs a CSP-isolated sandbox | **build, behind ADR-0028** |
 | Manual entry | worldwide | none | no | **build — and it outranks the rest** |
 | LinkedIn DMA API | EEA + CH only | OAuth + LinkedIn review | Worker | documented, not built |
-| GitLab | worldwide | OAuth **PKCE, no Worker** | **no** | deferred — best of the extras |
-| Stack Exchange | worldwide | key-free (quota) | unknown (CORS) | deferred, unverified |
-| dev.to | worldwide | none | unknown (CORS) | deferred, unverified |
-| Bitbucket | worldwide | OAuth | Worker | deferred, low value |
-| Personal site URL | — | — | — | not fetchable; extension capture or paste-the-text |
+| GitLab | worldwide | OAuth **PKCE, no Worker** — verified | **no** | **accepted — ADR-0034** |
+| Stack Exchange | worldwide | key-free, 300/day per IP | no — CORS verified | **accepted — ADR-0035** |
+| dev.to | worldwide | none | no — CORS verified | **accepted — ADR-0036**, interests only |
+| Bitbucket | worldwide | anonymous reads work | no — CORS verified | **declined — ADR-0037**, on value |
+| Personal site URL | — | — | — | **declined — ADR-0037**; paste the text or capture it |
 
 ## References
 
