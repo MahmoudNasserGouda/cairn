@@ -33,11 +33,19 @@ if (!existsSync(HEADERS)) {
   for (const raw of headers.split('\n')) {
     if (raw.trim() === '' || raw.trimStart().startsWith('#')) continue;
     if (!/^\s/.test(raw)) {
-      current = { path: raw.trim(), csp: null, headers: new Map() };
+      current = { path: raw.trim(), csp: null, headers: new Map(), unset: new Set() };
       blocks.push(current);
       continue;
     }
     if (!current) continue;
+    // `! Header-Name` removes a header this path would otherwise inherit. It is the
+    // only way a block can stop `/*` from also applying — see the accumulation note
+    // below.
+    const unset = /^\s*!\s*([A-Za-z0-9-]+)\s*$/.exec(raw);
+    if (unset) {
+      current.unset.add(unset[1].toLowerCase());
+      continue;
+    }
     const at = raw.indexOf(':');
     if (at > 0) {
       current.headers.set(
@@ -84,27 +92,45 @@ if (!existsSync(HEADERS)) {
     }
 
     /**
-     * The sandbox has to be *frameable*, and one header quietly decides that.
+     * The sandbox has to be *frameable*, and this is where that is decided.
      *
-     * Cloudflare applies **every** matching rule rather than the most specific one, so
-     * `/*` matches `/ocr/index.html` too and a block only overrides the headers it
-     * names. `/*` sets `X-Frame-Options: DENY`, which forbids framing from anywhere —
-     * same-origin included — so unless this block overrides it, the sandbox document
-     * cannot load and the whole path is dead.
+     * Cloudflare **appends**; it does not override. `/*` matches `/ocr/*` too, and a
+     * block that names the same header does not replace the inherited value — both are
+     * sent. Verified 2026-09-15 by serving the real build through `wrangler dev`:
+     * every `/ocr/*` response carried **two** `Content-Security-Policy` headers and
+     * **two** `X-Frame-Options` values.
      *
-     * That shipped, and the 2026-09-14 spike in a real browser reported an empty frame
-     * and a silent parent. It reads exactly like "WebAssembly is not available in an
-     * opaque origin", which would have sunk ADR-0028's whole approach, and it was a
-     * header. This guard exists so that cannot be discovered by a person again.
+     * Both matter, and for different reasons:
+     *
+     * - Two CSPs are enforced *cumulatively* — a resource must satisfy every policy —
+     *   so the application's `script-src 'self'` intersects with the sandbox's and
+     *   removes `'wasm-unsafe-eval'` again, and `frame-ancestors 'none'` intersects to
+     *   forbid framing outright.
+     * - Two `X-Frame-Options` values are a conflict, which Chromium resolves as DENY.
+     *
+     * The only fix is to **unset** the inherited headers with `!` before setting the
+     * block's own. An earlier version of this guard modelled the block's header as
+     * replacing the inherited one (`own ?? inherited`), which is why a configuration
+     * that sent two CSPs passed it — and why the spike kept reporting an empty frame
+     * that read exactly like "WebAssembly is unavailable in an opaque origin".
      */
-    const inherited = blocks.find((b) => b.path === '/*')?.headers.get('x-frame-options');
+    for (const name of ['content-security-policy', 'x-frame-options']) {
+      const inheritedFrom = blocks.find((b) => b.path === '/*' && b.headers.has(name));
+      if (inheritedFrom && !block.unset.has(name)) {
+        problems.push(
+          `${path} inherits ${name} from /* and does not unset it. Cloudflare appends ` +
+            `rather than overrides, so both values are sent: CSPs are then enforced ` +
+            `cumulatively (losing 'wasm-unsafe-eval' and forbidding framing), and two ` +
+            `X-Frame-Options values resolve to DENY. Add "! ${name}" to the ${path} ` +
+            `block before its own value (ADR-0028).`,
+        );
+      }
+    }
     const own = block.headers.get('x-frame-options');
-    const effective = own ?? inherited;
-    if (effective && effective.toUpperCase() === 'DENY') {
+    if (own && own.toUpperCase() === 'DENY') {
       problems.push(
-        `${path} is served X-Frame-Options: DENY${own ? '' : ' (inherited from /*)'} — ` +
-          `the sandbox document cannot be framed at all, so the path is unreachable. ` +
-          `Override it in the ${path} block (ADR-0028).`,
+        `${path} sets X-Frame-Options: DENY — the sandbox document cannot be framed at ` +
+          `all, so the path is unreachable (ADR-0028).`,
       );
     }
     if (!/frame-ancestors\s+'self'/.test(block.csp)) {

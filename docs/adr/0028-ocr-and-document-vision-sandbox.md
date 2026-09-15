@@ -151,7 +151,8 @@ overrides the headers it names — the `/ocr/*` block overrode the CSP and two o
 silently inherited `DENY`, which forbids framing from anywhere, same-origin included.
 Chromium enforces this; Firefox ignores it in favour of `frame-ancestors` and says so in
 the console, so it is a Chromium-only blocker but a real one. Fixed with
-`X-Frame-Options: SAMEORIGIN` on `/ocr/*`.
+`X-Frame-Options: SAMEORIGIN` on `/ocr/*` — **and that fix did not work.** See the
+third run below.
 
 *Second run, and the one that mattered.* With the frame now loading, the sandbox was
 refused its own script:
@@ -168,6 +169,85 @@ an opaque-origin document can satisfy, and that is now what the path sets. The c
 that the engine and its models become readable by any origin: public static files with
 nothing user-specific in them, so the exposure is hotlinking rather than disclosure, and
 framing the sandbox *document* is still governed by `frame-ancestors 'self'`.
+
+### Third run: the fix was built on a wrong idea of `_headers` (2026-09-15)
+
+Run locally rather than against the deployment, by serving the real build through
+`wrangler dev` — the deployment sits behind Cloudflare Access, and `_headers` is a
+Cloudflare artefact the Angular dev server does not apply, so this is the only way to
+test the shipped policy without a browser on the deployed site.
+
+**The premise of both earlier fixes was wrong. Cloudflare appends; it does not
+override.** Naming a header in a more specific block does not replace the inherited
+value — *both are sent*. Every `/ocr/*` response was carrying two
+`Content-Security-Policy` headers and two `X-Frame-Options` values:
+
+```
+$ curl -sI http://127.0.0.1:8788/ocr/ | grep -ci content-security-policy
+2
+$ curl -sI http://127.0.0.1:8788/ocr/ | grep -i x-frame-options
+x-frame-options: DENY
+x-frame-options: SAMEORIGIN
+```
+
+Both are fatal, for different reasons. Two CSPs are enforced **cumulatively** — a
+resource must satisfy every policy — so the application's `script-src 'self'` intersects
+with the sandbox's and removes `'wasm-unsafe-eval'` again, while `frame-ancestors 'none'`
+intersects to forbid framing outright. Two `X-Frame-Options` values are a conflict, which
+Chromium resolves as DENY. So `X-Frame-Options: SAMEORIGIN` never took effect, and the
+whole `/ocr/*` CSP was being neutralised by the policy it was meant to replace.
+
+The fix is `_headers`' **unset** syntax, which is the only way a block can stop `/*` from
+also applying:
+
+```
+/ocr/*
+  ! Content-Security-Policy
+  ! X-Frame-Options
+  Content-Security-Policy: …
+  X-Frame-Options: SAMEORIGIN
+```
+
+With that in place the path serves exactly one of each, confirmed both by `curl` and by
+the spike page's own in-browser read-back.
+
+**`scripts/check-csp.mjs` had the same wrong model and therefore passed it.** It computed
+`effective = own ?? inherited`, i.e. assumed the block's header replaced the inherited
+one. It now fails the build unless `/ocr/*` unsets each header it redefines — verified by
+deleting an unset line and watching it fail.
+
+### What the third run settled, and what it did not
+
+| | |
+|---|---|
+| WebAssembly compiles and runs under the `/ocr/*` CSP | **yes** — `wasm-compile-inline`, `fetch-wasm-asset` and `wasm-instantiate-streaming` all pass, the last returning `add(20,22) = 42` |
+| The sandbox can fetch its own assets under `connect-src 'self'` | **yes** |
+| A `sandbox="allow-scripts"` frame on `/ocr/` loads | **yes** |
+| The frame is a genuine opaque origin | **yes** — the parent gets `null` for `contentDocument` |
+| The sandbox's script executes *inside the framed opaque origin* | **not settled** — see below |
+
+The last row is the one still open, and the reason is the tool rather than the platform:
+the in-app browser used for this run does not deliver `postMessage` from an
+opaque-origin frame to its parent, so the spike's channel reports nothing whether or not
+the script ran. Requests for `probe.wasm` attributable to framed loads suggest it does
+run, but not cleanly enough to record as a result.
+
+**Two things worth knowing before repeating this.** `/ocr/index.html` **307-redirects**
+to `/ocr/` — Cloudflare normalises `index.html` away — so the spike now frames `ocr/`
+directly rather than taking a redirect during a frame navigation. And the application
+CSP's `upgrade-insecure-requests` rewrites the frame navigation to `https://`, which a
+plain-HTTP local server closes; either serve HTTPS locally or drop that one directive
+from the *built* `_headers` for the duration of the test.
+
+### Reproducing this locally
+
+```bash
+npm run build && cd apps/web && npx wrangler dev --port 8788 --local
+```
+
+`wrangler` is already the project's deploy tool (`.github/workflows/deploy.yml` uses
+`cloudflare/wrangler-action`), and this is the only way to exercise the real `_headers`
+semantics — the same semantics that produced three separate wrong diagnoses.
 
 **A hypothesis this disproved, worth recording because it was the likely-looking one.**
 `script-src 'self'` was expected to fail in an opaque origin, on the reasoning that
