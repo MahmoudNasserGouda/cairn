@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import type { ProviderId } from '@cairn/auth';
 import { hasSource, type ProfileSource } from '@cairn/profile';
 import { ProfileService } from '../../../core/profile/profile.service';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -13,7 +14,7 @@ import {
 } from '../../../ui';
 
 /**
- * The four sources, on one page (ADR-0031, ADR-0032).
+ * Every source, on one page (ADR-0031, ADR-0032).
  *
  * CV and archive import used to *be* the profile page, with a summary bolted
  * underneath. They are two of four inputs, and this is where inputs belong — the rest
@@ -38,9 +39,9 @@ import {
   template: `
     <cn-section
       heading="Where your profile comes from"
-      description="Four sources, merged into one profile. When two disagree, what you
-        typed wins, then LinkedIn, then your CV, then GitHub — and every field shows
-        which one it came from."
+      description="Merged into one profile. When two disagree, what you typed wins,
+        then LinkedIn, then your CV, then whatever measures your code — and every field
+        shows which one it came from."
     >
       <cn-card>
         <ul class="sources">
@@ -51,9 +52,14 @@ import {
                 <p class="name">{{ source.name }}</p>
                 <p class="state">{{ source.state }}</p>
               </div>
-              @if (source.key === 'github') {
-                @if (connected()) {
-                  <button cn-button variant="quiet" size="sm" (click)="auth.signOut()">
+              @if (source.connect; as provider) {
+                @if (auth.hasIdentity(provider)) {
+                  <button
+                    cn-button
+                    variant="quiet"
+                    size="sm"
+                    (click)="auth.signOut(provider)"
+                  >
                     Disconnect
                   </button>
                 } @else {
@@ -116,8 +122,21 @@ export class SourcesSectionComponent {
 
   protected readonly connected = computed(() => this.auth.hasIdentity('github'));
 
+  /**
+   * GitLab appears only where a deployment has registered an OAuth application
+   * (ADR-0034). A row offering a connection that cannot be made is worse than no row:
+   * it reads as broken rather than as unconfigured.
+   */
+  private readonly gitlabOffered = this.auth.dataProviders.some((p) => p.id === 'gitlab');
+
   protected readonly summary = computed<
-    { key: ProfileSource; name: string; state: string }[]
+    {
+      key: ProfileSource;
+      name: string;
+      state: string;
+      /** The provider this row connects, when it is a connection rather than a file. */
+      connect?: ProviderId;
+    }[]
   >(() => {
     const p = this.profile.profile();
     const contributing = (source: ProfileSource): boolean =>
@@ -146,10 +165,23 @@ export class SourcesSectionComponent {
       {
         key: 'github',
         name: 'GitHub',
+        connect: 'github',
         state: this.connected()
           ? 'Connected. Languages, contributions and pinned repositories.'
-          : 'Not connected. It is the only source that measures rather than asks.',
+          : 'Not connected. It measures your code rather than asking you about it.',
       },
+      ...(this.gitlabOffered
+        ? [
+            {
+              key: 'gitlab' as const,
+              name: 'GitLab',
+              connect: 'gitlab' as const,
+              state: this.auth.hasIdentity('gitlab')
+                ? 'Connected. Projects and their language breakdowns.'
+                : 'Not connected. Sits beside GitHub, not above it.',
+            },
+          ]
+        : []),
     ];
   });
 }

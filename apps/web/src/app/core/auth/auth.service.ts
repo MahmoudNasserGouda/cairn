@@ -2,6 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import {
   AuthError,
   buildAuthorizeUrl,
+  createPkcePair,
   createStateToken,
   exchangeCodeForToken,
   fetchIdentity,
@@ -17,7 +18,7 @@ import { IndexedDbStore } from '../indexeddb-store';
 const PENDING_KEY = 'cairn.oauth.pending';
 const SESSION_KEY = 'cairn.session.v1';
 const GH_CACHE_PREFIX = 'gh:';
-const PROVIDER_ORDER: readonly ProviderId[] = ['github', 'linkedin', 'google'];
+const PROVIDER_ORDER: readonly ProviderId[] = ['github', 'gitlab', 'linkedin', 'google'];
 
 const PROVIDERS = OAUTH_PROVIDERS as Record<ProviderId, OAuthProvider>;
 
@@ -26,11 +27,21 @@ export type AuthStatus = 'anonymous' | 'authenticating' | 'ready' | 'error';
 interface PendingRedirect {
   readonly provider: ProviderId;
   readonly state: string;
+  /**
+   * The PKCE verifier, for providers that use it (ADR-0034). It has to outlive a
+   * full-page redirect, which is why it is here and not in a field, and it is read
+   * exactly once — `readAndClearPending` removes the record before the exchange, so a
+   * replayed callback URL finds nothing to spend.
+   */
+  readonly verifier?: string;
 }
 
 interface PersistedSession {
   readonly identities: readonly Identity[];
-  readonly githubToken: string | null;
+  /** Access tokens for data connections, by provider. Session-scoped (ADR-0020). */
+  readonly tokens?: Readonly<Record<string, string>>;
+  /** Pre-GitLab shape, still read so an open tab survives the deploy that adds it. */
+  readonly githubToken?: string | null;
 }
 
 /**
@@ -71,9 +82,13 @@ export class AuthService {
     (id) => PROVIDERS[id],
   ).filter(isProviderConfigured);
 
-  /** The one data connection (GitHub), if configured. */
-  readonly dataProvider: OAuthProvider | null =
-    this.availableProviders.find((p) => p.role === 'data') ?? null;
+  /** Data connections — GitHub, and GitLab once an application id is set. */
+  readonly dataProviders: readonly OAuthProvider[] = this.availableProviders.filter(
+    (p) => p.role === 'data',
+  );
+
+  /** The primary data connection (GitHub), if configured. */
+  readonly dataProvider: OAuthProvider | null = this.dataProviders[0] ?? null;
 
   /** Identity-only providers (LinkedIn, Google), if configured. */
   readonly identityProviders: readonly OAuthProvider[] = this.availableProviders.filter(
@@ -83,6 +98,16 @@ export class AuthService {
   /** GitHub access token for API calls, if signed in with GitHub. */
   get githubToken(): string | null {
     return this.tokens.get('github') ?? null;
+  }
+
+  /**
+   * The retained access token for a data connection, or null.
+   *
+   * Only `role: 'data'` providers have one: an identity-only token is dropped straight
+   * after its one userinfo call and never reaches this map (ADR-0025).
+   */
+  tokenFor(provider: ProviderId): string | null {
+    return this.tokens.get(provider) ?? null;
   }
 
   hasIdentity(provider: ProviderId): boolean {
@@ -95,22 +120,46 @@ export class AuthService {
   }
 
   /** Start the redirect flow for one provider. Navigates away on success. */
-  signIn(providerId: ProviderId): void {
+  async signIn(providerId: ProviderId): Promise<void> {
+    const url = await this.prepareSignIn(providerId);
+    if (url !== null) globalThis.location.assign(url);
+  }
+
+  /**
+   * Everything `signIn` does except the navigation: mint the CSRF `state`, mint a PKCE
+   * verifier for providers that need one, store the pending record, and return the
+   * authorize URL.
+   *
+   * Split out because it is the half with decisions in it and `location.assign` cannot
+   * be stubbed — jsdom makes `location` non-configurable, which is the same wall that
+   * pushed the callback tests onto `history.replaceState`. Navigation is then a single
+   * line with nothing to get wrong, and the interesting part is directly testable.
+   *
+   * Returns null when the provider is not configured; the error is already set.
+   */
+  async prepareSignIn(providerId: ProviderId): Promise<string | null> {
     const provider = PROVIDERS[providerId];
     if (!isProviderConfigured(provider)) {
       this.fail(`${provider.label} sign-in is not configured yet`);
-      return;
+      return null;
     }
     const state = createStateToken();
-    const pending: PendingRedirect = { provider: providerId, state };
+    // Minted per attempt, never reused: a verifier is single-use by definition, and a
+    // shared one would let an intercepted code from an earlier attempt be spent.
+    const pkce = provider.pkce === true ? await createPkcePair() : null;
+    const pending: PendingRedirect = {
+      provider: providerId,
+      state,
+      ...(pkce !== null ? { verifier: pkce.verifier } : {}),
+    };
     try {
       sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending));
     } catch {
       this.fail('this browser blocked session storage, which sign-in needs');
-      return;
+      return null;
     }
     this._error.set(null);
-    globalThis.location.assign(buildAuthorizeUrl(provider, state));
+    return buildAuthorizeUrl(provider, state, pkce?.challenge);
   }
 
   /** Sign out of one provider, or of everything when called with no argument. */
@@ -162,10 +211,16 @@ export class AuthService {
 
     this._status.set('authenticating');
     try {
-      const token = await exchangeCodeForToken({ provider, code: params.code });
+      const token = await exchangeCodeForToken({
+        provider,
+        code: params.code,
+        ...(pending.verifier !== undefined ? { verifier: pending.verifier } : {}),
+      });
       const identity = await fetchIdentity({ provider, token: token.accessToken });
-      if (provider.id === 'github') {
-        this.tokens.set('github', token.accessToken);
+      // Data connections keep their token to read with; identity-only providers drop
+      // theirs here and never see it again (ADR-0025).
+      if (provider.role === 'data') {
+        this.tokens.set(provider.id, token.accessToken);
       }
       this._identities.update((list) => [
         ...list.filter((i) => i.provider !== provider.id),
@@ -188,7 +243,7 @@ export class AuthService {
       }
       const payload: PersistedSession = {
         identities,
-        githubToken: this.tokens.get('github') ?? null,
+        tokens: Object.fromEntries(this.tokens),
       };
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(payload));
     } catch {
@@ -212,13 +267,23 @@ export class AuthService {
             (i): i is Identity => !!i && typeof (i as Identity).provider === 'string',
           )
         : [];
-      const token = typeof parsed.githubToken === 'string' ? parsed.githubToken : null;
       if (identities.length === 0) {
         sessionStorage.removeItem(SESSION_KEY);
         return;
       }
       this.tokens.clear();
-      if (token) this.tokens.set('github', token);
+      // `githubToken` is the pre-GitLab shape. Still read, so a tab open across the
+      // deploy that adds GitLab keeps its GitHub connection instead of silently
+      // dropping it on the next refresh.
+      const legacy = parsed.githubToken;
+      if (typeof legacy === 'string' && legacy.length > 0) {
+        this.tokens.set('github', legacy);
+      }
+      for (const [provider, token] of Object.entries(parsed.tokens ?? {})) {
+        if (typeof token === 'string' && token.length > 0) {
+          this.tokens.set(provider as ProviderId, token);
+        }
+      }
       this._identities.set(identities);
       this._status.set('ready');
     } catch {

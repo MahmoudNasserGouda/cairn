@@ -59,6 +59,7 @@ flowchart TB
 
     Host["Free static host<br/>Cloudflare Workers static assets"]
     GH["GitHub REST + GraphQL API"]
+    GL["GitLab REST API<br/>(PKCE, no Worker)"]
     LI["LinkedIn / Google OIDC"]
     AI["BYOK AI providers<br/>OpenAI / Gemini / OpenRouter"]
     Store["Hosted store / checkout<br/>Lemon Squeezy / Gumroad"]
@@ -66,7 +67,7 @@ flowchart TB
 
     User --> Web & Ext & Desktop
     Host -. serves .-> Web
-    Web --> GH & LI & AI
+    Web --> GH & GL & LI & AI
     Ext --> GH & AI
     Desktop --> GH & AI
     Desktop --> Local["Local repo + local model (Ollama)"]
@@ -186,6 +187,37 @@ sequenceDiagram
     end
     App->>App: compute scores locally (libs/matching, libs/scoring)
 ```
+
+### 6.1a  GitLab sign-in — the same flow with the Worker removed
+
+The diagram above has a server in it for one reason: GitHub, LinkedIn and Google all
+require a client secret to spend an authorization code, and a secret cannot live in a
+static bundle. GitLab advertises `S256` for public clients, so the browser does the
+exchange itself ([ADR-0034](docs/adr/0034-gitlab-as-a-second-data-connection.md)). Note
+that `cairn-auth` does not appear below at all:
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant App as Web app
+    participant SS as sessionStorage
+    participant GL as GitLab
+
+    U->>App: Connect GitLab
+    App->>App: verifier = random(32B); challenge = SHA-256(verifier)
+    App->>SS: store state + provider + verifier (single-use)
+    App->>GL: authorize (challenge + S256, exact redirect)
+    Note over App,GL: the verifier never leaves the browser
+    GL-->>App: redirect with code
+    App->>SS: read state + verifier, then clear
+    App->>GL: POST code + verifier (form-encoded, no secret)
+    GL-->>App: access token (memory + sessionStorage)
+    App->>GL: GET /api/v4/user
+```
+
+Two properties the tests pin down, because both fail silently otherwise: the verifier
+never reaches a URL, and a missing verifier makes the exchange **refuse** rather than
+fall back to a plain code exchange — which GitLab would very likely accept.
 
 ### 6b. CV upload → layout parse (→ OCR only when there is no text layer)
 

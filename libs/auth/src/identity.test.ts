@@ -124,3 +124,78 @@ describe('fetchIdentity', () => {
     ).rejects.toBeInstanceOf(AuthError);
   });
 });
+
+describe('gitlab identity', () => {
+  const GITLAB = {
+    id: 'gitlab' as const,
+    label: 'GitLab',
+    role: 'data' as const,
+    kind: 'gitlab' as const,
+    pkce: true,
+    clientId: 'gl',
+    authorizeUrl: 'https://gitlab.com/oauth/authorize',
+    tokenExchangeUrl: 'https://gitlab.com/oauth/token',
+    userInfoUrl: 'https://gitlab.com/api/v4/user',
+    redirectUri: 'https://app.example.test/',
+    scopes: ['read_user', 'read_api'],
+  };
+
+  /**
+   * GitLab's user endpoint is a third shape — neither GitHub's nor OIDC's. Its `id` is a
+   * number, and `subject` is a string everywhere else in the system, so the conversion
+   * has to happen here rather than leaking a `number | string` into `Identity`.
+   */
+  it('reads the gitlab user shape, with a string subject', async () => {
+    const fetchImpl = (async () =>
+      new Response(
+        JSON.stringify({
+          id: 12345,
+          username: 'amara',
+          name: 'Amara Okonkwo',
+          avatar_url: 'https://gitlab.com/uploads/avatar.png',
+          web_url: 'https://gitlab.com/amara',
+          email: 'amara@example.test',
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      )) as unknown as typeof fetch;
+
+    const identity = await fetchIdentity({ provider: GITLAB, token: 't', fetchImpl });
+
+    expect(identity).toEqual({
+      provider: 'gitlab',
+      subject: '12345',
+      displayName: 'Amara Okonkwo',
+      email: 'amara@example.test',
+      avatarUrl: 'https://gitlab.com/uploads/avatar.png',
+      profileUrl: 'https://gitlab.com/amara',
+    });
+  });
+
+  it('falls back to the username when the display name is blank', async () => {
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify({ id: 7, username: 'amara', name: '', web_url: 'u' }), {
+        headers: { 'content-type': 'application/json' },
+      })) as unknown as typeof fetch;
+
+    const identity = await fetchIdentity({ provider: GITLAB, token: 't', fetchImpl });
+    expect(identity.displayName).toBe('amara');
+    // Absent, not the empty string — `Identity` says `string | null` and the UI
+    // branches on null.
+    expect(identity.email).toBeNull();
+    expect(identity.avatarUrl).toBeNull();
+  });
+
+  it('sends a bearer token and asks for json', async () => {
+    let headers = new Headers();
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      headers = new Headers(init.headers);
+      return new Response(JSON.stringify({ id: 1, username: 'a' }), {
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as unknown as typeof fetch;
+
+    await fetchIdentity({ provider: GITLAB, token: 'glpat-secret', fetchImpl });
+    expect(headers.get('authorization')).toBe('Bearer glpat-secret');
+    expect(headers.get('x-github-api-version')).toBeNull();
+  });
+});

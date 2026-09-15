@@ -14,6 +14,13 @@
 > LinkedIn exported for them (an import, not a connection: LinkedIn's OAuth role is
 > unchanged), and [ADR-0030](0030-github-graphql-profile-read.md) deepens what the one
 > data connection reads.
+>
+> **2026-09-15.** The title's second clause is now out of date, and deliberately left in
+> place rather than edited: [ADR-0034](0034-gitlab-as-a-second-data-connection.md) adds
+> GitLab as a *second* data connection. That does not reverse the reasoning here — this
+> record's argument was that LinkedIn and Google have no profile data to give, which is
+> still true. GitLab does, and it arrives through a flow this ADR could not have
+> anticipated: PKCE, with no `cairn-auth` Worker in the path.
 
 ## Context
 
