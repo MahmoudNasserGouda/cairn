@@ -269,6 +269,32 @@ employers' internal estates.
 back as **normalised percentages** rather than GitHub's raw byte counts. Accepted in
 [ADR-0034](adr/0034-gitlab-as-a-second-data-connection.md).
 
+**Re-verified 2026-09-15, on the two endpoints the decision actually rests on.** The
+first round tested the data endpoints and the discovery document, which is a weaker
+claim than it looks: PKCE in a browser lives or dies on the **token** endpoint, and every
+authenticated read carries an `Authorization` header, which is not CORS-safelisted and so
+needs a preflight answered.
+
+| Probe | Result |
+|---|---|
+| `POST /oauth/token`, form-encoded, from a foreign origin | `response.type === "cors"`, JSON error body readable |
+| `GET /api/v4/user` with an `Authorization` header | `401`, `type === "cors"` — the preflight was answered |
+
+Both hold, so the flow is real rather than merely documented.
+
+**To enable it on a deployment**, register a GitLab *application* (User settings →
+Applications) and put its id in `OAUTH_PROVIDERS.gitlab.clientId`. Two settings are not
+optional:
+
+- **Redirect URI** must match the deployed origin exactly, trailing slash included.
+- **Confidential must be unchecked.** A confidential application demands a client secret
+  the browser cannot hold, and fails with `invalid_client` — the same error an unknown
+  application id gives, which makes it an easy hour to lose.
+
+Until an id is set, `isProviderConfigured` hides GitLab entirely: no row on the profile
+hub, no button in the sign-in sheet. A connection that cannot be completed is worse than
+an absent one, because it reads as broken rather than as unconfigured.
+
 ### Bitbucket
 
 REST 2.0 with OAuth 2.0. **Verified 2026-09-15**: `api.bitbucket.org` is CORS-enabled and

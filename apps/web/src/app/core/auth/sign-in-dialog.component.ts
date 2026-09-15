@@ -5,6 +5,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import type { ProviderId } from '@cairn/auth';
 import { AuthService } from './auth.service';
 import { SignInDialogService } from './sign-in-dialog.service';
 import { ButtonComponent, SheetComponent } from '../../ui';
@@ -45,24 +46,37 @@ import { ButtonComponent, SheetComponent } from '../../ui';
           <p class="muted">Sign-in isn't configured for this deployment yet.</p>
         }
 
-        @if (auth.dataProvider; as gh) {
+        @if (auth.dataProviders.length > 0) {
           <section class="group">
             <h3>Connect your work</h3>
             <p class="muted">
-              Rujoom reads your public repositories and contribution history from
-              {{ gh.label }} — this is where your profile and project matches come from.
+              Rujoom reads your public repositories and contribution history — this is
+              where your profile and project matches come from. Connect either, both, or
+              neither.
             </p>
-            @if (auth.identityFor(gh.id); as who) {
-              <p class="connected">
-                <span class="dot"></span> Connected as {{ who.displayName }}
-              </p>
-              <button cn-button variant="quiet" size="sm" (click)="auth.signOut(gh.id)">
-                Disconnect {{ gh.label }}
-              </button>
-            } @else {
-              <button cn-button block (click)="auth.signIn(gh.id)">
-                Continue with {{ gh.label }}
-              </button>
+            @for (source of auth.dataProviders; track source.id) {
+              @if (auth.identityFor(source.id); as who) {
+                <p class="connected">
+                  <span class="dot"></span> {{ source.label }} · {{ who.displayName }}
+                  <button
+                    cn-button
+                    variant="quiet"
+                    size="sm"
+                    (click)="auth.signOut(source.id)"
+                  >
+                    Disconnect
+                  </button>
+                </p>
+              } @else {
+                <button
+                  cn-button
+                  [variant]="$first ? 'primary' : 'ghost'"
+                  block
+                  (click)="connect(source.id)"
+                >
+                  Continue with {{ source.label }}
+                </button>
+              }
             }
           </section>
         }
@@ -89,7 +103,7 @@ import { ButtonComponent, SheetComponent } from '../../ui';
                   </button>
                 </p>
               } @else {
-                <button cn-button variant="ghost" block (click)="auth.signIn(p.id)">
+                <button cn-button variant="ghost" block (click)="connect(p.id)">
                   Sign in with {{ p.label }}
                 </button>
               }
@@ -174,5 +188,18 @@ export class SignInDialogComponent {
     effect(() => {
       if (this.auth.status() === 'error') this.dialog.show();
     });
+  }
+
+  /**
+   * Start a sign-in redirect.
+   *
+   * `signIn` became asynchronous when GitLab arrived — its PKCE challenge is a real
+   * SHA-256 digest, and `crypto.subtle` only returns promises (ADR-0034). A template
+   * cannot await, so the promise is handled here: on success the page navigates away
+   * and nothing after it runs, and on failure `AuthService` has already set the error
+   * this dialog is displaying.
+   */
+  protected connect(provider: ProviderId): void {
+    void this.auth.signIn(provider);
   }
 }
