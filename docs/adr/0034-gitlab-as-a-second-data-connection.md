@@ -162,11 +162,31 @@ in the browser, with no Worker in the path.**
 
 ## Open questions, recorded rather than guessed
 
-- **Two measured sources, one language.** A user with Ruby on GitLab and Ruby on GitHub
-  should not have their level doubled, nor should the smaller account silently win. The
-  likely answer is to sum byte-equivalents before normalising, but `libs/profile`'s skill
-  merge currently reconciles *between* sources rather than *within* a tier. This needs a
-  test before it needs code.
+- ~~**Two measured sources, one language.**~~ **Answered 2026-09-15**, and the guess
+  recorded here was right in outline and incomplete in two ways worth writing down.
+
+  Summing byte-equivalents is the answer, and a measured claim now carries a `weight` —
+  the raw volume behind it — alongside its level. But:
+
+  1. **GitLab reports no bytes.** It reports a language's *share* of a repository, which
+     is a percentage: 80% Ruby describes a weekend script and a decade of work
+     identically. `repositorySize` is what turns a share back into a volume, and it needs
+     Reporter access, so a project where the user is a Guest cannot be weighed at all.
+     Where that happens no weight is emitted, the merge declines to combine, and the
+     evidence note stops claiming a percentage it cannot support — inventing a weight
+     would let a toy project outweigh a monorepo invisibly, which is the failure the
+     whole mechanism exists to prevent. It is an approximation either way:
+     `repositorySize` counts history and binaries, not lines of source, so it decides
+     *relative* weight and is never shown to a user as a figure.
+  2. **Every measured tag has to be rebuilt, not only the contested ones.** This was the
+     part the guess missed. Combining two accounts' Ruby moves the peak that the whole
+     ladder is normalised against, so a language only GitHub measured keeps a level
+     computed against a scale that no longer exists. In the worked case a `go` at 0.5
+     should be 0.3 once Ruby's real volume is known — reported as half the user's work
+     when it is a tenth.
+
+  Provenance follows volume rather than arrival, so the answer no longer depends on which
+  connection the user made first. Tests: [`measured.test.ts`](../../libs/profile/src/measured.test.ts).
 - **Self-managed GitLab instances.** The endpoints are identical, the origin is not, and
   `connect-src` is an allowlist that cannot contain "whatever host the user types"
   without abandoning [SECURITY.md](../../SECURITY.md) non-negotiable 6. GitLab.com only,

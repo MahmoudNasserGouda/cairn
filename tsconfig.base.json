@@ -22,6 +22,7 @@
       "@cairn/shared": ["libs/shared/src/index.ts"],
       "@cairn/auth": ["libs/auth/src/index.ts"],
       "@cairn/github": ["libs/github/src/index.ts"],
+      "@cairn/gitlab": ["libs/gitlab/src/index.ts"],
       "@cairn/profile": ["libs/profile/src/index.ts"],
       "@cairn/profile/testing": ["libs/profile/src/__fixtures__/build.ts"],
       "@cairn/zip": ["libs/zip/src/index.ts"],

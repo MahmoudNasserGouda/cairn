@@ -19,7 +19,7 @@ export {
   REPORTED_SOURCES,
   type ProfileSource,
 } from '@cairn/shared';
-import type { ProfileSource } from '@cairn/shared';
+import { MEASURED_SOURCES, type ProfileSource } from '@cairn/shared';
 
 export interface Provenance {
   readonly source: ProfileSource;
@@ -94,6 +94,15 @@ export const SOURCE_PRECEDENCE: Readonly<Record<ProfileSource, number>> = {
   stackexchange: 0,
   devto: 0,
 };
+
+/**
+ * True for a source that *observes* rather than asks — GitHub, GitLab, Stack Exchange,
+ * dev.to. Their claims can be combined with each other, which no other pair can be: two
+ * measurements of the same thing add up, whereas two assertions of it do not.
+ */
+export function isMeasured(source: ProfileSource): boolean {
+  return (MEASURED_SOURCES as readonly ProfileSource[]).includes(source);
+}
 
 export function precedenceOf(source: ProfileSource): number {
   return SOURCE_PRECEDENCE[source];

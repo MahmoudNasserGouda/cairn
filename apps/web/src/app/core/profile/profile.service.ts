@@ -1,11 +1,13 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { collectViewerGraph } from '@cairn/github';
+import { collectGitlabViewer, GitlabClient } from '@cairn/gitlab';
 import {
   applyEdit,
   cvToFragment,
   emptyProfile,
   forgetSource,
   githubToFragment,
+  gitlabToFragment,
   hasSource,
   linkedinToFragment,
   mergeProfile,
@@ -92,22 +94,42 @@ export class ProfileService {
     () => this._profile()?.contributions?.known ?? true,
   );
 
-  private loadedFor: string | null = null;
+  /**
+   * The token each connection was last read with, so a re-render does not re-fetch and
+   * a token change does. Keyed by source since GitLab arrived (ADR-0034) — it used to
+   * be one string, which is a shape that only works while GitHub is the only
+   * connection.
+   */
+  private readonly loadedFor = new Map<ProfileSource, string>();
   private restored: Promise<void>;
 
   constructor() {
     this.restored = this.restore();
 
+    this.watch('github', (token) => this.load(token));
+    this.watch('gitlab', (token) => this.loadGitlab(token));
+  }
+
+  /**
+   * Keep one data connection in step with the profile: read it when it connects or its
+   * token changes, and demote it when it goes away.
+   *
+   * Identical for both providers, which is the point — the asymmetry that used to be
+   * here was GitHub's alone, not a property of data connections.
+   */
+  private watch(
+    source: 'github' | 'gitlab',
+    read: (token: string) => Promise<void>,
+  ): void {
     effect(() => {
-      const hasGithub = this.auth.hasIdentity('github');
-      if (!hasGithub) {
-        void this.forget('github');
+      if (!this.auth.hasIdentity(source)) {
+        void this.forget(source);
         return;
       }
-      const token = this.auth.githubToken;
-      if (token && this.loadedFor !== token) {
-        this.loadedFor = token;
-        void this.load(token);
+      const token = this.auth.tokenFor(source);
+      if (token && this.loadedFor.get(source) !== token) {
+        this.loadedFor.set(source, token);
+        void read(token);
       }
     });
   }
@@ -177,12 +199,12 @@ export class ProfileService {
     await this.restored;
     const current = this._profile();
     if (!current || !hasSource(current, source)) {
-      if (source === 'github') this.loadedFor = null;
+      this.loadedFor.delete(source);
       return;
     }
     const next = forgetSource(current, source, { currentYear: currentYear() });
-    if (source === 'github') {
-      this.loadedFor = null;
+    this.loadedFor.delete(source);
+    if (source === 'github' || source === 'gitlab') {
       this._error.set(null);
       this._loading.set(false);
     }
@@ -248,14 +270,38 @@ export class ProfileService {
       // One request, where this used to cost up to sixteen (ADR-0030).
       const graph = await collectViewerGraph(this.gh.get());
       // A token change mid-flight wins; ignore this stale result.
-      if (this.loadedFor !== token) return;
+      if (this.loadedFor.get('github') !== token) return;
       await this.apply(githubToFragment(graph, today()));
     } catch (e) {
       this._error.set(
         e instanceof Error ? e.message : 'could not load your GitHub profile',
       );
     } finally {
-      if (this.loadedFor === token) this._loading.set(false);
+      if (this.loadedFor.get('github') === token) this._loading.set(false);
+    }
+  }
+
+  /**
+   * Read the GitLab profile (ADR-0034).
+   *
+   * One GraphQL request, and a client built here rather than injected: it holds no
+   * cache, no ETag state and no rate-limit budget, so a shared instance would carry
+   * nothing worth sharing. GitHub's client is injected precisely because it does.
+   */
+  private async loadGitlab(token: string): Promise<void> {
+    await this.restored;
+    this._loading.set(true);
+    this._error.set(null);
+    try {
+      const graph = await collectGitlabViewer(new GitlabClient({ token }));
+      if (this.loadedFor.get('gitlab') !== token) return;
+      await this.apply(gitlabToFragment(graph, today()));
+    } catch (e) {
+      this._error.set(
+        e instanceof Error ? e.message : 'could not load your GitLab profile',
+      );
+    } finally {
+      if (this.loadedFor.get('gitlab') === token) this._loading.set(false);
     }
   }
 }

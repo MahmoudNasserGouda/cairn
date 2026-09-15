@@ -1,4 +1,4 @@
-import type { ExperienceLevel, SkillTag } from '@cairn/shared';
+import { clamp01, roundTo, type ExperienceLevel, type SkillTag } from '@cairn/shared';
 import {
   certificationKey,
   educationKey,
@@ -25,6 +25,7 @@ import {
 import {
   compareProvenance,
   demoteSourced,
+  isMeasured,
   outranks,
   type ProfileSource,
   pickSourced,
@@ -53,6 +54,17 @@ export interface IncomingSkill {
   readonly level: number;
   /** Plain-language reason, shown as evidence. */
   readonly note?: string;
+  /**
+   * The raw volume behind a **measured** claim, in whatever unit the source counts:
+   * GitHub's language bytes, GitLab's share of a repository's size (ADR-0034).
+   *
+   * `level` is already normalised *within one account*, which makes two accounts'
+   * levels incommensurable — 90% of a toy project and 90% of a decade's work are the
+   * same number and not the same fact. The weight is what lets two measured sources be
+   * added rather than one of them being picked. Sources that assert rather than measure
+   * have no weight, and are not combined.
+   */
+  readonly weight?: number;
   readonly from: Provenance;
 }
 
@@ -142,6 +154,7 @@ function mergeSkills(
       source: claim.from.source,
       level: claim.level,
       ...(claim.note !== undefined ? { note: claim.note } : {}),
+      ...(claim.weight !== undefined ? { weight: claim.weight } : {}),
       capturedAt: claim.from.capturedAt,
     };
 
@@ -169,6 +182,86 @@ function mergeSkills(
   }
 
   return [...byTag.values()].sort((a, b) => a.tag.localeCompare(b.tag));
+}
+
+/** A used language never scores below this, so it still counts toward matches. */
+export const SKILL_LEVEL_FLOOR = 0.3;
+
+/**
+ * Recompute levels for tags that **more than one measured source** weighed (ADR-0034).
+ *
+ * Every measured source normalises within its own account: GitHub divides a language's
+ * bytes by the biggest language it can see, GitLab does the same over its projects. Two
+ * such numbers cannot be compared, let alone chosen between — 90% of one toy repository
+ * and 90% of a decade of work are the same number and not the same fact. Left alone,
+ * `mergeSkills` finds the two claims tied (same rung, same confidence, same day), keeps
+ * whichever arrived first, and reports the smaller account when that is the one the user
+ * happened to connect first.
+ *
+ * So the volumes are added and the ladder is rebuilt from the total. Three properties
+ * this has to keep, each of which has a test:
+ *
+ * - **With one measured source it is a no-op.** `total / peak` over a single source is
+ *   exactly what that source already computed, so connecting GitLab and disconnecting it
+ *   again leaves the numbers where they started.
+ * - **It never routes around the ladder.** A tag whose winner is `manual`, `cv` or
+ *   `linkedin` is untouched; combining breaks a tie *within* the measured tier and is
+ *   not a way for measurement to outrank a person.
+ * - **Provenance follows volume, not arrival.** The dominant account gets the `from`,
+ *   so the answer does not depend on connection order.
+ */
+function combineMeasured(skills: readonly ProfileSkill[]): ProfileSkill[] {
+  const totals = new Map<SkillTag, number>();
+  for (const skill of skills) {
+    const weighed = skill.evidence.filter(
+      (e) => isMeasured(e.source) && typeof e.weight === 'number',
+    );
+    if (weighed.length === 0) continue;
+    totals.set(
+      skill.tag,
+      weighed.reduce((sum, e) => sum + (e.weight ?? 0), 0),
+    );
+  }
+  // Normalise across every weighed tag, not only the contested ones: a tag both sources
+  // claim would otherwise be divided by a larger number than one only GitHub claims,
+  // and the two would no longer be on the same scale.
+  const peak = Math.max(0, ...totals.values());
+  if (peak <= 0) return [...skills];
+
+  return skills.map((skill) => {
+    const weighed = skill.evidence.filter(
+      (e) => isMeasured(e.source) && typeof e.weight === 'number',
+    );
+    // Every *weighed-held* tag is rebuilt, not only the contested ones. Combining two
+    // accounts' Ruby moves the peak the whole ladder is measured against, so a tag only
+    // GitHub weighed would otherwise keep a level computed against a scale that no
+    // longer exists — reported as half the user's work when it is now a tenth.
+    //
+    // The holder's *own* weight is what qualifies it, not merely being measured. Not
+    // every measured source measures the same thing: Stack Exchange counts
+    // peer-assessed answers (ADR-0035), which is not a volume of code and carries no
+    // weight. Rebuilding its level from another source's byte count would be arithmetic
+    // across two different units, and would quietly hand the tag back to the source that
+    // lost it — leaving a plausible-looking number as the only symptom.
+    const holdsWeight = weighed.some((e) => e.source === skill.from.source);
+    if (!holdsWeight || !isMeasured(skill.from.source)) return skill;
+
+    const total = totals.get(skill.tag) ?? 0;
+    // Deterministic: by weight, then by name, so no tie depends on evidence order.
+    const dominant = [...weighed].sort(
+      (a, b) => (b.weight ?? 0) - (a.weight ?? 0) || a.source.localeCompare(b.source),
+    )[0];
+    const holder =
+      dominant !== undefined && dominant.source !== skill.from.source
+        ? provenance(dominant.source, skill.from.capturedAt, skill.from.confidence)
+        : skill.from;
+
+    return {
+      ...skill,
+      level: roundTo(Math.max(SKILL_LEVEL_FLOOR, clamp01(total / peak)), 2),
+      from: holder,
+    };
+  });
 }
 
 /** One entry per provider; a later claim replaces an earlier one. */
@@ -231,7 +324,7 @@ export function mergeProfile(
     experienceKey,
     dismissed,
   );
-  const skills = mergeSkills(base.skills, fragment.skills ?? []);
+  const skills = combineMeasured(mergeSkills(base.skills, fragment.skills ?? []));
   const totalYears = estimateYears(experience, context.currentYear);
 
   // The level is *derived* unless a source claimed it outright, and a manual claim
