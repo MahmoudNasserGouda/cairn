@@ -20,10 +20,21 @@ meaningful contributions, and turn those contributions into professional opportu
 
 The product is organised around five questions:
 
-1. **Who am I?** — one editable developer profile merged from four sources — GitHub
-   (deep read over GraphQL), a LinkedIn data-export archive, a CV, and manual entry —
-   with **per-field provenance**, where a hand edit always outranks an import
-   ([ADR-0031](docs/adr/0031-profile-v2-provenance.md)).
+1. **Who am I?** — one editable developer profile merged from **seven** sources, with
+   **per-field provenance**, where a hand edit always outranks an import
+   ([ADR-0031](docs/adr/0031-profile-v2-provenance.md)):
+
+   | | sources | what they are |
+   |---|---|---|
+   | **stated** | manual entry | what the user typed; outranks everything |
+   | **self-reported** | LinkedIn archive, CV | a claim, structured or in prose |
+   | **measured** | GitHub, GitLab, Stack Exchange, dev.to | observed rather than asked — one rung, ties broken by confidence ([ADR-0034](docs/adr/0034-gitlab-as-a-second-data-connection.md)) |
+
+   The tiers matter because two sources that both *measure* have no claim to outrank each
+   other: GitHub and GitLab both count pushed code, so their volumes are **added** rather
+   than one being picked, while Stack Exchange measures peer assessment instead of volume
+   and therefore carries no weight to add
+   ([ADR-0035](docs/adr/0035-stack-exchange-as-evidence-of-expertise.md)).
 2. **What should I contribute to?** — repository and issue discovery.
 3. **Why is it a good match?** — deterministic, explainable match and health scores.
 4. **How do I start?** — the Open Source Copilot (architecture explorer, issue
@@ -91,6 +102,9 @@ flowchart TB
 
     subgraph Libs["libs/* — framework-agnostic TypeScript"]
         LGithub["github — cached API client"]
+        LGitlab["gitlab — one-query profile read (PKCE, no Worker)"]
+        LSE["stackexchange — peer-assessed answer tags"]
+        LDevto["devto — article tags -> interests only"]
         LProfile["profile — unified profile + CV parser"]
         LMatching["matching — match scores"]
         LScoring["scoring — score primitives + weights config"]
@@ -110,6 +124,9 @@ flowchart TB
     Libs --> LShared
     LShared <--> LocalStore
     LGithub --> ExtGH["GitHub API"]
+    LGitlab --> ExtGL["GitLab API"]
+    LSE --> ExtSE["Stack Exchange API<br/>anonymous, 300/day per IP"]
+    LDevto --> ExtDT["dev.to API<br/>anonymous, key-free"]
     LAI --> ExtAI["AI providers"]
     Libs -. future .-> Serverless
 ```
@@ -131,6 +148,9 @@ OpenSourceCompass/
 │   └── desktop/              # future — Tauri shell + local analysis
 ├── libs/
 │   ├── github/               # cached, deduped, rate-limit-aware GitHub client (REST + GraphQL)
+│   ├── gitlab/               # one GraphQL query; small on purpose, not a second GithubClient
+│   ├── stackexchange/        # anonymous peer-assessed answer tags; quota is "unknown", never zero
+│   ├── devto/                # anonymous article tags; feeds interests only, never skills
 │   ├── profile/              # unified profile model + provenance merge, skills taxonomy
 │   ├── cv-extract/           # CV bytes -> text + positioned layout runs
 │   ├── doc-layout/           # pure: positioned runs -> columns, blocks, reading order
@@ -324,9 +344,10 @@ so an edit made later is never overwritten by a re-import.
 
 | Class | Examples | Where | Policy |
 |-------|----------|-------|--------|
-| **User-specific** | Unified profile (v2: contact, links, experience, education, projects, certifications, languages, skills — each with provenance), interests, saved repos/issues, preferences | IndexedDB (local only) | Source of truth; export/import JSON for backup; sync deferred ([ADR-0003](docs/adr/0003-no-mandatory-database-local-first-storage.md)) |
+| **User-specific** | Unified profile (v3: contact, links, experience, education, projects, certifications, languages, skills — each with provenance), interests, saved repos/issues, preferences | IndexedDB (local only) | Source of truth; export/import JSON for backup; sync deferred ([ADR-0003](docs/adr/0003-no-mandatory-database-local-first-storage.md)) |
 | **Secrets** | GitHub token, BYOK AI keys, optional read-only fine-grained PAT | Memory by default; encrypted IndexedDB / isolated store opt-in | Never logged, never to Rujoom, never in URLs ([ADR-0010](docs/adr/0010-ai-key-privacy-and-data-disclosure.md), [ADR-0020](docs/adr/0020-oauth-token-and-byok-key-handling.md)) |
 | **Public repo data** | Metadata, languages, issues, PRs, contributors, commit activity | IndexedDB cache from GitHub | Per-resource TTL, ETag revalidation, size cap + LRU eviction ([ADR-0006](docs/adr/0006-direct-github-api-usage.md)) |
+| **Public third-party profile data** | GitLab projects and language shares; Stack Exchange answer tags and scores; dev.to article tags, titles and counts | Merged fields persist in the profile with `gitlab` / `stackexchange` / `devto` provenance; article titles and reaction counts are shown in the importer and **never persisted** | Nothing is read that a stranger with a browser could not read. Keyless sources are anonymous and require an identifier the **user pasted** — never guessed from a GitHub login ([ADR-0035](docs/adr/0035-stack-exchange-as-evidence-of-expertise.md)). Stack Exchange content stays credited to its profile under CC BY-SA ([ADR-0034](docs/adr/0034-gitlab-as-a-second-data-connection.md)–[ADR-0036](docs/adr/0036-dev-to-as-interests-not-skills.md)) |
 | **Imported documents** | CV bytes and text, LinkedIn archive bytes | Never persisted — transient in the worker and the review form only | The reviewed *fields* persist; the file never does ([ADR-0011](docs/adr/0011-local-first-cv-processing.md), [ADR-0029](docs/adr/0029-linkedin-data-export-archive-import.md)) |
 | **Derived** | Match Score, Health Score, Difficulty, Confidence, portfolio metrics | Not persisted (recomputed) or cached briefly with inputs | Deterministic, explainable ([ADR-0007](docs/adr/0007-deterministic-explainable-matching-engine.md), [ADR-0008](docs/adr/0008-ai-free-repository-health-engine.md)) |
 
@@ -540,7 +561,7 @@ Add any of these only when a concrete product requirement justifies it, via a ne
 
 | Phase | Product goal | Enabling components | Key ADRs | Hackathon scope? |
 |-------|--------------|---------------------|----------|------------------|
-| **1 — Foundation & Profile Intelligence** | One editable profile from four sources, with provenance; readiness dashboard | `libs/profile`, `libs/github` (GraphQL), `libs/cv-extract`, `libs/doc-layout`, `libs/cv-parse`, `libs/linkedin-archive`, `libs/zip`, `libs/matching`, `libs/scoring`, `libs/shared` | 0001, 0003, 0006, 0007, 0011, 0012, 0020, **0028–0031** | ✅ shipped thin; **being deepened** — GraphQL read, layout-aware CV parsing + OCR, LinkedIn archive import, Profile v2 |
+| **1 — Foundation & Profile Intelligence** | One editable profile from **seven** sources, with provenance; readiness dashboard | `libs/profile`, `libs/github` (GraphQL), `libs/gitlab`, `libs/stackexchange`, `libs/devto`, `libs/cv-extract`, `libs/doc-layout`, `libs/cv-parse`, `libs/linkedin-archive`, `libs/zip`, `libs/matching`, `libs/scoring`, `libs/shared` | 0001, 0003, 0006, 0007, 0011, 0012, 0020, **0028–0031**, **0034–0037** | ✅ deepened — GraphQL read, layout-aware CV parsing + OCR, LinkedIn archive import, Profile v3, three additional sources |
 | **2 — Discovery Engine** | Repository & issue discovery, filters, health | `libs/discovery`, `libs/github`, `libs/repository-analysis`, `libs/issue-analysis`, `libs/matching` | 0006, 0007, 0008, 0027 | ✅ (repo discovery, match engine, health analysis; issue-level discovery still manual) |
 | **3 — Open Source Copilot** | Architecture Explorer, Issue Explainer, Contribution Navigator, PR Explainer, Reading Order | `libs/ai`, `libs/repository-analysis`, `libs/issue-analysis` | 0009, 0010, 0019, **0033** | ⏸ **AI frozen** behind `FEATURES.ai` ([ADR-0033](docs/adr/0033-ai-capability-frozen.md)); deterministic parts unaffected |
 | **4 — Growth Engine** | Skill gap analysis, learning recs, roadmaps | `libs/matching` (skill gap), `libs/ai` (optional), curated content data | 0007, 0009 | ➖ |

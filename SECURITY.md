@@ -94,6 +94,9 @@ LinkedIn / Google `openid profile email` only
 | T15 | **Portfolio output XSS** | User free-text (bio, project notes) injected into generated HTML that they then host | Portfolio generator sanitises all user input and emits CSP-safe static HTML with no inline handlers | [ADR-0013](docs/adr/0013-client-side-portfolio-generation.md) |
 | T16 | **Hostile document image / OCR engine compromise** | A crafted image or scanned PDF exploits the OCR decoder; or a compromised OCR dependency tries to read the token or beacon data out | OCR runs in an **opaque-origin sandboxed iframe** (`sandbox="allow-scripts"`, no `allow-same-origin`) on `/ocr/*`, which has **no** access to `sessionStorage`, IndexedDB, the `secrets` store, the GitHub token or the BYOK key. That path has its own CSP (`default-src 'none'`; `script-src 'self' 'wasm-unsafe-eval'`) with **no network egress** beyond its own assets; the application origin's CSP is unchanged and still refuses WebAssembly. Recognised text is untrusted and goes to the mandatory review form | [ADR-0028](docs/adr/0028-ocr-and-document-vision-sandbox.md); `scripts/check-csp.mjs` |
 | T17 | **Malicious LinkedIn archive** | Zip bomb, entry-count bomb, lying size header, path traversal in an entry name, CSV formula injection | Same hardened ZIP reader as DOCX (entry cap, declared-size check, streaming byte cap that aborts mid-inflate); entry names are matched against a **read allowlist** and never used as filesystem paths; every CSV value is untrusted text, interpolated and never rendered as HTML; leading `=` `+` `-` `@` stripped from any exported field; parsed in the sandboxed worker under a size cap and time budget | [ADR-0029](docs/adr/0029-linkedin-data-export-archive-import.md) |
+| T18 | **Hostile response from a third-party source** | A public Stack Exchange display name, dev.to article title, or GitLab project description carrying markup, a `javascript:` URL, or prompt-injection text | Every field is **interpolated, never `innerHTML`** — Angular's escaping is the defence, and the review forms render the same way ([ADR-0019](docs/adr/0019-security-first-rendering.md)). Any value reaching an `href` is scheme-checked and, for dev.to, must be a `https://dev.to` link. Tags are canonicalised through the closed skills taxonomy and anything outside it is dropped, so a crafted tag cannot invent a skill. No source may write `manual`, so nothing read from the network can outrank what the user typed | [ADR-0034](docs/adr/0034-gitlab-as-a-second-data-connection.md), [ADR-0035](docs/adr/0035-stack-exchange-as-evidence-of-expertise.md), [ADR-0036](docs/adr/0036-dev-to-as-interests-not-skills.md) |
+| T19 | **Identity mis-attribution across sources** | A stranger's Stack Exchange reputation or dev.to writing attached to this user's profile, by guessing an identifier from their GitHub login | **Nothing is guessed.** Every keyless source requires an identifier the user pasted — no fuzzy matching of display names, no "is this you?". A wrong match is a failure with no acceptable version, so the only input is one the person chose, and the review step names and links the profile before anything merges | [ADR-0035](docs/adr/0035-stack-exchange-as-evidence-of-expertise.md), [ADR-0036](docs/adr/0036-dev-to-as-interests-not-skills.md) |
+| T20 | **Quota exhaustion read as absence of evidence** | Stack Exchange's 300/day allowance is per **IP**, so a shared or NATed address — plausible in the markets this product names as its audience — exhausts it for everyone behind it, and an empty result is rendered as "no expertise" | Quota exhaustion is its own error type, distinct from an empty result, and the UI says *we could not look* rather than reporting nothing found. The same discipline the merged-PR count already keeps: **say what you do not know** ([docs/design-system.md](docs/design-system.md)). A user with no account is never scored as less proven | [ADR-0035](docs/adr/0035-stack-exchange-as-evidence-of-expertise.md) |
 | T18 | **Third-party PII ingestion** | A LinkedIn archive contains the connections, contacts and message history of people who never consented to Rujoom | The parser reads a **fixed allowlist** of career files and never opens `Connections.csv`, `messages.csv`, `Invitations.csv`, `Contacts.csv`, `Reactions.csv` or `Comments.csv`. Enforced in code and asserted by a test, not merely documented | [ADR-0029](docs/adr/0029-linkedin-data-export-archive-import.md) |
 | T19 | **Over-scoped GitHub credential** | A token that can *write* to private repositories is obtained for a read-only purpose and then stolen from `sessionStorage` | Sign-in never requests classic `repo` (which grants full control of private repositories including write). Private-repo reading is a separate opt-in using a **fine-grained PAT** limited to `Metadata: read` + `Contents: read`, stored in the isolated `secrets` IndexedDB store with the same handling as a BYOK key, and independently revocable | [ADR-0030](docs/adr/0030-github-graphql-profile-read.md) |
 
@@ -190,10 +193,21 @@ LinkedIn / Google `openid profile email` only
    ([ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md)).
 4. No secret is committed to the repository.
 5. OAuth is Authorization Code with an exact redirect-URI allowlist and a single-use
-   `state`. **No provider we use offers a workable public-client PKCE flow**, so every
+   `state`. Where a provider requires a client secret — GitHub, LinkedIn, Google — the
    `code -> token` exchange runs in the stateless `cairn-auth` Worker, which holds the
-   client secret, stores nothing, and requires an `Origin` on its allowlist — a
-   missing `Origin` is rejected, not waved through
+   secret, stores nothing, and requires an `Origin` on its allowlist; a missing `Origin`
+   is rejected, not waved through
    ([ADR-0024](docs/adr/0024-github-oauth-token-exchange-function.md)).
+
+   **Where a provider supports public-client PKCE, the Worker is not used.** GitLab
+   advertises `S256`, so its exchange runs in the browser with no secret anywhere and no
+   server in the path ([ADR-0034](docs/adr/0034-gitlab-as-a-second-data-connection.md)).
+   This clause used to read "no provider we use offers a workable public-client PKCE
+   flow", which was true when it was written and is worth correcting rather than
+   quietly deleting: the Worker is a **provider limitation, not a design necessity**, and
+   PKCE is the preferred shape whenever a provider allows it. A `pkce` provider must
+   never fall back to a plain code exchange — that would succeed at the provider while
+   discarding the protection, which is why the exchange refuses outright when the
+   verifier is missing.
 6. New runtime dependencies and new outbound origins require explicit review.
 7. The core product must remain functional and safe with no backend and no AI key.

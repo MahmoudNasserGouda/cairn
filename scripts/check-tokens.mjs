@@ -141,9 +141,48 @@ if (darkAt === -1) {
   }
 }
 
+/**
+ * A backtick inside a CSS comment in a `styles: []` block.
+ *
+ * Angular component styles are template literals, so a backtick in a comment
+ * terminates the string early. What follows is then parsed as TypeScript, and the
+ * compiler reports `Failed to resolve styles at position 1 to a string` — from the
+ * decorator, with no line number and no mention of a backtick.
+ *
+ * Caught here because it has now happened three times in this codebase, twice in a
+ * CSS comment and once in an HTML one. `ngc` does fail on it, but only under
+ * `npm run typecheck`: the dev server keeps serving the last good bundle, so the
+ * browser shows stale styles and the edit looks like it simply had no effect. That is
+ * an expensive way to learn it, and it is documented in docs/design-system.md —
+ * documentation that plainly was not enough.
+ */
+function backticksInStyles(text) {
+  if (!/styles:\s*\[/.test(text)) return [];
+  const found = [];
+  // Every `/* … */` comment, JSDoc excluded. Deliberately not scoped to the styles
+  // string: in the broken case the backtick *is* the apparent end of that string, so
+  // any attempt to find its closing backtick lands inside the comment and the window
+  // shuts before the bug does. The first version of this guard made exactly that
+  // mistake and reported nothing.
+  //
+  // A plain block comment containing a backtick is the bug; a JSDoc one (`/**`) is
+  // ordinary prose about code and is skipped.
+  for (const comment of text.matchAll(/\/\*[\s\S]*?\*\//g)) {
+    if (comment[0].startsWith('/**')) continue;
+    if (!comment[0].includes('`')) continue;
+    found.push(comment[0].replace(/\s+/g, ' ').trim().slice(0, 64));
+  }
+  return found;
+}
+
 for (const file of walk(SRC)) {
   if (file === TOKENS) continue;
   const text = readFileSync(file, 'utf8');
+  for (const comment of backticksInStyles(text)) {
+    failures.push(
+      `${relative('.', file)}: backtick in a CSS comment ends the styles string — ${comment}…`,
+    );
+  }
   // A stylesheet may set its own local variable — `cn-tag` sets `--chip` per source,
   // `cn-avatar` sets `--avatar-size`. Legitimate and local, in CSS or on the host.
   const local = new Set([...namesIn(text, VAR_DEF), ...namesIn(text, VAR_HOST_BINDING)]);
