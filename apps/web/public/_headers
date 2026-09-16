@@ -19,15 +19,26 @@
 # with no access to the app's storage, and `connect-src 'self'` lets it load its own
 # model files and reach nothing else.
 #
-# Two headers here exist to *undo* something, and the sandbox does not load without
-# either of them. Both were found by running the spike in a real browser.
+# The two `!` lines are the load-bearing part, and they are there because the previous
+# fix was built on a wrong idea of how this file works.
 #
-# `X-Frame-Options: SAMEORIGIN` overrides the `DENY` this path inherits from `/*`.
-# Cloudflare applies every matching rule rather than the most specific one, and a block
-# only overrides the headers it names, so `/ocr/index.html` was being served `DENY`:
-# unframeable from anywhere, same-origin included. Chromium enforces it; Firefox ignores
-# it in favour of `frame-ancestors` and says so in the console. It has to be right for
-# both.
+# **Cloudflare appends; it does not override.** `/*` matches `/ocr/*` too, and naming the
+# same header in this block does not replace the inherited value — both are sent.
+# Verified 2026-09-15 by serving the real build through `wrangler dev`: every `/ocr/*`
+# response carried *two* `Content-Security-Policy` headers and *two* `X-Frame-Options`
+# values. The earlier belief — that a block overrides the headers it names — is why
+# simply setting `X-Frame-Options: SAMEORIGIN` here did not work.
+#
+# Two CSPs are enforced cumulatively: a resource must satisfy every policy, so the
+# application's `script-src 'self'` intersected with this one and removed
+# `'wasm-unsafe-eval'` again, while `frame-ancestors 'none'` intersected to forbid
+# framing outright. Two `X-Frame-Options` values are a conflict, which Chromium resolves
+# as DENY. Either alone is enough to make the sandbox unreachable, and the symptom is an
+# empty frame — which reads exactly like "WebAssembly does not work in an opaque origin".
+#
+# `! Content-Security-Policy` and `! X-Frame-Options` drop the inherited values so the
+# ones below are the only ones sent. `scripts/check-csp.mjs` now fails the build if
+# either is missing.
 #
 # `Cross-Origin-Resource-Policy: cross-origin` — and it cannot be anything stricter.
 # This document runs on an **opaque origin**, which belongs to no site and no origin, so
@@ -40,6 +51,8 @@
 # is hotlinking, not disclosure. Framing the sandbox *document* is still restricted by
 # `frame-ancestors 'self'` above, and that is the control that matters.
 /ocr/*
+  ! Content-Security-Policy
+  ! X-Frame-Options
   Content-Security-Policy: default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; img-src blob: data:; style-src 'unsafe-inline'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'
   X-Content-Type-Options: nosniff
   Cross-Origin-Resource-Policy: cross-origin
